@@ -181,27 +181,8 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
           <button
             data-shortcut-edit={action}
             onClick={() => setEditingAction(action)}
-            className="min-w-[50px] px-2 py-1 r-sm text-xs font-mono transition-colors"
-            style={{
-              backgroundColor: !config.currentKey ? colors.backgroundCard : config.currentKey !== config.defaultKey ? `${colors.primary}10` : colors.backgroundCard,
-              color: !config.currentKey ? colors.textMuted : config.currentKey !== config.defaultKey ? colors.primary : colors.textSecondary,
-            }}
-            onMouseEnter={e => {
-              if (config.currentKey) {
-                e.currentTarget.style.backgroundColor = config.currentKey !== config.defaultKey ? `${colors.primary}20` : colors.backgroundCardHover;
-              } else {
-                e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-                e.currentTarget.style.color = colors.textSecondary;
-              }
-            }}
-            onMouseLeave={e => {
-              if (config.currentKey) {
-                e.currentTarget.style.backgroundColor = config.currentKey !== config.defaultKey ? `${colors.primary}10` : colors.backgroundCard;
-              } else {
-                e.currentTarget.style.backgroundColor = colors.backgroundCard;
-                e.currentTarget.style.color = colors.textMuted;
-              }
-            }}
+            className="shortcut-key min-w-[50px] px-2 py-1 r-sm text-xs font-mono transition-colors"
+            data-state={!config.currentKey ? 'unset' : config.currentKey !== config.defaultKey ? 'custom' : 'default'}
             title={t('settings.shortcuts.clickToEdit')}
           >
             {config.currentKey ? displayKey(config.currentKey) : '-'}

@@ -12,6 +12,7 @@ import { trackToAmlLyricLines } from './amllLyrics';
 import { FocusAmlAnimationBudget } from './focusAmlAnimationBudget';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import { settingsManager } from '../../services/settingsManager';
+import { useWindowVisible } from '../../hooks/useWindowVisible';
 
 const subscribeToSettings = (listener: () => void) => settingsManager.subscribe(listener);
 const getEnhancedFont = () => {
@@ -74,6 +75,8 @@ export default function FocusAmlLyrics({
   onSeek,
 }: FocusAmlLyricsProps) {
   const enhancedFont = useSyncExternalStore(subscribeToSettings, getEnhancedFont);
+  // AMLL's frame loop keeps running while paused; only `disabled` stops it.
+  const windowVisible = useWindowVisible();
   const playerRef = useRef<LyricPlayerRef>(null);
   const scrollReturnTimerRef = useRef<number | null>(null);
   const previousTimeRef = useRef(Math.round(currentTime * 1000));
@@ -153,7 +156,7 @@ export default function FocusAmlLyrics({
       currentTime={currentTimeMs}
       isSeeking={isSeeking}
       playing={isPlaying}
-      disabled={!isVisible}
+      disabled={!isVisible || !windowVisible}
       alignAnchor={portrait ? 'top' : 'center'}
       alignPosition={portrait ? 0.1 : 0.35}
       enableSpring

@@ -239,6 +239,7 @@ export interface IpcEventContract {
   'system-lyrics-action': [action: SystemLyricsAction];
   'download-progress': [progress: DownloadProgressEvent];
   'fullscreen-changed': [isFullScreen: boolean];
+  'window-visibility-changed': [visible: boolean];
   'window-before-close-flush': [requestId: number];
   'shortcut-triggered': [event: ShortcutTriggerEvent];
   'updater-event': [state: UpdaterState];

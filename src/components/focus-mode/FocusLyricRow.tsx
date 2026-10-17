@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import type { LyricWord, SyncedLyricLine } from '../../types';
 
 const decodedLyricCache = new Map<string, string>();
@@ -80,9 +80,10 @@ const FocusLyricRow = memo(({
 
   return (
     <p
-      className={`font-bold leading-tight cursor-default ${hasTimestamp ? 'cursor-pointer' : ''}`}
+      className={`focus-lyric-row font-bold leading-tight cursor-default ${hasTimestamp ? 'cursor-pointer' : ''}`}
       style={{
-        color: isActive ? textPrimary : textMuted,
+        '--focus-lyric-color': isActive ? textPrimary : textMuted,
+        '--focus-lyric-hover-color': textSecondary,
         fontSize: `${fontSize}px`,
         filter: isActive ? 'none' : `blur(${inactiveBlur}px)`,
         opacity: isActive ? 1 : 0.7,
@@ -90,10 +91,8 @@ const FocusLyricRow = memo(({
         transformOrigin: 'left center',
         transition: 'color 260ms ease, filter 360ms ease, opacity 360ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
         whiteSpace: 'pre-wrap',
-      }}
+      } as CSSProperties}
       onClick={() => hasTimestamp && onSeek(lyric.time, index)}
-      onMouseEnter={(event) => { if (!isActive) event.currentTarget.style.color = textSecondary; }}
-      onMouseLeave={(event) => { if (!isActive) event.currentTarget.style.color = textMuted; }}
       aria-current={isActive ? 'true' : undefined}
     >
       {timedWords ? timedWords.map((word, wordIndex) => {

@@ -139,4 +139,6 @@ obj.name = 'new name'
 
 ## 发布
 
-Tag 发布由维护者执行，日常开发不需要打 tag。格式为 `v0.x.x`（预发布）或 `v1.x.x`（正式发布）。
+发布由维护者执行，日常开发不需要打 tag。维护者更新 `package.json` 版本并推送后，在 Actions 里手动运行
+Release 工作流（或 `gh workflow run release.yml --ref <分支>`）；构建全部成功后，GitHub 才创建 `v<版本>`
+标签并公开 Release。`v0.x.x` 和带预发布后缀的版本（如 `v1.0.0-beta.1`）为预发布，其余 `v1.x.x` 为正式发布。

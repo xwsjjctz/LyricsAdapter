@@ -16,6 +16,7 @@ import type { PaletteLibrarySources } from './palette/usePaletteItems';
 import { useAppCommands, type AppCommandHandlers } from '../commands/useAppCommands';
 import type { PaletteSourceSlot } from '../commands/buildAppCommands';
 import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
+import { useWindowVisible } from '../hooks/useWindowVisible';
 import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
@@ -95,6 +96,7 @@ const AppShell: React.FC<AppShellProps> = ({
   const slots = useLibraryState(state => state.slots);
   const viewSlot = useLibraryState(state => state.viewSlot);
   const activeTracks = useLibraryState(state => state.slots[state.activeSlotId].tracks);
+  const windowVisible = useWindowVisible();
   const {
     viewMode,
     pageContentRef,
@@ -306,8 +308,8 @@ const AppShell: React.FC<AppShellProps> = ({
                     sourceKey={librarySourceKey}
                     dataSource={library.viewSlot}
                     currentTrackId={player.currentTrack?.id}
-                    // FocusMode covers the wall, so its glow rests there.
-                    nowPlayingAnimated={player.isPlaying && !isFocusMode}
+                    // FocusMode covers the wall, so its glow rests there; so does a hidden window.
+                    nowPlayingAnimated={player.isPlaying && !isFocusMode && windowVisible}
                     onTrackSelect={playShownTrack}
                     onRemoveTrack={library.removeTrack}
                     onRemoveMultipleTracks={library.removeTracks}

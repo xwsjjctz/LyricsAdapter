@@ -101,9 +101,6 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
     };
   }, []);
 
-  // Mouse hover state for the button
-  const [isButtonHovered, setIsButtonHovered] = useState(false);
-
   // 检测平台
   const desktopAPI = getDesktopAPI();
   const platform = desktopAPI?.platform || '';
@@ -132,22 +129,20 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
           <button
             onClick={onToggleFocusMode}
             data-no-gsap-bounce
-            className="h-full flex items-center justify-center pl-[5px] pr-0.5"
+            className="titlebar-focus-dot h-full flex items-center justify-center pl-[5px] pr-0.5"
             aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
-            onMouseEnter={() => setIsButtonHovered(true)}
-            onMouseLeave={() => setIsButtonHovered(false)}
           >
             <div
-              className="rounded-full flex items-center justify-center"
+              className="titlebar-focus-dot__light rounded-full flex items-center justify-center"
               style={{
                 width: layout.dotSize,
                 height: layout.dotSize,
                 ...getFocusLightStyle(isWindowFocused, layout.glossy),
               }}
             >
-              {isWindowFocused && isButtonHovered && (
+              {isWindowFocused && (
                 <span
-                  className="material-symbols-rounded"
+                  className="titlebar-focus-dot__glyph material-symbols-rounded"
                   style={{
                     color: layout.glossy ? 'rgba(0, 32, 96, 0.75)' : 'black',
                     fontSize: 12,

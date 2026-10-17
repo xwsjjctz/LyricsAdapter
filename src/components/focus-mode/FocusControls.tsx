@@ -1,4 +1,5 @@
 import React, { useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
 import { useFocusGlassControls } from '../../hooks/useFocusGlassControls';
@@ -84,6 +85,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     onSeek, onTogglePlay, onSkipNext, onSkipPrev, onVolumeChange, onToggleMute,
     onTogglePlaybackMode, onMouseEnter, onMouseLeave,
   });
+  const { t } = useTranslation();
   const backdropLight = useFocusBackdropLuminance(track ? resolveCoverUrl(track.coverUrl) : undefined);
   // Glass panels pick foreground colors from the analyzed backdrop instead of
   // the theme: a washed-out cover otherwise hides whichever fixed color the
@@ -170,7 +172,12 @@ const FocusControls: React.FC<FocusControlsProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className="p-4 flex flex-col gap-3 relative z-20 transition-opacity duration-500"
-      style={scaledPanelStyle}
+      style={{
+        ...scaledPanelStyle,
+        '--focus-control-fg-muted': fg.muted,
+        '--focus-control-fg-secondary': fg.secondary,
+        '--focus-control-fg-primary': fg.primary,
+      } as React.CSSProperties}
     >
       <div className="w-full flex items-center gap-3">
         <span className="text-[10px] tabular-nums font-bold w-10 text-right" style={{ color: fg.muted }}>
@@ -202,31 +209,29 @@ const FocusControls: React.FC<FocusControlsProps> = ({
 
       <div className="flex items-center justify-between px-4">
         <div className="flex gap-4" style={{ color: fg.muted }}>
-          <span
-            className="material-symbols-rounded text-lg cursor-pointer transition-colors relative -left-[4px]"
-            style={{ color: fg.muted }}
+          <button
+            type="button"
+            className="focus-control-icon focus-control-icon--muted material-symbols-rounded text-lg relative -left-[4px]"
             onClick={onTogglePlaybackMode}
-            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = fg.muted; }}
+            aria-label={t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence')}
           >
             {playbackModeIcon[playbackMode]}
-          </span>
+          </button>
         </div>
 
         <div className="flex items-center gap-6 relative left-[30px]">
           <button
             type="button"
             onClick={onSkipPrev}
-            className="transition-all hover:scale-110"
-            style={{ color: fg.secondary }}
-            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = fg.secondary; }}
+            className="focus-control-icon hover:scale-110"
+            aria-label={t('shortcut.prevTrack')}
           >
             <span className="material-symbols-rounded text-2xl">skip_previous</span>
           </button>
           <button
             type="button"
             onClick={onTogglePlay}
+            aria-label={t('shortcut.playPause')}
             className="size-11 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
             style={{ backgroundColor: glassColors ? glassColors.playBg : colors.textPrimary, color: glassColors ? glassColors.playFg : colors.backgroundDark, borderRadius: 'var(--theme-button-radius)' }}
           >
@@ -235,25 +240,22 @@ const FocusControls: React.FC<FocusControlsProps> = ({
           <button
             type="button"
             onClick={onSkipNext}
-            className="transition-all hover:scale-110"
-            style={{ color: fg.secondary }}
-            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = fg.secondary; }}
+            className="focus-control-icon hover:scale-110"
+            aria-label={t('shortcut.nextTrack')}
           >
             <span className="material-symbols-rounded text-2xl">skip_next</span>
           </button>
         </div>
 
         <div className="flex justify-end gap-4 items-center" style={{ color: fg.muted }}>
-          <span
-            className="material-symbols-rounded text-lg cursor-pointer transition-colors"
-            style={{ color: fg.muted }}
+          <button
+            type="button"
+            className="focus-control-icon focus-control-icon--muted material-symbols-rounded text-lg"
             onClick={onToggleMute}
-            onMouseEnter={event => { event.currentTarget.style.color = fg.primary; }}
-            onMouseLeave={event => { event.currentTarget.style.color = fg.muted; }}
+            aria-label={t(volume === 0 ? 'controls.unmute' : 'controls.mute')}
           >
             {volume === 0 ? 'volume_off' : 'volume_up'}
-          </span>
+          </button>
           <div className="w-16 relative h-4 flex items-center group">
             <input
               type="range"

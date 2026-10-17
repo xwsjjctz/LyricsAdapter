@@ -18,6 +18,7 @@ import { FOCUS_CONTROLS_IDLE_MS } from './focus-mode/focusControlsIdle';
 import { hasTrackLyrics } from './focus-mode/focusLyricsTrack';
 import './focus-mode/FocusModeLayout.css';
 import FocusLyrics from './focus-mode/FocusLyrics';
+import { useWindowVisible } from '../hooks/useWindowVisible';
 import {
   CLOCK_RESYNC_THRESHOLD_SECONDS,
   useFocusPlaybackClock,
@@ -109,11 +110,16 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
   const focusColors = FOCUS_MODE_COLORS;
   const useDefaultThemeControlGlass = currentTheme.id === THEME_IDS.DEFAULT;
 
+  // A minimized or hidden window keeps playing but stops every continuous
+  // animation (clock, backdrop, lyrics). Controls still show the real state.
+  const windowVisible = useWindowVisible();
+  const isAnimating = isPlaying && windowVisible;
+
   const { activeCurrentTime, realtimeCurrentTimeRef } = useFocusPlaybackClock({
     trackId: track?.id,
     isVisible,
     currentTime,
-    isPlaying,
+    isPlaying: isAnimating,
     getCurrentPlaybackTime,
   });
 
@@ -216,7 +222,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         trackId={track?.id}
         coverUrl={coverUrl}
         isVisible={isVisible}
-        isPlaying={isPlaying}
+        isPlaying={isAnimating}
         isLinux={isLinux}
         opacity={bgBlurTrans}
         blurRadius={bgBlurRadius}
@@ -260,7 +266,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
             track={track}
             currentTime={activeCurrentTime}
             currentTimeRef={realtimeCurrentTimeRef}
-            isPlaying={isPlaying}
+            isPlaying={isAnimating}
             isVisible={isVisible}
             useAmlLyrics={focusAmlLyricsEnabled}
             portrait={portrait}

@@ -86,6 +86,7 @@ export interface DesktopAPI {
   isMaximized?: Bridge['isMaximized'];
   isFullScreen?: Bridge['isFullScreen'];
   onFullScreenChange?: Bridge['onFullScreenChange'];
+  onWindowVisibilityChange?: Bridge['onWindowVisibilityChange'];
   onBeforeWindowClose?: Bridge['onBeforeWindowClose'];
   // Settings APIs
   selectDownloadFolder?: Bridge['selectDownloadFolder'];
@@ -319,6 +320,10 @@ class ElectronAdapter implements FullDesktopAPI {
 
   onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {
     return this.api.onFullScreenChange(callback);
+  }
+
+  onWindowVisibilityChange(callback: (visible: boolean) => void): () => void {
+    return this.api.onWindowVisibilityChange(callback);
   }
 
   onBeforeWindowClose(callback: () => Promise<boolean> | boolean): () => void {

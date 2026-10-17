@@ -167,10 +167,13 @@ Hardened Runtime 使用打包工具自带的 Electron 权限配置；原生模�
 整个应用包的签名、公证票据及 Gatekeeper 评估；这些检查通过后才生成分发包。
 更新元数据与文件校验通过后，CI 才上传构建产物。
 
-发布工作流仍仅由推送 `v*` 标签触发，且标签必须等于 `v` 加 `package.json` 版本。
-修改配置或本机构建不会触发发布。只有用户明确要求发布后才推标签；此前按 AGENTS.md 运行
-`npm run check` 和相关 Electron 测试。GitHub Release 先作为草稿上传全部产物，再公开；
-已有同名 Release 不会被删除或覆盖。上传失败留下的草稿需核对后另行处理，不能替换已公开版本的文件。
+发布工作流只能手动运行（Actions → Release → Run workflow，或 `gh workflow run release.yml --ref <分支>`），
+构建所选分支的最新提交，版本取自其中的 `package.json`。不要手动推 `v*` 标签：`v<版本>` 由 GitHub
+在 Release 公开时创建，构建期间和构建失败时都不存在，客户端检查更新不会因此 404。
+修改配置或本机构建不会触发发布。只有用户明确要求发布后才运行工作流；此前按 AGENTS.md 运行
+`npm run check` 和相关 Electron 测试。该版本的标签或 Release（含草稿）已存在时，工作流第一步即失败；
+GitHub Release 先作为草稿上传全部产物，再公开，不会删除或覆盖已有版本。
+上传失败留下的草稿需核对后另行处理，不能替换已公开版本的文件。
 
 ### 首次验收与用户迁移
 

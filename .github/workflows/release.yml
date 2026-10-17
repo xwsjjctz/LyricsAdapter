@@ -1,15 +1,53 @@
 name: Release
 
+# 手动运行（Actions → Release → Run workflow，或 `gh workflow run release.yml --ref dev`）。
+# 版本取自所选分支的 package.json；tag 在全部产物上传、Release 公开的那一刻才由 GitHub 创建，
+# 所以构建期间和构建失败时都不会出现指向不存在 Release 的 tag（客户端检查更新会 404）。
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Never replace an already published version: clients may have cached its metadata.
+      - name: Resolve version and refuse an existing tag or release
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          TAG="v${VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
+            echo "::error::Tag ${TAG} already exists. Bump package.json before releasing."
+            exit 1
+          fi
+          EXISTING=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate --jq ".[] | select(.tag_name == \"${TAG}\") | .id")
+          if [ -n "$EXISTING" ]; then
+            echo "::error::A release or draft for ${TAG} already exists (id ${EXISTING}). Review it before releasing again."
+            exit 1
+          fi
+          # v0.* 与带预发布后缀（如 1.0.0-beta.1）的版本标为 Pre-release，正式版用户不会收到。
+          if [[ "$TAG" == v0.* || "$VERSION" == *-* ]]; then PRERELEASE=true; else PRERELEASE=false; fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG} (prerelease=${PRERELEASE}) from ${GITHUB_SHA}"
+
   build:
+    needs: prepare
     strategy:
       matrix:
         include:
@@ -31,11 +69,6 @@ jobs:
         with:
           node-version: 24.19.0
           cache: npm
-
-      - name: Validate release version
-        shell: bash
-        run: |
-          node -e 'const version = require("./package.json").version; if (process.env.GITHUB_REF_NAME !== `v${version}`) throw new Error("Release tag must match package.json version")'
 
       # 五项凭证全空：退回未签名 DMG，不发布 macOS 更新元数据；只配了一部分：直接失败。
       - name: Detect macOS release credentials
@@ -114,7 +147,7 @@ jobs:
             release/latest-mac.yml
 
   release:
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
 
     steps:
@@ -141,9 +174,14 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          # Never replace an already published version: clients may have cached its metadata.
+          # The build took minutes; refuse if the tag appeared meanwhile.
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
+            echo "::error::Tag ${TAG} was created while this release was building."
+            exit 1
+          fi
           # Keep the release a draft until all installers and metadata have uploaded.
           shopt -s nullglob
           FILES=(release/*.dmg release/*.zip release/*.exe)
@@ -160,11 +198,17 @@ jobs:
             FILES+=(release/latest-mac.yml "${ZIP_BLOCKMAPS[@]}")
           fi
           echo "Uploading: ${FILES[*]}"
-          # 创建新的 release（v0.* 自动标记为 Pre-release）
-          if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
+          if [ "$PRERELEASE" = true ]; then PRE="--prerelease"; else PRE=""; fi
+          # A draft does not create its tag; publishing it tags the built commit.
           gh release create "$TAG" "${FILES[@]}" \
-            --draft --verify-tag \
+            --draft \
+            --target "$GITHUB_SHA" \
             --title "$TAG" \
             --generate-notes \
             $PRE
-          gh release edit "$TAG" --draft=false
+          # Drafts have no tag yet, so look the draft up by id rather than by tag name.
+          RELEASE_ID=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.draft and .tag_name == \"${TAG}\") | .id")
+          test -n "$RELEASE_ID"
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=false > /dev/null
+          echo "Published ${TAG} at ${GITHUB_SHA}" 

@@ -48,8 +48,7 @@ them only in these cases:
 - The user asks for them.
 - Before creating a GitHub PR that merges into `master`: run `npm run check` and the
   affected Electron tests where the environment supports them.
-- Before pushing a release tag that triggers the packaging workflow: run the same
-  checks.
+- Before starting the release workflow: run the same checks.
 
 Otherwise make the change, review it by reading the code, and say plainly in the
 report that it was not run. In the cases above, choose checks for the affected
@@ -105,6 +104,10 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
 - When pushing/PR delivery is requested or already authorized, push the focused branch
   with upstream tracking and use a PR for `master`. This convention is not itself a
   request to commit, push, or merge every local edit.
-- Release tags require an explicit user request. Run the checks above before pushing
-  one. Pushing `v*` triggers macOS/Windows release builds; `v0.*` is prerelease and `v1.*` onward is stable. Consult
+- Releases require an explicit user request. Bump `package.json` (and the lockfile),
+  commit and push the branch, run the checks above, then start the release with
+  `gh workflow run release.yml --ref <branch>`. Never push `v*` tags yourself: the
+  workflow builds the branch head and GitHub creates `v<version>` only when the finished
+  Release is published, so a failed build leaves no tag. `v0.*` and versions with a
+  prerelease suffix are prereleases; `v1.*` onward is otherwise stable. Consult
   `.github/workflows/release.yml` when release work is requested.
