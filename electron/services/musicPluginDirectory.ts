@@ -1,6 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** Plugin caches live beside, not inside, package directories so installs and updates keep them. */
+export function prepareMusicPluginDataDirectory(stateDirectory: string): string {
+  const directory = path.join(stateDirectory, 'plugin-data');
+  fs.mkdirSync(directory, { recursive: true });
+  return directory;
+}
+
 /** Migrate only plugin directories; an existing new installation always wins. */
 export function prepareMusicPluginDirectory(stateDirectory: string): string {
   const directory = path.join(stateDirectory, 'plugin');

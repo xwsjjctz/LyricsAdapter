@@ -5,8 +5,10 @@ const text = z.string().max(16_384);
 const id = z.string().min(1).max(128);
 const time = z.number().finite().nonnegative();
 const language = z.string().regex(/^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/).max(64);
+const tag = z.string().max(1024).optional();
 const documentSchema = z.object({
   id, revision: id, trackId: id, sourceLanguage: language.optional(),
+  metadata: z.object({ title: tag, artist: tag, album: tag }).optional(),
   lines: z.array(z.object({ id, text, startMs: time.optional(), endMs: time.optional(),
     words: z.array(z.object({ text, startMs: time, endMs: time })).max(2048).optional(),
   })).min(1).max(5000),

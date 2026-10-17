@@ -33,6 +33,7 @@ import type { DownloadProgressEvent } from '../types/onlineProgress';
 import type { MusicPluginCatalogEntry, MusicPluginInfo } from './musicPlugin';
 import type {
   ExtensionType,
+  PluginDataInfo,
   PluginHostInfo,
   PluginProviderInfo,
   PluginTranslationCall,
@@ -200,6 +201,8 @@ export interface IpcInvokeContract {
   'plugin-translate': [[call: PluginTranslationCall], TranslationResult];
   'plugin-configuration': [[id: string], Record<string, PluginConfigurationValue>];
   'plugin-set-configuration': [[id: string, key: string, value: PluginConfigurationValue], void];
+  'plugin-data-info': [[id: string], PluginDataInfo];
+  'plugin-clear-cache': [[id: string], void];
   'music-plugin-call': [[id: string, method: string, args: unknown[]], unknown];
   'music-plugin-list': [[], MusicPluginInfo[]];
   'music-plugin-catalog': [[], MusicPluginCatalogEntry[]];

@@ -4,8 +4,8 @@ import type { PluginUpdateInfo, PluginUpdateSource } from './pluginUpdate.js';
 export type { PluginUpdateInfo, PluginUpdateSource, PluginUpdateChannel, PluginUpdateFeed, PluginUpdateRelease } from './pluginUpdate.js';
 import type { OnlineMusicProvider, PlaylistInfo } from './onlineMusic.js';
 
-export const PLUGIN_CORE_API = '1.0.0';
-export const PLUGIN_EXTENSION_APIS = { 'music.source': '1.0.0', 'lyrics.translation': '1.0.0' } as const;
+export const PLUGIN_CORE_API = '1.1.0';
+export const PLUGIN_EXTENSION_APIS = { 'music.source': '1.0.0', 'lyrics.translation': '1.1.0' } as const;
 export type ExtensionType = keyof typeof PLUGIN_EXTENSION_APIS;
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export interface Disposable { dispose(): void }
@@ -14,6 +14,14 @@ export interface ConfigurationField {
   type: 'string' | 'boolean' | 'number';
   default: string | boolean | number;
   enum?: readonly (string | number)[];
+  /** Core 1.1: visible help text below the control. */
+  description?: string;
+  /**
+   * Core 1.1, string fields only. `secret` is stored with the plugin's secrets, shown as a
+   * password input and never returned to the renderer. `endpoint` must be an allowed network
+   * URL; its origin is added to the plugin's network permission while it is configured.
+   */
+  format?: 'secret' | 'endpoint';
 }
 export interface PluginManifest {
   manifestVersion: 1;
@@ -46,12 +54,16 @@ export interface LyricLine {
   endMs?: number;
   words?: readonly { text: string; startMs: number; endMs: number }[];
 }
+/** lyrics.translation 1.1: descriptive tags that help a translator understand context. */
+export interface LyricTrackMetadata { title?: string; artist?: string; album?: string }
 export interface LyricDocument {
   id: string;
   revision: string;
   /** Opaque identifier; no file path, audio URL or credentials are exposed. */
   trackId: string;
   sourceLanguage?: string;
+  /** lyrics.translation 1.1; not part of `revision`. */
+  metadata?: LyricTrackMetadata;
   lines: readonly LyricLine[];
 }
 export interface TranslationRequest { document: LyricDocument; targetLanguage: string }
@@ -89,11 +101,32 @@ export interface PluginContext {
   readonly storage: { get(key: string): JsonValue | undefined; set(key: string, value: JsonValue): void; delete(key: string): void };
   readonly secrets: { get(key: string): string; set(key: string, value: string): void };
   readonly configuration: { get(key: string): string | boolean | number; onDidChange(listener: () => void): Disposable };
+  /**
+   * Core 1.1: file-backed JSON cache owned by the plugin. It survives restarts, updates and
+   * disabling, is removed on uninstall and can be cleared by the user.
+   */
+  readonly cache: PluginCache;
   readonly network: {
-    /** HTTPS exact origins, manual redirects, bounded UTF-8 body; rejects non-2xx. */
-    fetchText(url: string, options?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<string>;
+    /** Declared origins (HTTPS, or HTTP on loopback), manual redirects, bounded UTF-8 body; rejects non-2xx. */
+    fetchText(url: string, options?: PluginFetchOptions): Promise<string>;
   };
 }
+export interface PluginFetchOptions {
+  method?: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  body?: string;
+  signal?: AbortSignal;
+  /** Core 1.1: 1–120000 ms, default 20000. */
+  timeoutMs?: number;
+}
+export interface PluginCache {
+  get(key: string): Promise<JsonValue | undefined>;
+  set(key: string, value: JsonValue): Promise<void>;
+  delete(key: string): Promise<void>;
+  clear(): Promise<void>;
+}
+/** Host view of a plugin's private data; secret values never leave the main process. */
+export interface PluginDataInfo { configuredSecrets: string[]; cacheEntries: number; cacheBytes: number }
 export interface PluginModule {
   activate(context: PluginContext): void | Disposable | Promise<void | Disposable>;
   deactivate?(): void | Promise<void>;
@@ -112,4 +145,6 @@ export interface PluginElectronAPI {
   pluginCancel?: (requestId: string) => void;
   pluginConfiguration?: (id: string) => Promise<Record<string, string | boolean | number>>;
   pluginSetConfiguration?: (id: string, key: string, value: string | boolean | number) => Promise<void>;
+  pluginDataInfo?: (id: string) => Promise<PluginDataInfo>;
+  pluginClearCache?: (id: string) => Promise<void>;
 }
