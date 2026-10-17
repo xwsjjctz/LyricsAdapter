@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   handle: vi.fn(), on: vi.fn(), nativeOn: vi.fn(), unavailable: vi.fn(), version: vi.fn(),
   windows: vi.fn(), check: vi.fn(), install: vi.fn(),
-  updater: { autoDownload: false, autoInstallOnAppQuit: false, allowPrerelease: false, disableDifferentialDownload: false },
+  updater: { autoDownload: false, autoInstallOnAppQuit: false, allowPrerelease: false, disableDifferentialDownload: true },
 }));
 vi.mock('electron', () => ({
   app: { isPackaged: true, getVersion: mocks.version },
@@ -127,6 +127,13 @@ describe('app updates', () => {
     const state = handler('updater:state')() as { message: string };
     expect(state.message).toHaveLength(200);
     expect(state.message.endsWith('…')).toBe(true);
+  });
+
+  it('downloads updates differentially on every platform', async () => {
+    const { initUpdater } = await import('../../electron/updater');
+    const { autoUpdater } = await import('electron-updater');
+    initUpdater(vi.fn(), vi.fn());
+    expect(autoUpdater.disableDifferentialDownload).toBe(false);
   });
 
   it('keeps stable 1.x releases off the prerelease feed', async () => {

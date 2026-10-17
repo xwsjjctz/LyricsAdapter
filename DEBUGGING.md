@@ -184,7 +184,7 @@ Hardened Runtime 使用打包工具自带的 Electron 权限配置；原生模�
 
 0.x 构建继续接收预发布，稳定 1.x 及以后默认只接收正式版，带预发布后缀的构建接收预发布。
 **现有 0.x 用户会接收 GitHub 预发布，不能用同一仓库的 Pre-release 标记隔离内部更新测试。**
-macOS 首次仍使用全量下载；Windows 按 `.exe.blockmap` 增量下载，发布时随安装包一起上传，失败自动退回全量。正式升级测试必须使用安装包，开发模式或普通 E2E 不等同于签名升级验收。
+两端都按 blockmap 增量下载，失败自动退回全量：Windows 用 `.exe.blockmap`，macOS 用 `.zip.blockmap`，发布时随安装包/ZIP 一起上传。macOS 与上次应用内更新缓存的 `update.zip` 比对，所以首次安装后的第一次更新仍是全量。正式升级测试必须使用安装包，开发模式或普通 E2E 不等同于签名升级验收。
 
 官方参考：[Developer ID 证书](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/)、
 [electron-builder 26 公证](https://www.electron.build/v26/docs/notarization/)、

@@ -41,6 +41,7 @@ describe('macOS release prerequisites', () => {
       const name = `LyricsAdapter-${version}-mac-arm64.${extension}`;
       const bytes = Buffer.from(`fixture ${extension}`);
       fs.writeFileSync(path.join(directory, name), bytes);
+      if (extension === 'zip') fs.writeFileSync(path.join(directory, `${name}.blockmap`), 'blockmap');
       return { url: name, sha512: createHash('sha512').update(bytes).digest('base64'), size: bytes.length };
     });
     // JSON is valid YAML and avoids executing a packager or using signing credentials in unit tests.
@@ -51,6 +52,13 @@ describe('macOS release prerequisites', () => {
   it('requires the ZIP as well as the installer in the update metadata', () => {
     expect(() => verifyReleaseArtifacts(artifacts().directory, 'mac')).not.toThrow();
     expect(() => verifyReleaseArtifacts(artifacts(['dmg']).directory, 'mac')).toThrow('missing .zip');
+  });
+
+  it('requires the ZIP blockmap used by differential macOS updates', () => {
+    const { directory, files } = artifacts();
+    const zip = files.find(file => file.url.endsWith('.zip'))!;
+    fs.unlinkSync(path.join(directory, `${zip.url}.blockmap`));
+    expect(() => verifyReleaseArtifacts(directory, 'mac')).toThrow('.zip.blockmap');
   });
 
   it('requires the Windows installer blockmap used by differential updates', () => {

@@ -87,7 +87,7 @@ jobs:
         run: |
           npm run electron:build:mac:unsigned
           # 未签名包不能应用内更新，不能让它的元数据进入 Release。
-          rm -f release/latest-mac.yml release/*.zip
+          rm -f release/latest-mac.yml release/*.zip release/*.zip.blockmap
 
       - name: Build Windows installer
         if: runner.os == 'Windows'
@@ -107,6 +107,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
+            release/*.zip.blockmap
             release/*.exe
             release/*.exe.blockmap
             release/latest.yml
@@ -148,12 +149,16 @@ jobs:
           FILES=(release/*.dmg release/*.zip release/*.exe)
           test -f release/latest.yml
           FILES+=(release/latest.yml)
-          # Windows 增量更新需要新旧两个版本的 blockmap 都在各自的 Release 里。
+          # 增量更新需要新旧两个版本的 blockmap 都在各自的 Release 里。
           BLOCKMAPS=(release/*.exe.blockmap)
           test "${#BLOCKMAPS[@]}" -gt 0
           FILES+=("${BLOCKMAPS[@]}")
-          # 未签名的 macOS 构建不带更新元数据。
-          if [ -f release/latest-mac.yml ]; then FILES+=(release/latest-mac.yml); fi
+          # 未签名的 macOS 构建不带更新元数据；签名构建的增量更新需要 ZIP 的 blockmap。
+          if [ -f release/latest-mac.yml ]; then
+            ZIP_BLOCKMAPS=(release/*.zip.blockmap)
+            test "${#ZIP_BLOCKMAPS[@]}" -gt 0
+            FILES+=(release/latest-mac.yml "${ZIP_BLOCKMAPS[@]}")
+          fi
           echo "Uploading: ${FILES[*]}"
           # 创建新的 release（v0.* 自动标记为 Pre-release）
           if [[ "$TAG" == v0.* ]]; then PRE="--prerelease"; else PRE=""; fi
