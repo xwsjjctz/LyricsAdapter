@@ -113,6 +113,12 @@ stdout.on('line', line => {
     return;
   }
   if (testAttachment && message.type === 'status' && !statusSeen) {
+    // The host defers attaching until its first background UI Automation
+    // snapshot lands, then its health timer retries and reports again.
+    if (message.attached !== true && message.reason === 'automation-pending') {
+      attachmentSummary = 'reason=automation-pending (still waiting for a later status)';
+      return;
+    }
     statusSeen = true;
     const dpi = Number(message.dpi);
     const actualWidth = Number(message.boundsPx?.width);
