@@ -173,6 +173,7 @@ const bridge = {
   isMaximized: invoker('window-is-maximized'),
   isFullScreen: invoker('window-is-fullscreen'),
   onFullScreenChange: callback => listen('fullscreen-changed', callback),
+  onWindowVisibilityChange: callback => listen('window-visibility-changed', callback),
   onBeforeWindowClose: callback => listen('window-before-close-flush', async requestId => {
     let saved = false;
     try {

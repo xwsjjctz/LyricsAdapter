@@ -35,6 +35,8 @@ export interface ElectronBridge {
   isMaximized: IpcInvoker<'window-is-maximized'>;
   isFullScreen: IpcInvoker<'window-is-fullscreen'>;
   onFullScreenChange(callback: (isFullScreen: boolean) => void): Unsubscribe;
+  /** False while the main window is minimized or hidden. */
+  onWindowVisibilityChange(callback: (visible: boolean) => void): Unsubscribe;
   /** The callback's boolean tells the main process whether the final save succeeded. */
   onBeforeWindowClose(callback: () => Promise<boolean> | boolean): Unsubscribe;
   /** Resolves a dropped File to its path and admits it to the audio allowlist. */

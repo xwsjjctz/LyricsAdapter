@@ -687,6 +687,14 @@ textarea.no-scrollbar::-webkit-scrollbar {
   }
 }
 
+/* Minimized or hidden main window (services/windowVisibility.ts): nobody sees
+   looping CSS animations such as marquees and spinners, so hold them. */
+:root[data-window-hidden] *,
+:root[data-window-hidden] *::before,
+:root[data-window-hidden] *::after {
+  animation-play-state: paused !important;
+}
+
 /* The native gutter stays hidden; a visual thumb overlays the list so header
    and row columns retain identical usable width on every desktop platform. */
 .library-track-scroll {

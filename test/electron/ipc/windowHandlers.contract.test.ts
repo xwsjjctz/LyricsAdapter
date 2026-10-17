@@ -148,6 +148,34 @@ describe('window close persistence handshake', () => {
     expect(win.close).not.toHaveBeenCalled();
   });
 
+  it('tells the renderer when the window is minimized or hidden, once per change', () => {
+    const state = { visible: true, minimized: false };
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const win = {
+      isDestroyed: () => false,
+      isVisible: () => state.visible,
+      isMinimized: () => state.minimized,
+      on: (event: string, listener: (...args: unknown[]) => void) => listeners.set(event, listener),
+      webContents: { send: vi.fn() },
+    };
+    registerWindowControls(win as never);
+    const visibilityMessages = () => win.webContents.send.mock.calls
+      .filter(([channel]) => channel === 'window-visibility-changed')
+      .map(([, visible]) => visible);
+
+    state.minimized = true;
+    listeners.get('minimize')?.();
+    listeners.get('minimize')?.();
+    state.minimized = false;
+    listeners.get('restore')?.();
+    state.visible = false;
+    listeners.get('hide')?.();
+    state.visible = true;
+    listeners.get('show')?.();
+
+    expect(visibilityMessages()).toEqual([false, true, false, true]);
+  });
+
   it('restores the ordinary close handshake when update installation fails', async () => {
     const { controls, listeners, respond } = updateFixture();
     const ready = controls.prepareForUpdate();

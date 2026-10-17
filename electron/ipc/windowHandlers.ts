@@ -108,6 +108,22 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
     win.on('leave-full-screen', () => {
       if (win) sendIpc(win.webContents, 'fullscreen-changed', false);
     });
+
+    // macOS keeps backgroundThrottling off for the status-item lyric sampler,
+    // so the page never sees itself hidden and its animations keep running.
+    // Report minimize/hide directly so continuous animations can stop.
+    let lastVisible = true;
+    const reportVisibility = () => {
+      if (!win || win.isDestroyed()) return;
+      const visible = win.isVisible() && !win.isMinimized();
+      if (visible === lastVisible) return;
+      lastVisible = visible;
+      sendIpc(win.webContents, 'window-visibility-changed', visible);
+    };
+    win.on('minimize', reportVisibility);
+    win.on('restore', reportVisibility);
+    win.on('hide', reportVisibility);
+    win.on('show', reportVisibility);
   }
 
   return {
