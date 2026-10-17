@@ -6,6 +6,7 @@ import { MusicPluginRegistry } from '../services/musicPluginRegistry';
 import { MusicPluginCatalog } from '../services/musicPluginCatalog';
 import { prepareMusicPluginDataDirectory, prepareMusicPluginDirectory } from '../services/musicPluginDirectory';
 import { PluginUpdateService } from '../services/pluginUpdates';
+import { fetchPluginUpdate } from '../services/pluginUpdateFetch';
 import { spawnPluginProcess } from '../services/pluginProcessSpawn';
 import type { PluginDataSnapshot } from '../plugin-host/protocol';
 import { confirmPluginTrust } from '../services/pluginTrustDialog';
@@ -98,7 +99,7 @@ export function registerMusicPluginHandlers(): void {
     for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'music-plugins-changed', plugins);
     return plugins;
   };
-  const updates = new PluginUpdateService({ registry, catalog, fetcher: (url, init) => net.fetch(url, init),
+  const updates = new PluginUpdateService({ registry, catalog, fetcher: fetchPluginUpdate,
     read: key => userStateRepository.getSetting(key), write: (key, value) => userStateRepository.setSetting(key, value),
     changed: value => { for (const window of BrowserWindow.getAllWindows()) sendIpc(window.webContents, 'plugin-updates-changed', value); },
     confirm: confirmPluginTrust,

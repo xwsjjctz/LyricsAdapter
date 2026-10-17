@@ -36,14 +36,38 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
     await app.evaluate(({ BrowserWindow, net }, fixture) => {
       BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.focus();
       const state = globalThis as unknown as { failPluginDownload: boolean }; state.failPluginDownload = true;
-      const original = net.fetch.bind(net);
+      const originalFetch = net.fetch.bind(net);
       net.fetch = async (input, init) => {
-        const url = String(input);
-        if (url.includes('LyricsAdapter-Music-Plugins')) return new Response(JSON.stringify({ apiVersion: 1, plugins: [] }));
-        if (url === 'https://api.github.com/repos/test/translator/releases/latest') return new Response(JSON.stringify({ assets: [{ name: 'plugins.update.json', browser_download_url: fixture.feedUrl }] }));
-        if (url === fixture.feedUrl) return new Response(fixture.feed);
-        if (url === fixture.packageUrl) return new Response(state.failPluginDownload ? fixture.updated+' ' : fixture.updated);
-        return original(input, init);
+        if (String(input).includes('LyricsAdapter-Music-Plugins')) return new Response(JSON.stringify({ apiVersion: 1, plugins: [] }));
+        return originalFetch(input, init);
+      };
+      // Exercise real updater redirect handling instead of mocking net.fetch's missing manual support.
+      const { EventEmitter } = process.getBuiltinModule('node:events');
+      const originalRequest = net.request.bind(net);
+      net.request = options => {
+        const url = typeof options === 'string' ? options : options.url;
+        const feedAsset = 'https://release-assets.githubusercontent.com/test/feed';
+        const packageAsset = 'https://release-assets.githubusercontent.com/test/package';
+        const api = 'https://api.github.com/repos/test/translator/releases/latest';
+        if (![api, fixture.feedUrl, fixture.packageUrl, feedAsset, packageAsset].includes(url ?? '')) return originalRequest(options);
+        const request = Object.assign(new EventEmitter(), {
+          setHeader: () => {},
+          abort: () => {},
+          end: () => queueMicrotask(() => {
+            if (url === fixture.feedUrl || url === fixture.packageUrl) {
+              request.emit('redirect', 302, 'GET', url === fixture.feedUrl ? feedAsset : packageAsset, {});
+              request.emit('error', new Error('Redirect was cancelled'));
+              return;
+            }
+            const body = url === api ? JSON.stringify({ assets: [{ name: 'plugins.update.json', browser_download_url: fixture.feedUrl }] })
+              : url === feedAsset ? fixture.feed : state.failPluginDownload ? fixture.updated+' ' : fixture.updated;
+            const response = Object.assign(new EventEmitter(), { statusCode: 200, headers: {} });
+            request.emit('response', response);
+            response.emit('data', Buffer.from(body));
+            response.emit('end');
+          }),
+        });
+        return request as unknown as ReturnType<typeof net.request>;
       };
     }, { feed, feedUrl, updated, packageUrl });
     await expect(page.locator('.poster-wall')).toBeVisible();
