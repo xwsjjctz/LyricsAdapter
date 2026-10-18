@@ -21,6 +21,27 @@ export async function lyricDocumentForTrack(track: Track): Promise<LyricDocument
     ...(Object.keys(metadata).length ? { metadata } : {}), lines };
 }
 
+/**
+ * Translations the listener asked for in this session, by track, provider and target
+ * language. Focus Mode translates only on request; remembering it keeps the result shown
+ * when Focus Mode reopens or the track comes back. Never persisted.
+ */
+const requested = new Set<string>();
+const requestListeners = new Set<() => void>();
+export const translationRequestKey = (trackId: string, providerKey: string, targetLanguage: string) =>
+  JSON.stringify([trackId, providerKey, targetLanguage]);
+export const isTranslationRequested = (key: string) => requested.has(key);
+export function subscribeTranslationRequests(listener: () => void): () => void {
+  requestListeners.add(listener);
+  return () => { requestListeners.delete(listener); };
+}
+export function setTranslationRequested(key: string, value: boolean): void {
+  if (requested.has(key) === value) return;
+  if (value) { requested.add(key); while (requested.size > 256) requested.delete(requested.values().next().value!); }
+  else requested.delete(key);
+  requestListeners.forEach(listener => listener());
+}
+
 const cache = new Map<string, TranslationResult>();
 const pending = new Map<string, { promise: Promise<TranslationResult>; requestId: string; references: number }>();
 /** Lease shared work; the final consumer cancels its IPC request when no result is cached. */

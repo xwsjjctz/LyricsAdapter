@@ -10,6 +10,7 @@ import FocusBackdrop from './focus-mode/FocusBackdrop';
 import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';
 import FocusTrackMeta from './focus-mode/FocusTrackMeta';
+import FocusTranslateButton from './focus-mode/FocusTranslateButton';
 import { BACKDROP_ALPHA_EXIT_DURATION_MS } from './focus-mode/focusBackdropAlpha';
 import { useFocusModeScale } from './focus-mode/focusModeScale';
 import { useFocusPortraitLayout } from './focus-mode/useFocusPortraitLayout';
@@ -19,6 +20,7 @@ import { hasTrackLyrics } from './focus-mode/focusLyricsTrack';
 import './focus-mode/FocusModeLayout.css';
 import FocusLyrics from './focus-mode/FocusLyrics';
 import { useWindowVisible } from '../hooks/useWindowVisible';
+import { usePluginTranslation } from '../hooks/usePluginTranslation';
 import {
   CLOCK_RESYNC_THRESHOLD_SECONDS,
   useFocusPlaybackClock,
@@ -122,6 +124,9 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     isPlaying: isAnimating,
     getCurrentPlaybackTime,
   });
+
+  // Translation starts from the button under the track title; its state never touches playback.
+  const translation = usePluginTranslation(hasTrackLyrics(track) ? track : null, isVisible);
 
   const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
 
@@ -258,12 +263,15 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
               textPrimary={focusColors.textPrimary}
               textMuted={focusColors.textMuted}
               scale={focusScale}
-            />
+            >
+              <FocusTranslateButton status={translation.status} onToggle={translation.toggle} scale={focusScale} />
+            </FocusTrackMeta>
           </div>
 
           {/* Lyrics */}
           <FocusLyrics
             track={track}
+            translations={translation.lines}
             currentTime={activeCurrentTime}
             currentTimeRef={realtimeCurrentTimeRef}
             isPlaying={isAnimating}

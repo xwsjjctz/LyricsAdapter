@@ -1,0 +1,76 @@
+/* Translate pill under the track title, in Focus Mode's fixed dark palette. */
+.focus-translate {
+  --focus-translate-scale: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6px * var(--focus-translate-scale));
+  margin-top: calc(16px * var(--focus-translate-scale));
+}
+
+.focus-translate-button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6px * var(--focus-translate-scale));
+  padding: calc(6px * var(--focus-translate-scale)) calc(14px * var(--focus-translate-scale))
+    calc(6px * var(--focus-translate-scale)) calc(10px * var(--focus-translate-scale));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: calc(13px * var(--focus-translate-scale));
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.focus-translate-button .material-symbols-rounded {
+  font-size: calc(18px * var(--focus-translate-scale));
+}
+
+.focus-translate-button:is(:hover, :focus-visible):not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.focus-translate-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 2px;
+}
+
+/* Translated: a filled pill. Pressing it again shows only the original lyrics. */
+.focus-translate-button[aria-pressed='true'],
+.focus-translate-button[aria-pressed='true']:is(:hover, :focus-visible) {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.focus-translate-button[aria-pressed='true']:is(:hover, :focus-visible) {
+  background: #fff;
+}
+
+.focus-translate-button:disabled {
+  cursor: progress;
+}
+
+.focus-translate-status {
+  margin: 0;
+  font-size: calc(12px * var(--focus-translate-scale));
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+@media (orientation: portrait) {
+  .focus-translate {
+    align-items: flex-start;
+    margin-top: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-translate-button {
+    transition: none;
+  }
+}

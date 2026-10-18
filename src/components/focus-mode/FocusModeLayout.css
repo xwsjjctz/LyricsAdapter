@@ -108,7 +108,7 @@
   .focus-track-meta { margin: 0; text-align: left; min-width: 0; max-width: none; }
   .focus-track-meta h1 { font-size: 20px; line-height: 1.2; margin-bottom: 4px; }
   .focus-track-meta h1 + p { font-size: 14px; line-height: 1.4; }
-  .focus-track-meta p:last-child { font-size: 12px; line-height: 1.4; }
+  .focus-track-meta > p:last-of-type { font-size: 12px; line-height: 1.4; }
   .focus-mode-content .focus-lyrics-viewport {
     --focus-lyrics-controls-cutaway: calc(var(--focus-controls-height) + var(--focus-controls-bottom));
     --focus-lyrics-controls-alpha: 1;

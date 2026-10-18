@@ -6,9 +6,11 @@ interface FocusTrackMetaProps {
   textPrimary: string;
   textMuted: string;
   scale?: number;
+  /** Shown under the album line, following the block's alignment in each layout. */
+  children?: React.ReactNode;
 }
 
-const FocusTrackMeta: React.FC<FocusTrackMetaProps> = ({ track, textPrimary, textMuted, scale = 1 }) => (
+const FocusTrackMeta: React.FC<FocusTrackMetaProps> = ({ track, textPrimary, textMuted, scale = 1, children }) => (
   <div
     className="focus-track-meta mt-5 lg:mt-7 text-center w-full max-w-[340px]"
     style={scale > 1 ? { marginTop: `${28 * scale}px`, maxWidth: `${340 * scale}px` } : undefined}
@@ -31,6 +33,7 @@ const FocusTrackMeta: React.FC<FocusTrackMetaProps> = ({ track, textPrimary, tex
     >
       {track?.album}
     </p>
+    {children}
   </div>
 );
 
