@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Track } from '@/types';
 const mock = vi.hoisted(() => ({translate:vi.fn(),cancel:vi.fn()}));
 vi.mock('@/services/desktopAdapter',()=>({getDesktopAPI:()=>({pluginTranslate:mock.translate,pluginCancel:mock.cancel})}));
-import { acquireTranslation, lyricDocumentForTrack } from '@/services/pluginTranslation';
+import { acquireTranslation, effectiveTranslationLanguage, languageDisplayName, lyricDocumentForTrack, translationLanguages } from '@/services/pluginTranslation';
 const track: Track = {id:'/private/music/example.flac',filePath:'/private/music/example.flac',title:'Title',artist:'Artist',album:'Album',audioUrl:'private-url',duration:100,source:'netease',syncedLyrics:[{time:1,text:'Same'},{time:1,text:'Same'}]};
 afterEach(()=>{vi.clearAllMocks();vi.unstubAllGlobals();});
 describe('lyric translation data boundary and leases',()=>{
@@ -27,5 +27,26 @@ describe('lyric translation data boundary and leases',()=>{
   const c=acquireTranslation(provider,document,'zh','scope');await Promise.resolve();expect(mock.translate).toHaveBeenCalledTimes(2);
   resolve({documentId:document.id,documentRevision:document.revision,targetLanguage:'zh',lines:[]});await c.promise;c.release();
   const cached=acquireTranslation(provider,document,'zh','scope');await cached.promise;cached.release();expect(mock.translate).toHaveBeenCalledTimes(2);
+ });
+});
+
+describe('provider target languages',()=>{
+ const provider={key:'demo:default',pluginId:'demo',id:'default',type:'lyrics.translation' as const,name:'Demo',version:'1.0.0'};
+ it('offers the default list until a provider declares its own',()=>{
+  expect(translationLanguages(undefined)).toEqual(['zh','en','ja','ko']);
+  expect(translationLanguages(provider)).toEqual(['zh','en','ja','ko']);
+  expect(translationLanguages({...provider,languages:['fr','de']})).toEqual(['fr','de']);
+ });
+ it('falls back to a related or the first declared language without changing a supported preference',()=>{
+  const declared={...provider,languages:['zh-Hans','zh-Hant','en']};
+  expect(effectiveTranslationLanguage(declared,'EN')).toBe('en');
+  expect(effectiveTranslationLanguage(declared,'zh-hant')).toBe('zh-Hant');
+  expect(effectiveTranslationLanguage(declared,'zh')).toBe('zh-Hans');
+  expect(effectiveTranslationLanguage(declared,'ja')).toBe('zh-Hans');
+  expect(effectiveTranslationLanguage(null,'ko')).toBe('ko');
+ });
+ it('names languages in their own script',()=>{
+  expect(languageDisplayName('ja')).toBe('日本語');
+  expect(languageDisplayName('en')).toBe('English');
  });
 });

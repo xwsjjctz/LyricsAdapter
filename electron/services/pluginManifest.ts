@@ -1,5 +1,6 @@
 import type { MusicPluginManifest } from '../../src/shared/musicPlugin';
 import { PLUGIN_CORE_API, PLUGIN_EXTENSION_APIS, type ConfigurationField, type PluginManifest, type ExtensionType } from '../../src/shared/plugin';
+import { LANGUAGE_TAG } from '../../src/shared/pluginValidation';
 
 export const PLUGIN_ID = /^[a-z][a-z0-9-]{0,63}$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -44,6 +45,25 @@ export function negotiateExtensions(manifest: PluginManifest): Partial<Record<Ex
   }
   return versions;
 }
+/** Deadline for one translation call when the provider does not declare `timeoutSeconds`. */
+export const DEFAULT_TRANSLATION_TIMEOUT_MS = 180_000;
+const MIN_TRANSLATION_TIMEOUT_SECONDS = 20;
+const MAX_TRANSLATION_TIMEOUT_SECONDS = 600;
+const MAX_TRANSLATION_LANGUAGES = 32;
+/** lyrics.translation 1.2 provider fields: target languages and the whole-call deadline. */
+function validTranslationOptions(item: Record<string, unknown>): boolean {
+  const { languages, timeoutSeconds } = item;
+  if (item['type'] !== 'lyrics.translation') return languages === undefined && timeoutSeconds === undefined;
+  return (languages === undefined || (Array.isArray(languages) && languages.length > 0 && languages.length <= MAX_TRANSLATION_LANGUAGES
+      && languages.every(tag => typeof tag === 'string' && tag.length <= 64 && LANGUAGE_TAG.test(tag))
+      && new Set(languages.map(tag => (tag as string).toLowerCase())).size === languages.length))
+    && (timeoutSeconds === undefined || (typeof timeoutSeconds === 'number' && Number.isInteger(timeoutSeconds)
+      && timeoutSeconds >= MIN_TRANSLATION_TIMEOUT_SECONDS && timeoutSeconds <= MAX_TRANSLATION_TIMEOUT_SECONDS));
+}
+export function translationTimeoutMs(manifest: PluginManifest, providerId: string): number {
+  const seconds = manifest.contributes.providers.find(p => p.type === 'lyrics.translation' && p.id === providerId)?.timeoutSeconds;
+  return seconds === undefined ? DEFAULT_TRANSLATION_TIMEOUT_MS : seconds * 1000;
+}
 /** Secret fields need the secrets permission and start empty; endpoints default to empty or an allowed URL. */
 function validFormat(field: ConfigurationField, manifest: PluginManifest): boolean {
   if (field.format === undefined) return true;
@@ -69,6 +89,7 @@ export function validatePlatformManifest(value: Record<string, unknown>): MusicP
     if (!record(item) || typeof item.type !== 'string' || typeof item.id !== 'string' || !PLUGIN_ID.test(item.id)
       || typeof item.name !== 'string' || !item.name.trim()
       || !Object.hasOwn({ ...manifest.extensionApis, ...manifest.optionalExtensionApis }, item.type)
+      || !validTranslationOptions(item as unknown as Record<string, unknown>)
       || keys.has(`${item.type}:${item.id}`)) throw new Error('Invalid provider contribution');
     keys.add(`${item.type}:${item.id}`);
   }

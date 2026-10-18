@@ -157,7 +157,8 @@ export class MusicPluginRegistry {
       if (!info.platform) return type === 'music.source' ? [{ key: `${info.id}:default`, pluginId: info.id, id: 'default', type, name: info.name, version: info.version }] : [];
       const versions = negotiateExtensions(info.platform);
       return info.platform.contributes.providers.filter(p => p.type === type && versions[type])
-        .map(p => ({ key: `${info.id}:${p.id}`, pluginId: info.id, id: p.id, type, name: p.name, version: info.version }));
+        .map(p => ({ key: `${info.id}:${p.id}`, pluginId: info.id, id: p.id, type, name: p.name, version: info.version,
+          ...(p.languages ? { languages: [...p.languages] } : {}) }));
     });
   }
   async translate(key: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult> {

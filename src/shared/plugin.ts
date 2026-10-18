@@ -5,7 +5,7 @@ export type { PluginUpdateInfo, PluginUpdateSource, PluginUpdateChannel, PluginU
 import type { OnlineMusicProvider, PlaylistInfo } from './onlineMusic.js';
 
 export const PLUGIN_CORE_API = '1.1.0';
-export const PLUGIN_EXTENSION_APIS = { 'music.source': '1.0.0', 'lyrics.translation': '1.1.0' } as const;
+export const PLUGIN_EXTENSION_APIS = { 'music.source': '1.0.0', 'lyrics.translation': '1.2.0' } as const;
 export type ExtensionType = keyof typeof PLUGIN_EXTENSION_APIS;
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export interface Disposable { dispose(): void }
@@ -38,9 +38,21 @@ export interface PluginManifest {
   optionalExtensionApis?: Record<string, string>;
   permissions?: { network?: readonly string[]; secrets?: 'own' };
   contributes: {
-    providers: readonly { type: string; id: string; name: string }[];
+    providers: readonly ProviderContribution[];
     configuration?: Record<string, ConfigurationField>;
   };
+}
+export interface ProviderContribution {
+  type: string;
+  id: string;
+  name: string;
+  /**
+   * lyrics.translation 1.2: target language tags the provider supports, in display order.
+   * Without it the host offers its default list (zh, en, ja, ko).
+   */
+  languages?: readonly string[];
+  /** lyrics.translation 1.2: deadline for one whole translation call, 20–600 seconds (default 180). */
+  timeoutSeconds?: number;
 }
 export interface PluginHostInfo {
   coreApi: string;
@@ -73,7 +85,15 @@ export interface TranslationResult {
   targetLanguage: string;
   lines: readonly { lineId: string; text: string }[];
 }
-export interface ProviderCallContext { requestId: string; signal: AbortSignal }
+export interface ProviderCallContext {
+  requestId: string;
+  signal: AbortSignal;
+  /**
+   * lyrics.translation 1.2: milliseconds left before the host abandons this call, measured
+   * when the provider is invoked. Older hosts omit it and allow 180 seconds.
+   */
+  timeoutMs?: number;
+}
 export interface LyricsTranslationProvider {
   translate(request: TranslationRequest, context: ProviderCallContext): Promise<TranslationResult>;
 }
@@ -131,7 +151,11 @@ export interface PluginModule {
   activate(context: PluginContext): void | Disposable | Promise<void | Disposable>;
   deactivate?(): void | Promise<void>;
 }
-export interface PluginProviderInfo { key: string; pluginId: string; id: string; type: ExtensionType; name: string; version: string }
+export interface PluginProviderInfo {
+  key: string; pluginId: string; id: string; type: ExtensionType; name: string; version: string;
+  /** A translation provider's declared target languages. */
+  languages?: readonly string[];
+}
 export interface PluginTranslationCall { requestId: string; providerKey: string; request: TranslationRequest }
 export interface PluginElectronAPI {
   pluginUpdateList?: () => Promise<PluginUpdateInfo[]>;

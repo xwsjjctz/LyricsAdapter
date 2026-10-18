@@ -2,7 +2,7 @@
 
 `llm-translation` 是一个 `lyrics.translation` 插件：把当前歌曲的歌词发给大语言模型翻译，在专注模式中对照显示，并把译文按歌曲缓存在本地。已经翻译过的歌曲直接读取缓存，不会再次请求模型。
 
-需要宿主核心 API 1.1.0、`lyrics.translation` 1.1.0（见 [API 参考](../../../docs/plugins/api.md)）。
+需要宿主核心 API 1.1.0、`lyrics.translation` 1.1.0（见 [API 参考](../../../docs/plugins/api.md)）。在支持 `lyrics.translation` 1.2 的宿主上，设置页列出本插件声明的目标语言（中文、繁体中文、英语、日语、韩语、法语、德语、西班牙语、俄语），整次翻译最长可用 600 秒；旧宿主上仍是默认的四种语言和 180 秒。
 
 独立发布仓库：[xwsjjctz/LyricsAdapter-LLM-Translation](https://github.com/xwsjjctz/LyricsAdapter-LLM-Translation)。清单声明了该仓库为 GitHub 更新来源，安装 Release 中的 `.laplugin` 后可在插件页在线检查更新。
 
@@ -36,6 +36,7 @@ API Key 是 `format: "secret"` 配置：加密保存在本机，界面只显示�
 - 模型返回 JSON：`{"translations":[{"id":"1","text":"..."}]}`。回复无法解析或覆盖不足一半的行时会重试一次。
 - 已是目标语言的行、纯拟声词和作词/作曲等署名行返回空译文，宿主只显示原文。
 - 风格（natural / faithful / poetic）和额外要求会写入提示词。
+- 每次请求的超时取「单次请求超时」设置和宿主剩余时间（`callContext.timeoutMs`）中较小的一个；剩余不足 5 秒时不再发起请求（包括重试），直接报告失败。
 
 ## 本地缓存
 

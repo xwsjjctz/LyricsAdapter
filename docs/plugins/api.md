@@ -12,11 +12,11 @@
   "version": "1.0.0",
   "main": "index.cjs",
   "coreApi": "^1.1.0",
-  "extensionApis": { "lyrics.translation": "^1.1.0" },
+  "extensionApis": { "lyrics.translation": "^1.2.0" },
   "optionalExtensionApis": { "future.annotation": "^1.0.0" },
   "permissions": { "network": ["https://translator.example", "http://localhost:11434"], "secrets": "own" },
   "contributes": {
-    "providers": [{ "type": "lyrics.translation", "id": "default", "name": "Example" }],
+    "providers": [{ "type": "lyrics.translation", "id": "default", "name": "Example", "languages": ["zh", "en"], "timeoutSeconds": 300 }],
     "configuration": {
       "style": { "title": "Style", "type": "string", "default": "plain", "enum": ["plain", "literary"] },
       "endpoint": { "title": "Base URL", "type": "string", "default": "", "format": "endpoint", "description": "Empty uses the official service" },
@@ -32,7 +32,7 @@
 
 ID、提供者本地 ID、存储/凭据/配置键均匹配 `^[a-z][a-z0-9-]{0,63}$`。提供者全局键为 `<pluginId>:<providerId>`。名称必须非空，插件版本支持 `x.y.z` 和预发布后缀；API 范围仅接受稳定的精确 `x.y.z`、`^x.y.z`、`~x.y.z`，不接受 `*`、比较表达式、范围并集或预发布 API。
 
-宿主在读取包时协商必需 API，不兼容时阻止执行。可选 API 未知或版本不匹配时跳过；其提供者不得注册。声明的每个提供者必须引用必需或可选扩展声明；重复的类型/ID 被拒绝。清单额外字段可以保留供将来增加元数据，但不会自动获得能力。
+宿主在读取包时协商必需 API，不兼容时阻止执行。可选 API 未知或版本不匹配时跳过；其提供者不得注册。声明的每个提供者必须引用必需或可选扩展声明；重复的类型/ID 被拒绝。清单额外字段可以保留供将来增加元数据，但不会自动获得能力；宿主已定义的提供者字段（如翻译提供者的 `languages`、`timeoutSeconds`）按其规则校验。
 
 ## 生命周期与注册
 
@@ -44,7 +44,7 @@ ID、提供者本地 ID、存储/凭据/配置键均匹配 `^[a-z][a-z0-9-]{0,63
 
 停用、卸载、替换代码、激活失败或退出应用时，宿主中止 `context.signal`，倒序清理所有追踪项，移除提供者并调用 `deactivate`。清理异常记入日志，不妨碍其他项。`deactivate` 异步等待上限为 5 秒，退出时不保证其完成；需要同步释放的资源放在 Disposable 中。普通 SDK 写入在停用后会拒绝，因此不要依赖停用后才保存数据。
 
-单个异步激活/提供者请求上限为 20 秒；翻译请求上限为 180 秒（lyrics.translation 1.1 起，给大语言模型留出时间，期间专注模式先显示原文）。翻译每插件最多 4 个并发请求。超时/取消后的迟到结果不会展示，但无法强制终止插件自己创建且未清理的任务，插件必须监听 signal。一个请求失败不自动停用插件；激活失败使其能力不可用。
+单个异步激活/提供者请求上限为 20 秒；翻译请求默认上限为 180 秒（lyrics.translation 1.1 起，给大语言模型留出时间，期间专注模式先显示原文），1.2 起提供者可以用 `timeoutSeconds` 声明 20–600 秒，见下文。翻译每插件最多 4 个并发请求。超时/取消后的迟到结果不会展示，但无法强制终止插件自己创建且未清理的任务，插件必须监听 signal。一个请求失败不自动停用插件；激活失败使其能力不可用。
 
 ## 核心服务
 
@@ -100,9 +100,24 @@ interface PluginCache {
 
 宿主内存中的 32 项译文缓存仍然存在，重启后清空；需要跨重启保留的结果由插件写入 `context.cache`。
 
-## `lyrics.translation@1.1.0`
+## `lyrics.translation@1.2.0`
 
-提供者方法：`translate(request, callContext): Promise<TranslationResult>`。callContext 含 `requestId` 和 `signal: AbortSignal`，每次调用独立；信号由宿主在插件进程内创建，不通过 IPC 传递 AbortSignal 对象。
+提供者方法：`translate(request, callContext): Promise<TranslationResult>`。callContext 含 `requestId` 和 `signal: AbortSignal`，每次调用独立；信号由宿主在插件进程内创建，不通过 IPC 传递 AbortSignal 对象。1.2 起 callContext 还含 `timeoutMs`：调用提供者时距宿主放弃这次请求还剩的毫秒数（已扣除激活耗时）。需要多次请求外部服务的插件应据此缩短单次超时，剩余时间不够时直接报错，而不是发出注定会被中止的请求；旧宿主不提供该字段，按 180 秒处理。
+
+1.2 起翻译提供者的清单声明可以带两个可选字段，其他类型的提供者带这两个字段会被拒绝：
+
+```json
+{
+  "type": "lyrics.translation", "id": "default", "name": "Example",
+  "languages": ["zh", "zh-Hant", "en", "ja"],
+  "timeoutSeconds": 300
+}
+```
+
+- `languages`：支持的目标语言标签，按显示顺序排列，1–32 个，不区分大小写不能重复，语法与请求中的 `targetLanguage` 相同。设置页的「目标语言」按所选提供者的列表显示（名称用该语言自己的写法，如 `ja` 显示为「日本語」）；没有声明时显示默认的中文、英文、日语、韩语。用户保存的语言该提供者不支持时，宿主改用主语言相同的标签（`zh` → `zh-Hans`），没有则用列表第一项；保存的偏好不变，换回支持它的提供者时恢复。
+- `timeoutSeconds`：整次翻译调用的期限，20–600 的整数，默认 180。它覆盖激活、所有外部请求和结果返回；进程级超时在此基础上多留 5 秒用于报告。
+
+这两个字段只是元数据，旧宿主会忽略它们，所以声明 `^1.1.0` 的插件也可以写上：新宿主按声明执行，旧宿主仍按 1.1 行为（默认语言列表、180 秒）。只有插件依赖 1.2 行为时才需要声明 `"lyrics.translation": "^1.2.0"`。
 
 ```ts
 interface TranslationRequest {
@@ -134,7 +149,7 @@ interface TranslationResult {
 
 输出必须回显文档 ID、revision、目标语言，只允许输入中出现的 lineId，每个 ID 最多一次。可以返回部分行和空行列表；未返回的行只显示原文。每行文本上限 16,384 字符，最多 5,000 行，解析后的请求/响应 JSON 最多 1,000,000 字符；不接受 NaN/Infinity、重复输入行 ID。结果按 ID 对齐，不能按文本、时间戳或返回数组顺序匹配。宿主显示译文为文本，不执行 HTML。词级时间可保留用于服务理解，但翻译结果当前没有逐词时间。
 
-宿主只在用户点击专注模式歌曲信息下方的「翻译」按钮后才发出请求，加载歌词本身不会触发翻译。这次点击在本次会话内对该歌曲、提供者和目标语言保留：重新打开专注模式或回到这首歌时直接复用结果，插件状态（如配置）变化时按新状态重新请求；再次点击按钮只隐藏译文。专注模式隐藏、切歌、改变语言/提供者/配置、停用或卸载插件时，旧响应不会覆盖新视图。请求按文档 revision、提供者版本、目标语言和当前插件状态共享；最后一个消费者离开时取消。成功结果在当前渲染窗口内缓存，最多 32 项，不写入原歌词/音频标签或媒体库。缓存重启后清空。设置页当前提供中文、英文、日语、韩语；提供者协议接受符合语言标签语法的其他语言。
+宿主只在用户点击专注模式歌曲信息下方的「翻译」按钮后才发出请求，加载歌词本身不会触发翻译。这次点击在本次会话内对该歌曲、提供者和目标语言保留：重新打开专注模式或回到这首歌时直接复用结果，插件状态（如配置）变化时按新状态重新请求；再次点击按钮只隐藏译文。专注模式隐藏、切歌、改变语言/提供者/配置、停用或卸载插件时，旧响应不会覆盖新视图。请求按文档 revision、提供者版本、目标语言和当前插件状态共享；最后一个消费者离开时取消。成功结果在当前渲染窗口内缓存，最多 32 项，不写入原歌词/音频标签或媒体库。缓存重启后清空。目标语言按上文 `languages` 的规则选择，请求中的 `targetLanguage` 总是提供者声明列表中的一项（未声明时为默认四种之一）。
 
 ## `music.source@1.0.0`
 

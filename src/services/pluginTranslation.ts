@@ -3,6 +3,28 @@ import type { LyricDocument, LyricLine, LyricTrackMetadata, TranslationResult, P
 import { validateTranslationResult } from '../shared/pluginValidation';
 import { getDesktopAPI } from './desktopAdapter';
 
+/** Offered when a provider does not declare its target languages (lyrics.translation 1.2). */
+export const DEFAULT_TRANSLATION_LANGUAGES: readonly string[] = ['zh', 'en', 'ja', 'ko'];
+export const translationLanguages = (provider: PluginProviderInfo | null | undefined): readonly string[] =>
+  provider?.languages?.length ? provider.languages : DEFAULT_TRANSLATION_LANGUAGES;
+/**
+ * The preferred language when the provider supports it, else one with the same primary
+ * subtag (zh → zh-Hans), else the provider's first language. The stored preference is left
+ * as it is, so returning to a provider that supports it restores it.
+ */
+export function effectiveTranslationLanguage(provider: PluginProviderInfo | null | undefined, preferred: string): string {
+  const languages = translationLanguages(provider);
+  const wanted = preferred.toLowerCase();
+  const primary = wanted.split('-')[0];
+  return languages.find(tag => tag.toLowerCase() === wanted)
+    ?? languages.find(tag => tag.toLowerCase().split('-')[0] === primary)
+    ?? languages[0]!;
+}
+/** A language tag named in its own language, such as 日本語 for `ja`. */
+export function languageDisplayName(tag: string): string {
+  try { return new Intl.DisplayNames([tag], { type: 'language' }).of(tag) ?? tag; } catch { return tag; }
+}
+
 export async function lyricDocumentForTrack(track: Track): Promise<LyricDocument> {
   const lines: LyricLine[] = track.syncedLyrics?.length
     ? track.syncedLyrics.flatMap((line, index) => Number.isFinite(line.time) && line.text.trim() ? [{

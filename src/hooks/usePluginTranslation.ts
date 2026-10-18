@@ -5,6 +5,7 @@ import { useMusicPlugins } from '../stores/musicPluginStore';
 import { useTranslationPreference } from '../stores/pluginTranslationStore';
 import {
   acquireTranslation,
+  effectiveTranslationLanguage,
   isTranslationRequested,
   lyricDocumentForTrack,
   setTranslationRequested,
@@ -53,7 +54,9 @@ export function usePluginTranslation(track: Track | null, visible: boolean) {
 
   const info = preference.loaded && preference.provider && lookup && lookup.key === preference.provider ? lookup.info : null;
   const fresh = lookup?.scope === scope;
-  const requestKey = track && info ? translationRequestKey(track.id, info.key, preference.language) : '';
+  // A preference the provider does not support falls back to one of its declared languages.
+  const language = effectiveTranslationLanguage(info, preference.language);
+  const requestKey = track && info ? translationRequestKey(track.id, info.key, language) : '';
   const requested = useSyncExternalStore(subscribeTranslationRequests, () => requestKey !== '' && isTranslationRequested(requestKey));
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<RequestState>();
@@ -69,7 +72,7 @@ export function usePluginTranslation(track: Track | null, visible: boolean) {
       const document = await lyricDocumentForTrack(track);
       if (disposed) return;
       if (!document.lines.length) throw new Error('The lyrics have no lines to translate');
-      const lease = acquireTranslation(info, document, preference.language, scope);
+      const lease = acquireTranslation(info, document, language, scope);
       release = lease.release;
       const result = await lease.promise;
       settle('translated', Object.fromEntries(result.lines.map(line => [line.lineId, line.text])));
@@ -79,7 +82,7 @@ export function usePluginTranslation(track: Track | null, visible: boolean) {
       settle('error');
     });
     return () => { disposed = true; release?.(); };
-  }, [track, visible, info, fresh, requested, requestKey, preference.language, scope, attempt]);
+  }, [track, visible, info, fresh, requested, requestKey, language, scope, attempt]);
 
   const current = state && state.key === requestKey && state.scope === scope && state.track === track ? state : undefined;
   const status: PluginTranslationStatus = !track || !info ? 'unavailable' : !requested ? 'idle' : current?.status ?? 'translating';

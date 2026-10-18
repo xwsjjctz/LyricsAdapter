@@ -4,12 +4,10 @@ import type { MusicPluginHost, MusicPlugin } from '../../src/shared/musicPlugin'
 import { PLUGIN_CORE_API, type ExtensionType, type ExtensionProviders, type JsonValue, type PluginContext,
   type PluginManifest, type PluginModule, type Disposable, type TranslationRequest, type TranslationResult, type MusicSourceProvider } from '../../src/shared/plugin';
 import { validateTranslationRequest, validateTranslationResult } from '../../src/shared/pluginValidation';
-import { negotiateExtensions, networkOrigin, PLUGIN_ID } from './pluginManifest';
+import { negotiateExtensions, networkOrigin, PLUGIN_ID, translationTimeoutMs } from './pluginManifest';
 import { PluginCacheStore } from './pluginCache';
 
 const requirePlugin = createRequire(import.meta.url);
-/** LLM-backed translators need far longer than ordinary provider calls. */
-export const TRANSLATION_TIMEOUT_MS = 180_000;
 const DEFAULT_FETCH_TIMEOUT_MS = 20_000;
 const MAX_FETCH_TIMEOUT_MS = 120_000;
 /** Deadlines protect asynchronous requests; trusted Node code can still block the main event loop. */
@@ -232,16 +230,19 @@ export class PluginRuntime {
     this.ensureLive();
     if (this.activeCalls >= 4) throw new Error('Plugin request concurrency limit reached');
     this.activeCalls++;
+    // The provider's declared deadline covers activation too; it is told what is left.
+    const timeout = translationTimeoutMs(this.manifest, id);
+    const deadline = Date.now() + timeout;
     try {
       return await withDeadline(async callSignal => {
         await this.activate();
         if (callSignal.aborted) throw callSignal.reason;
         const provider = this.providers.get(`lyrics.translation:${id}`) as ExtensionProviders['lyrics.translation'] | undefined;
         if (!provider) throw new Error('Translation provider is unavailable');
-        const result = await provider.translate(request, { requestId, signal: callSignal });
+        const result = await provider.translate(request, { requestId, signal: callSignal, timeoutMs: Math.max(0, deadline - Date.now()) });
         if (callSignal.aborted) throw callSignal.reason;
         return validateTranslationResult(result, request);
-      }, AbortSignal.any([signal, this.lifetime.signal]), TRANSLATION_TIMEOUT_MS);
+      }, AbortSignal.any([signal, this.lifetime.signal]), timeout);
     } finally { this.activeCalls--; }
   }
   dispose(reason = new Error('Plugin is inactive')): void {
