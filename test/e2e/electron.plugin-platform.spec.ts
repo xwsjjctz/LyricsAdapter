@@ -34,8 +34,9 @@ test('platform packages install, configure and translate in both Focus renderers
   const providers=await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginProviders('lyrics.translation'));
   expect(providers).toMatchObject([{key:'example-translation:default'}] satisfies Partial<PluginProviderInfo>[]);
   await expect(page.getByRole('tab',{name:'Online Music'})).toHaveCount(0);
+  // Plugin settings apply without a Save step; Enter commits typed text.
   await page.getByRole('textbox',{name:'译文前缀 / Translation prefix'}).fill('Test translation');
-  await page.getByRole('button',{name:'Save plugin settings'}).click();
+  await page.getByRole('textbox',{name:'译文前缀 / Translation prefix'}).press('Enter');
   await expect.poll(()=>page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginConfiguration('example-translation'))).toEqual({prefix:'Test translation'});
   await page.getByLabel('Translation plugin',{exact:true}).selectOption('example-translation:default');
   await page.screenshot({path:testInfo.outputPath('plugin-platform-settings.png')});

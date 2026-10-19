@@ -2,14 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { logger } from '../services/logger';
 import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
 import { providerFor, sourceIsReady } from '../services/musicSources';
-import { settingsManager } from '../services/settingsManager';
 import { useMusicPlugins } from '../stores/musicPluginStore';
-import { useSettingValue } from './useSettingValue';
 import { searchTracks, type TrackSearchResult } from '../services/trackSearch';
 import type { Track } from '../types';
 
 export const ONLINE_SEARCH_DEBOUNCE_MS = 500;
-const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
 export interface OnlineSearchHit {
   source: OnlineSource;
@@ -52,7 +49,8 @@ export function useGlobalSearch({
   const [onlineHasMore, setOnlineHasMore] = useState(false);
   const shownQuery = useRef('');
   const { sources } = useMusicPlugins();
-  const onlineEnabled = useSettingValue(readOnlineEnabled) && sources.length > 0;
+  // Installing and enabling a music source plugin is what turns online search on.
+  const onlineEnabled = sources.length > 0;
   // Stable across renders while the source list is unchanged.
   const sourceKey = sources.join('|');
   const trimmed = query.trim();

@@ -416,6 +416,13 @@
   color: var(--theme-text-primary);
 }
 
+.settings-sheet__tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--theme-primary);
+}
+
 .settings-sheet__tab:focus-visible,
 .settings-select:focus-visible {
   outline: 2px solid var(--theme-primary);

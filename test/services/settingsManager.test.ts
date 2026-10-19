@@ -7,7 +7,6 @@ beforeEach(() => {
   (settingsManager as any).downloadPath = '';
   (settingsManager as any).floatingPanel = false;
   (settingsManager as any).bgBlurTrans = 1.0;
-  (settingsManager as any).qqMusicEnabled = false;
   (settingsManager as any).gsapButtonBounce = true;
   (settingsManager as any).focusBgBlurRadius = 80;
   (settingsManager as any).focusLyricsFontSize = 32;
@@ -87,22 +86,6 @@ describe('bgBlurTrans', () => {
   it('should persist to localStorage', () => {
     settingsManager.setBgBlurTrans(0.3);
     expect(localStorage.getItem('la_bg_blur_trans')).toBe('0.3');
-  });
-});
-
-describe('qqMusicEnabled', () => {
-  it('should default to false', () => {
-    expect(settingsManager.getQqMusicEnabled()).toBe(false);
-  });
-
-  it('should set and get', () => {
-    settingsManager.setQqMusicEnabled(true);
-    expect(settingsManager.getQqMusicEnabled()).toBe(true);
-  });
-
-  it('should persist to localStorage', () => {
-    settingsManager.setQqMusicEnabled(true);
-    expect(localStorage.getItem('la_qq_music_enabled')).toBe('true');
   });
 });
 
@@ -188,13 +171,6 @@ describe('subscribe', () => {
     const listener = vi.fn();
     settingsManager.subscribe(listener);
     settingsManager.setBgBlurTrans(0.5);
-    expect(listener).toHaveBeenCalledTimes(1);
-  });
-
-  it('should notify listeners when qqMusicEnabled changes', () => {
-    const listener = vi.fn();
-    settingsManager.subscribe(listener);
-    settingsManager.setQqMusicEnabled(true);
     expect(listener).toHaveBeenCalledTimes(1);
   });
 

@@ -6,7 +6,6 @@ import { MUSIC_SOURCE_ID } from '../shared/onlineMusic';
 const DOWNLOAD_PATH_KEY = 'la_download_path';
 const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
-const QQ_MUSIC_ENABLED_KEY = 'la_qq_music_enabled';
 const ONLINE_SOURCE_KEY = 'la_online_source';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
 // Wall or classic list; a new key so values from the retired la_library_mode
@@ -32,7 +31,6 @@ class SettingsManager {
   private downloadPath: string = '';
   private floatingPanel: boolean = false;
   private bgBlurTrans: number = 1.0;
-  private qqMusicEnabled: boolean = false;
   private onlineSource: OnlineSource = 'qq';
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
@@ -59,7 +57,6 @@ class SettingsManager {
       this.downloadPath = '';
       this.floatingPanel = false;
       this.bgBlurTrans = 1.0;
-      this.qqMusicEnabled = false;
       this.onlineSource = 'qq';
       this.gsapButtonBounce = true;
       this.libraryMode = 'wall';
@@ -83,8 +80,6 @@ class SettingsManager {
           this.bgBlurTrans = parsed;
         }
       }
-
-      this.qqMusicEnabled = appStorage.getItem(QQ_MUSIC_ENABLED_KEY) === 'true';
 
       const storedSource = appStorage.getItem(ONLINE_SOURCE_KEY);
       // Any installed plugin id is valid; the plugin store falls back to an enabled source.
@@ -218,21 +213,6 @@ class SettingsManager {
     const persisted = this.persistSetting(BG_BLUR_TRANS_KEY, String(this.bgBlurTrans), () => { this.bgBlurTrans = previous; });
     this.notify();
     logger.debug(`[SettingsManager] bgBlurTrans set to: ${this.bgBlurTrans}`);
-    return persisted;
-  }
-
-  // --- QQ Music Enabled ---
-
-  getQqMusicEnabled(): boolean {
-    return this.qqMusicEnabled;
-  }
-
-  setQqMusicEnabled(enabled: boolean): Promise<boolean> {
-    const previous = this.qqMusicEnabled;
-    this.qqMusicEnabled = enabled;
-    const persisted = this.persistSetting(QQ_MUSIC_ENABLED_KEY, enabled ? 'true' : 'false', () => { this.qqMusicEnabled = previous; });
-    this.notify();
-    logger.debug(`[SettingsManager] QQ Music enabled set to: ${enabled}`);
     return persisted;
   }
 

@@ -87,7 +87,7 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
     const row = page.getByTestId('plugin-update-update-translator');
     await expect(row).toContainText('No update source');
     await page.getByRole('textbox', { name: 'Prefix', exact: true }).fill('Saved');
-    await page.getByRole('button', { name: 'Save plugin settings' }).click();
+    await page.getByRole('textbox', { name: 'Prefix', exact: true }).press('Enter');
     await row.locator('summary').click();
     await row.getByLabel('Source type', { exact: true }).selectOption('github');
     await row.getByLabel('GitHub repository', { exact: true }).fill('test/translator');

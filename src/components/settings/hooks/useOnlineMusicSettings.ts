@@ -28,6 +28,8 @@ interface UseOnlineMusicSettingsResult {
   login: MusicSourceLogin;
   /** Cookie draft for the selected source. */
   cookie: string;
+  /** The draft differs from the stored cookie. */
+  cookieDirty: boolean;
   downloadPath: string;
   qrState: 'idle' | 'loading' | QRLoginStatus;
   qrImage: string | null;
@@ -40,7 +42,8 @@ interface UseOnlineMusicSettingsResult {
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
-  handleSave: () => Promise<void>;
+  /** Validates and stores the cookie draft; the source and download path apply as they change. */
+  saveCookie: () => Promise<void>;
   startQr: (source: OnlineSource) => Promise<void>;
   handleQrLogout: () => Promise<void>;
 }
@@ -61,6 +64,7 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
   const { t } = useTranslation();
   const [onlineSource, setOnlineSourceState] = useState<OnlineSource>(() => settingsManager.getOnlineSource());
   const [cookie, setCookie] = useState('');
+  const [savedCookie, setSavedCookie] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
   const [downloadPath, setDownloadPath] = useState('');
   const [qrState, setQrState] = useState<'idle' | 'loading' | QRLoginStatus>('idle');
@@ -98,6 +102,7 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     const read = () => {
       if (!active) return;
       setCookie(store.getCookie());
+      setSavedCookie(store.getCookie());
       setLoggedIn(store.hasCookie());
     };
     void store.ensureLoaded().then(read);
@@ -247,13 +252,10 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     setMessageType(null);
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const saveCookie = useCallback(async () => {
     setIsSaving(true);
     setMessage(null);
     try {
-      if (!await settingsManager.setOnlineSource(onlineSource)) {
-        throw new Error('Failed to persist online music source');
-      }
       const cookieStore = cookieStoreFor(onlineSource);
       const cookieValue = cookie.trim();
       // A hand-edited QQ cookie no longer matches the stored refresh credential.
@@ -272,9 +274,6 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
       } else {
         await cookieStore.clearCookie();
       }
-      if (!await settingsManager.setDownloadPath(downloadPath.trim())) {
-        throw new Error('Failed to persist download path');
-      }
       showMessage(t('settingsDialog.saved'), 'success');
     } catch (err) {
       showMessage(t('settingsDialog.saveFailed'), 'error');
@@ -282,7 +281,7 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     } finally {
       setIsSaving(false);
     }
-  }, [cookie, downloadPath, login, onlineSource, showMessage]);
+  }, [cookie, login, onlineSource, showMessage]);
 
   const qrScanning = qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming';
 
@@ -290,6 +289,7 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     onlineSource,
     login,
     cookie,
+    cookieDirty: cookie.trim() !== savedCookie,
     downloadPath,
     qrState,
     qrImage,
@@ -302,7 +302,7 @@ export function useOnlineMusicSettings({ enabled, sources }: UseOnlineMusicSetti
     setOnlineSource,
     setCookie,
     setDownloadPath,
-    handleSave,
+    saveCookie,
     startQr,
     handleQrLogout,
   };

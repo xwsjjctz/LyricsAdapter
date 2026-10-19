@@ -24,7 +24,7 @@ test('music plugins work through real IPC, stream and download; local updates an
   const userData = path.join(root, 'user-data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData);
-  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_qq_music_enabled: 'true', la_online_source: 'netease' }));
+  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_online_source: 'netease' }));
   const env = Object.fromEntries(Object.entries({ ...process.env,
     HOME: isolatedHome, USERPROFILE: isolatedHome, APPDATA: path.join(root, 'app-data'),
     LOCALAPPDATA: path.join(root, 'local-app-data'), XDG_CONFIG_HOME: path.join(root, 'config'),

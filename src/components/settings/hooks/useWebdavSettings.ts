@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { webdavClient } from '@/services/webdavClient';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
@@ -11,6 +11,9 @@ interface WebdavFormConfig {
   password: string;
 }
 
+const EMPTY_CONFIG: WebdavFormConfig = { serverUrl: '', username: '', password: '' };
+const MESSAGE_DURATION_MS = 3000;
+
 interface UseWebdavSettingsResult {
   serverUrl: string;
   username: string;
@@ -19,80 +22,72 @@ interface UseWebdavSettingsResult {
   messageType: 'success' | 'error' | null;
   isTesting: boolean;
   isSaving: boolean;
+  /** The form differs from the stored connection. */
+  isDirty: boolean;
   setServerUrl: (v: string) => void;
   setUsername: (v: string) => void;
   setPassword: (v: string) => void;
-  handleTest: () => Promise<void>;
   handleSave: () => Promise<void>;
 }
 
+function storedConfig(): WebdavFormConfig {
+  const config = webdavClient.getConfig();
+  return config ? { serverUrl: config.serverUrl, username: config.username, password: config.password } : EMPTY_CONFIG;
+}
+
 /**
- * Owns all WebDAV settings state and handlers. Loads the persisted config on
- * mount and exposes form fields plus test/save actions. Extracted from the
- * monolithic SettingsPanel to keep that shell a thin assembler.
+ * Owns all WebDAV settings state and handlers. A connection is a credential, so
+ * it is only stored after the server accepts it: Save tests first, then stores.
  */
 export function useWebdavSettings(): UseWebdavSettingsResult {
   const { t } = useTranslation();
-  const [serverUrl, setServerUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [saved, setSaved] = useState<WebdavFormConfig>(storedConfig);
+  const [serverUrl, setServerUrl] = useState(saved.serverUrl);
+  const [username, setUsername] = useState(saved.username);
+  const [password, setPassword] = useState(saved.password);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const messageTimer = useRef<ReturnType<typeof setTimeout>>();
+  const isDirty = serverUrl.trim() !== saved.serverUrl || username.trim() !== saved.username || password.trim() !== saved.password;
 
-  useEffect(() => {
-    const config = webdavClient.getConfig();
-    if (config) {
-      setServerUrl(config.serverUrl);
-      setUsername(config.username);
-      setPassword(config.password);
-    }
+  useEffect(() => () => clearTimeout(messageTimer.current), []);
+
+  const showMessage = useCallback((text: string, type: 'success' | 'error', transient = false) => {
+    clearTimeout(messageTimer.current);
+    setMessage(text);
+    setMessageType(type);
+    if (transient) messageTimer.current = setTimeout(() => { setMessage(null); setMessageType(null); }, MESSAGE_DURATION_MS);
   }, []);
 
-  const getFormConfig = useCallback((): WebdavFormConfig | null => {
-    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      setMessage(t('settingsDialog.webdavFillAll'));
-      setMessageType('error');
-      return null;
+  const handleSave = useCallback(async () => {
+    const config = { serverUrl: serverUrl.trim(), username: username.trim(), password: password.trim() };
+    if (!config.serverUrl || !config.username || !config.password) {
+      showMessage(t('settingsDialog.webdavFillAll'), 'error');
+      return;
     }
-    return {
-      serverUrl: serverUrl.trim(),
-      username: username.trim(),
-      password: password.trim(),
-    };
-  }, [serverUrl, username, password]);
-
-  const handleTest = useCallback(async () => {
-    const config = getFormConfig();
-    if (!config) return;
+    setMessage(null);
     setIsTesting(true);
     try {
       const result = await webdavClient.testConnection(config);
-      setMessage(result.message);
-      setMessageType(result.success ? 'success' : 'error');
-    } finally {
+      if (!result.success) {
+        showMessage(result.message, 'error');
+        return;
+      }
       setIsTesting(false);
-    }
-  }, [getFormConfig]);
-
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    try {
-      const config = getFormConfig();
-      if (!config) return;
+      setIsSaving(true);
       await webdavClient.saveConfig(config);
-      setMessage(t('settingsDialog.saved'));
-      setMessageType('success');
-      setTimeout(() => { setMessage(null); setMessageType(null); }, 3000);
+      setSaved(config);
+      showMessage(t('settingsDialog.webdavConnectedSaved'), 'success', true);
     } catch (err) {
-      setMessage(t('settingsDialog.saveFailed'));
-      setMessageType('error');
+      showMessage(t('settingsDialog.saveFailed'), 'error');
       logger.error('[SettingsPanel] WebDAV save failed:', err);
     } finally {
+      setIsTesting(false);
       setIsSaving(false);
     }
-  }, [getFormConfig]);
+  }, [serverUrl, username, password, showMessage, t]);
 
   return {
     serverUrl,
@@ -102,10 +97,10 @@ export function useWebdavSettings(): UseWebdavSettingsResult {
     messageType,
     isTesting,
     isSaving,
+    isDirty,
     setServerUrl,
     setUsername,
     setPassword,
-    handleTest,
     handleSave,
   };
 }

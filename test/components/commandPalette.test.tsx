@@ -4,7 +4,6 @@ import CommandPalette from '@/components/palette/CommandPalette';
 import type { PaletteLibrarySources } from '@/components/palette/usePaletteItems';
 import type { PaletteCommand } from '@/types/paletteCommand';
 import { createCommandPaletteStore, type CommandPaletteStore } from '@/hooks/useCommandPalette';
-import { settingsManager } from '@/services/settingsManager';
 import type { Track } from '@/types';
 import { DEFAULT_COVER_ARTWORK_URL } from '@/services/coverUrl';
 
@@ -45,7 +44,6 @@ function setup(extraCommands: PaletteCommand[] = []) {
 }
 
 describe('CommandPalette', () => {
-  beforeEach(() => { vi.spyOn(settingsManager, 'getQqMusicEnabled').mockReturnValue(false); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it('starts in library mode with sources and playlists, then searches tracks', () => {

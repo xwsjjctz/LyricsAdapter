@@ -4,7 +4,6 @@ import CommandPalette from '@/components/palette/CommandPalette';
 import type { PaletteLibrarySources } from '@/components/palette/usePaletteItems';
 import type { PaletteCommand } from '@/types/paletteCommand';
 import { createCommandPaletteStore } from '@/hooks/useCommandPalette';
-import { settingsManager } from '@/services/settingsManager';
 import type { NativePaletteAction, NativePaletteState } from '@/types/nativePalette';
 import type { Track } from '@/types';
 
@@ -43,7 +42,6 @@ function setup(extraCommands: PaletteCommand[] = []) {
 describe('CommandPalette on native macOS glass', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(settingsManager, 'getQqMusicEnabled').mockReturnValue(false);
     mocks.start.mockResolvedValue({ ok: true, data: true });
     mocks.update.mockResolvedValue({ ok: true });
     mocks.stop.mockResolvedValue({ ok: true });

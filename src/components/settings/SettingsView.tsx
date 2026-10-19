@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { settingsManager } from '../../services/settingsManager';
 import ShortcutsSettings from '../ShortcutsSettings';
-import { Switch } from '../ui';
 import { useOnlineMusicSettings } from './hooks/useOnlineMusicSettings';
-import { useSettingValue } from '../../hooks/useSettingValue';
 import { useWebdavSettings } from './hooks/useWebdavSettings';
 import FocusModeSection from './sections/FocusModeSection';
 import GeneralSection from './sections/GeneralSection';
@@ -26,8 +23,6 @@ const SECTIONS: { id: SettingsSectionId; icon: string; labelKey: string }[] = [
   { id: 'shortcuts', icon: 'keyboard', labelKey: 'settings.shortcuts.title' },
 ];
 
-const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
-
 interface SettingsViewProps {
   initialSection?: SettingsSectionId | undefined;
   onClose: () => void;
@@ -41,14 +36,17 @@ interface SettingsViewProps {
 export default function SettingsView({ initialSection = 'general', onClose, usePaletteMaterial = false }: SettingsViewProps) {
   const { t } = useTranslation();
   const themeUtils = useSettingsTheme(useCurrentTheme());
-  const { colors } = themeUtils;
   const [section, setSection] = useState<SettingsSectionId>(initialSection);
-  const onlineEnabled = useSettingValue(readOnlineEnabled);
   const { sources } = useMusicPlugins();
   const hasMusicPlugins = sources.length > 0;
   const activeSection = section === 'online' && !hasMusicPlugins ? 'plugins' : section;
   const webdav = useWebdavSettings();
-  const onlineMusic = useOnlineMusicSettings({ enabled: onlineEnabled && hasMusicPlugins && activeSection === 'online', sources });
+  const onlineMusic = useOnlineMusicSettings({ enabled: hasMusicPlugins && activeSection === 'online', sources });
+  // Credential drafts survive tab switches; the dot shows where one is waiting.
+  const unsaved: Partial<Record<SettingsSectionId, boolean>> = {
+    online: hasMusicPlugins && onlineMusic.cookieDirty,
+    cloud: webdav.isDirty,
+  };
   const activeLabel = t(SECTIONS.find(entry => entry.id === activeSection)!.labelKey);
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +86,7 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
               >
                 <span className="material-symbols-rounded" aria-hidden="true">{entry.icon}</span>
                 <span>{t(entry.labelKey)}</span>
+                {unsaved[entry.id] && <span className="settings-sheet__tab-dot" role="img" aria-label={t('settingsDialog.unsaved')} />}
               </button>
             ))}
           </div>
@@ -101,44 +100,29 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
           {activeSection === 'plugins' && <MusicPluginManager theme={themeUtils} />}
 
           {activeSection === 'online' && (
-            <div className="space-y-4">
-              <div className="settings-card r-card border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-                <div className="settings-row">
-                  <div className="min-w-0">
-                    <div className="settings-row__label" style={{ color: colors.textPrimary }}>{t('settings.qqMusicEnabled')}</div>
-                    <div id="online-music-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>
-                      {t('settings.onlineMusicHint')}
-                    </div>
-                  </div>
-                  <Switch checked={onlineEnabled} label={t('settings.qqMusicEnabled')} describedBy="online-music-description"
-                    onChange={enabled => { void settingsManager.setQqMusicEnabled(enabled); }} />
-                </div>
-              </div>
-              {onlineEnabled && (
-                <OnlineMusicSection
-                  theme={themeUtils}
-                  sources={sources}
-                  onlineSource={onlineMusic.onlineSource}
-                  login={onlineMusic.login}
-                  cookie={onlineMusic.cookie}
-                  downloadPath={onlineMusic.downloadPath}
-                  isQrLoggedIn={onlineMusic.isQrLoggedIn}
-                  qrScanning={onlineMusic.qrScanning}
-                  qrState={onlineMusic.qrState}
-                  qrImage={onlineMusic.qrImage}
-                  qrMsg={onlineMusic.qrMsg}
-                  isSaving={onlineMusic.isSaving}
-                  message={onlineMusic.message}
-                  messageType={onlineMusic.messageType}
-                  setOnlineSource={onlineMusic.setOnlineSource}
-                  setCookie={onlineMusic.setCookie}
-                  setDownloadPath={onlineMusic.setDownloadPath}
-                  onSave={onlineMusic.handleSave}
-                  startQr={onlineMusic.startQr}
-                  onQrLogout={onlineMusic.handleQrLogout}
-                />
-              )}
-            </div>
+            <OnlineMusicSection
+              theme={themeUtils}
+              sources={sources}
+              onlineSource={onlineMusic.onlineSource}
+              login={onlineMusic.login}
+              cookie={onlineMusic.cookie}
+              cookieDirty={onlineMusic.cookieDirty}
+              downloadPath={onlineMusic.downloadPath}
+              isQrLoggedIn={onlineMusic.isQrLoggedIn}
+              qrScanning={onlineMusic.qrScanning}
+              qrState={onlineMusic.qrState}
+              qrImage={onlineMusic.qrImage}
+              qrMsg={onlineMusic.qrMsg}
+              isSaving={onlineMusic.isSaving}
+              message={onlineMusic.message}
+              messageType={onlineMusic.messageType}
+              setOnlineSource={onlineMusic.setOnlineSource}
+              setCookie={onlineMusic.setCookie}
+              setDownloadPath={onlineMusic.setDownloadPath}
+              onSaveCookie={onlineMusic.saveCookie}
+              startQr={onlineMusic.startQr}
+              onQrLogout={onlineMusic.handleQrLogout}
+            />
           )}
 
           {section === 'cloud' && (
@@ -151,10 +135,10 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
               messageType={webdav.messageType}
               isTesting={webdav.isTesting}
               isSaving={webdav.isSaving}
+              isDirty={webdav.isDirty}
               setServerUrl={webdav.setServerUrl}
               setUsername={webdav.setUsername}
               setPassword={webdav.setPassword}
-              onTest={webdav.handleTest}
               onSave={webdav.handleSave}
             />
           )}

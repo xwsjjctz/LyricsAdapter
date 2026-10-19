@@ -21,6 +21,7 @@ interface OnlineMusicSectionProps {
   onlineSource: OnlineSource;
   login: MusicSourceLogin;
   cookie: string;
+  cookieDirty: boolean;
   downloadPath: string;
   isQrLoggedIn: boolean;
   qrScanning: boolean;
@@ -33,7 +34,7 @@ interface OnlineMusicSectionProps {
   setOnlineSource: (source: OnlineSource) => void;
   setCookie: (v: string) => void;
   setDownloadPath: (v: string) => void;
-  onSave: () => void;
+  onSaveCookie: () => void;
   startQr: (source: OnlineSource) => void;
   onQrLogout: () => void;
 }
@@ -50,6 +51,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   onlineSource,
   login,
   cookie,
+  cookieDirty,
   downloadPath,
   isQrLoggedIn,
   qrScanning,
@@ -62,7 +64,7 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
   setOnlineSource,
   setCookie,
   setDownloadPath,
-  onSave,
+  onSaveCookie,
   startQr,
   onQrLogout,
 }) => {
@@ -74,21 +76,11 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3">
         <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
           <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>music_note</span>
           {t('settingsDialog.onlineMusicTitle')}
         </h3>
-        <Button variant="primary" size="sm" className="flex-shrink-0" onClick={onSave} disabled={isSaving}>
-          {isSaving ? (
-            <>
-              <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
-              {t('settingsDialog.saving')}
-            </>
-          ) : (
-            t('settingsDialog.save')
-          )}
-        </Button>
       </div>
 
 
@@ -248,6 +240,20 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
               onBlur={inputBlur}
               disabled={isSaving}
             />
+            {/* The cookie is a credential: it is checked with the source before it is stored. */}
+            <div className="mt-1.5 flex items-center justify-end gap-3">
+              {cookieDirty && <span className="text-xs" role="status" style={{ color: colors.textMuted }}>{t('settingsDialog.unsaved')}</span>}
+              <Button variant="primary" size="sm" onClick={onSaveCookie} disabled={isSaving || (!cookieDirty && !cookie.trim())}>
+                {isSaving ? (
+                  <>
+                    <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
+                    {t('settingsDialog.saving')}
+                  </>
+                ) : (
+                  t('settingsDialog.cookieSave')
+                )}
+              </Button>
+            </div>
           </div>
 
           <div>
@@ -265,13 +271,9 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                 onFocus={inputFocus}
                 onBlur={(e) => {
                   inputBlur(e);
-                  // Persist on blur so a path typed by hand survives navigating
-                  // away without clicking Save (the Save button is mainly for the
-                  // cookie/online-source form; the download folder is a standalone
-                  // preference that should "stick" immediately).
+                  // A preference, not a credential: it applies without a Save step.
                   settingsManager.setDownloadPath(e.target.value.trim());
                 }}
-                disabled={isSaving}
               />
               <button
                 onClick={async () => {
@@ -280,14 +282,10 @@ const OnlineMusicSection: React.FC<OnlineMusicSectionProps> = ({
                     const result = await desktopAPI.selectDownloadFolder();
                     if (result.success && result.path) {
                       setDownloadPath(result.path);
-                      // Persist immediately: selecting a folder is a deliberate
-                      // choice, not a form draft — it must survive panel close
-                      // without requiring a separate Save click.
                       settingsManager.setDownloadPath(result.path);
                     }
                   }
                 }}
-                disabled={isSaving}
                 aria-label={t('settingsDialog.chooseDownloadFolder')}
                 className="ui-btn ui-btn--secondary ui-btn--md flex-shrink-0"
               >

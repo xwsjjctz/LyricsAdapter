@@ -12,7 +12,7 @@ test('playlist switcher previews, reverses, cancels and commits without changing
   const userData = path.join(root, 'data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData, { recursive: true });
-  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_qq_music_enabled: 'true' }));
+  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
   // Online playlists come from an installed source plugin. This fixture serves the
   // seven playlists used below once the test supplies a NetEase cookie.
   const plugin = path.join(isolatedHome, '.la/plugin/netease');

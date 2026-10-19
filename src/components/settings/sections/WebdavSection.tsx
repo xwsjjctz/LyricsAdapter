@@ -14,10 +14,10 @@ interface WebdavSectionProps {
   messageType: 'success' | 'error' | null;
   isTesting: boolean;
   isSaving: boolean;
+  isDirty: boolean;
   setServerUrl: (v: string) => void;
   setUsername: (v: string) => void;
   setPassword: (v: string) => void;
-  onTest: () => void;
   onSave: () => void;
 }
 
@@ -34,10 +34,10 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
   messageType,
   isTesting,
   isSaving,
+  isDirty,
   setServerUrl,
   setUsername,
   setPassword,
-  onTest,
   onSave,
 }) => {
   const { t } = useTranslation();
@@ -84,25 +84,16 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
         />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="secondary" size="sm" onClick={onTest} disabled={isTesting || isSaving}>
-          {isTesting ? (
-            <>
-              <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
-              {t('settingsDialog.webdavTesting')}
-            </>
-          ) : (
-            t('settingsDialog.webdavTestConnection')
-          )}
-        </Button>
+      <div className="mt-3 flex items-center justify-end gap-3">
+        {isDirty && <span className="text-xs" role="status" style={{ color: colors.textMuted }}>{t('settingsDialog.unsaved')}</span>}
         <Button variant="primary" size="sm" onClick={onSave} disabled={isTesting || isSaving}>
-          {isSaving ? (
+          {isTesting || isSaving ? (
             <>
               <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
-              {t('settingsDialog.saving')}
+              {t(isTesting ? 'settingsDialog.webdavTesting' : 'settingsDialog.saving')}
             </>
           ) : (
-            t('settingsDialog.save')
+            t('settingsDialog.webdavConnectAndSave')
           )}
         </Button>
       </div>
