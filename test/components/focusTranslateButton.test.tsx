@@ -28,9 +28,17 @@ describe('FocusTranslateButton', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('offers a retry and explains the failure in visible text', () => {
+  it('offers a retry and explains the failure in the tooltip', () => {
     render(<FocusTranslateButton status="error" onToggle={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'plugins.translateRetry' })).toBeEnabled();
-    expect(screen.getByRole('status')).toHaveTextContent('plugins.translationError');
+    const retry = screen.getByRole('button', { name: 'plugins.translateRetry' });
+    expect(retry).toBeEnabled();
+    expect(retry).toHaveAttribute('title', 'plugins.translationError');
+  });
+
+  it('shows only an icon, swapping it for a spinner while translating', () => {
+    const { rerender } = render(<FocusTranslateButton status="idle" onToggle={vi.fn()} placement="inline" />);
+    expect(screen.getByRole('button')).toHaveTextContent(/^translate$/);
+    rerender(<FocusTranslateButton status="translating" onToggle={vi.fn()} placement="inline" />);
+    expect(screen.getByRole('button')).toHaveTextContent(/^progress_activity$/);
   });
 });

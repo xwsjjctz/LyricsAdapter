@@ -125,7 +125,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     getCurrentPlaybackTime,
   });
 
-  // Translation starts from the button under the track title; its state never touches playback.
+  // Translation starts from the button under the track title (portrait: the volume row);
+  // its state never touches playback.
   const translation = usePluginTranslation(hasTrackLyrics(track) ? track : null, isVisible);
 
   const progress = track && track.duration > 0 ? (activeCurrentTime / track.duration) * 100 : 0;
@@ -213,6 +214,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     onMouseEnter={portrait ? portraitIdle.nativeStart : handlePlayerMouseEnter}
     onMouseLeave={portrait ? portraitIdle.nativeEnd : handlePlayerMouseLeave}
     glassMaterial={useDefaultThemeControlGlass} scale={focusScale} portrait={portrait}
+    portraitVolumeLeading={<FocusTranslateButton status={translation.status} onToggle={translation.toggle} placement="inline" />}
   />;
 
   return (
@@ -264,7 +266,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
               textMuted={focusColors.textMuted}
               scale={focusScale}
             >
-              <FocusTranslateButton status={translation.status} onToggle={translation.toggle} scale={focusScale} />
+              {!portrait && <FocusTranslateButton status={translation.status} onToggle={translation.toggle} scale={focusScale} />}
             </FocusTrackMeta>
           </div>
 

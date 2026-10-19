@@ -1,72 +1,72 @@
-/* Translate pill under the track title, in Focus Mode's fixed dark palette. */
+/* Icon-only translate toggle, in Focus Mode's fixed dark palette. */
 .focus-translate {
   --focus-translate-scale: 1;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(6px * var(--focus-translate-scale));
+  justify-content: center;
   margin-top: calc(16px * var(--focus-translate-scale));
 }
 
 .focus-translate-button {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(6px * var(--focus-translate-scale));
-  padding: calc(6px * var(--focus-translate-scale)) calc(14px * var(--focus-translate-scale))
-    calc(6px * var(--focus-translate-scale)) calc(10px * var(--focus-translate-scale));
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: calc(13px * var(--focus-translate-scale));
-  font-weight: 600;
-  line-height: 1.4;
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.focus-translate-button .material-symbols-rounded {
+/* Under the track title: a round chip matching the former pill. */
+.focus-translate-button--meta {
+  width: calc(32px * var(--focus-translate-scale));
+  height: calc(32px * var(--focus-translate-scale));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.focus-translate-button--meta .material-symbols-rounded {
   font-size: calc(18px * var(--focus-translate-scale));
 }
 
-.focus-translate-button:is(:hover, :focus-visible):not(:disabled) {
+.focus-translate-button--meta:is(:hover, :focus-visible):not(:disabled) {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
 
-.focus-translate-button:focus-visible {
+.focus-translate-button--meta:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.8);
   outline-offset: 2px;
 }
 
-/* Translated: a filled pill. Pressing it again shows only the original lyrics. */
-.focus-translate-button[aria-pressed='true'],
-.focus-translate-button[aria-pressed='true']:is(:hover, :focus-visible) {
+/* Translated: a filled chip. Pressing it again shows only the original lyrics. */
+.focus-translate-button--meta[aria-pressed='true'],
+.focus-translate-button--meta[aria-pressed='true']:is(:hover, :focus-visible) {
   border-color: transparent;
   background: rgba(255, 255, 255, 0.9);
   color: rgba(15, 23, 42, 0.92);
 }
 
-.focus-translate-button[aria-pressed='true']:is(:hover, :focus-visible) {
+.focus-translate-button--meta[aria-pressed='true']:is(:hover, :focus-visible) {
   background: #fff;
+}
+
+/* Portrait volume row: a plain icon like its neighbours; translated gets a soft disc. */
+.focus-portrait-controls .focus-translate-button--inline {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.focus-portrait-controls .focus-translate-button--inline[aria-pressed='true'] {
+  color: #fff;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0 15px, transparent 15.5px);
+}
+
+.focus-portrait-controls .focus-translate-button--inline:disabled {
+  opacity: 1;
 }
 
 .focus-translate-button:disabled {
   cursor: progress;
-}
-
-.focus-translate-status {
-  margin: 0;
-  font-size: calc(12px * var(--focus-translate-scale));
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-@media (orientation: portrait) {
-  .focus-translate {
-    align-items: flex-start;
-    margin-top: 8px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
