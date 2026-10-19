@@ -21,7 +21,7 @@ const LABEL_KEYS: Record<Exclude<PluginTranslationStatus, 'unavailable'>, string
 /**
  * Starts the lyric translation on request. The icon only switches between the translate glyph
  * and a spinner, so playback and the lyric renderers are untouched until the finished
- * translation replaces the lines. Its state is carried by the accessible name and tooltip.
+ * translation replaces the lines. Its state is carried by the accessible name.
  */
 export default function FocusTranslateButton({ status, onToggle, scale = 1, placement = 'meta' }: FocusTranslateButtonProps) {
   const { t } = useTranslation();
@@ -37,7 +37,6 @@ export default function FocusTranslateButton({ status, onToggle, scale = 1, plac
       aria-label={label}
       aria-pressed={status === 'translated'}
       aria-busy={busy || undefined}
-      title={status === 'error' ? t('plugins.translationError') : label}
       disabled={busy}
       onClick={onToggle}
     >

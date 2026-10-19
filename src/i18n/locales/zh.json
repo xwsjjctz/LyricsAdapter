@@ -420,7 +420,6 @@
   "plugins.translationOff": "关闭",
   "plugins.translationLanguage": "目标语言",
   "plugins.translationUnavailable": "所选翻译插件当前不可用。",
-  "plugins.translationError": "翻译暂不可用，继续显示原歌词。",
   "plugins.translate": "翻译",
   "plugins.translating": "翻译中…",
   "plugins.translated": "已翻译",

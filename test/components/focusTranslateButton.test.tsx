@@ -28,11 +28,11 @@ describe('FocusTranslateButton', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('offers a retry and explains the failure in the tooltip', () => {
+  it('offers a retry after a failure without a native tooltip', () => {
     render(<FocusTranslateButton status="error" onToggle={vi.fn()} />);
     const retry = screen.getByRole('button', { name: 'plugins.translateRetry' });
     expect(retry).toBeEnabled();
-    expect(retry).toHaveAttribute('title', 'plugins.translationError');
+    expect(retry).not.toHaveAttribute('title');
   });
 
   it('shows only an icon, swapping it for a spinner while translating', () => {
