@@ -5,14 +5,14 @@ import { getDesktopAPI } from './desktopAdapter';
 
 /** Offered when a provider does not declare its target languages (lyrics.translation 1.2). */
 export const DEFAULT_TRANSLATION_LANGUAGES: readonly string[] = ['zh', 'en', 'ja', 'ko'];
-export const translationLanguages = (provider: Pick<PluginProviderInfo, 'languages'> | null | undefined): readonly string[] =>
+export const translationLanguages = (provider: Pick<PluginProviderInfo, 'id' | 'languages'> | null | undefined): readonly string[] =>
   provider?.languages?.length ? provider.languages : DEFAULT_TRANSLATION_LANGUAGES;
 /**
  * The preferred language when the provider supports it, else one with the same primary
  * subtag (zh → zh-Hans), else the provider's first language. The stored preference is left
  * as it is, so returning to a provider that supports it restores it.
  */
-export function effectiveTranslationLanguage(provider: Pick<PluginProviderInfo, 'languages'> | null | undefined, preferred: string): string {
+export function effectiveTranslationLanguage(provider: Pick<PluginProviderInfo, 'id' | 'languages'> | null | undefined, preferred: string): string {
   const languages = translationLanguages(provider);
   const wanted = preferred.toLowerCase();
   const primary = wanted.split('-')[0];

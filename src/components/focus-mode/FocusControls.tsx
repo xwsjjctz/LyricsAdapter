@@ -37,8 +37,8 @@ export interface FocusControlsProps {
   scale?: number;
   portrait?: boolean;
   /** Plugin lyric translation toggle, shown in every playback control layout. */
-  translationStatus?: PluginTranslationStatus;
-  onToggleTranslation?: () => void;
+  translationStatus?: PluginTranslationStatus | undefined;
+  onToggleTranslation?: (() => void) | undefined;
 }
 
 const formatTime = (seconds: number): string => {

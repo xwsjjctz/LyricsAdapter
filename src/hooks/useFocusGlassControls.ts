@@ -15,7 +15,7 @@ interface Options {
   duration: number;
   volume: number;
   playbackMode: FocusGlassState['playbackMode'];
-  translation?: FocusGlassTranslation;
+  translation?: FocusGlassTranslation | undefined;
   scale: number;
   onSeek: (time: number) => void;
   onTogglePlay: () => void;
@@ -24,7 +24,7 @@ interface Options {
   onVolumeChange: (volume: number) => void;
   onToggleMute: () => void;
   onTogglePlaybackMode: () => void;
-  onToggleTranslation?: () => void;
+  onToggleTranslation?: (() => void) | undefined;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/palette/CommandPalette';
 import type { PaletteLibrarySources } from '@/components/palette/usePaletteItems';
 import type { PaletteCommand } from '@/types/paletteCommand';
