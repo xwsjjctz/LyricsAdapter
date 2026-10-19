@@ -75,6 +75,14 @@
 .focus-portrait-volume { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .focus-portrait-volume .player-slider { flex: 1; min-width: 0; height: 44px; }
 .focus-portrait-volume > .material-symbols-rounded { font-size: 24px; }
+/* With the plugin translate button on the left, the bare volume_up glyph takes a
+   button-sized box so both sides of the slider are equally wide. */
+.focus-portrait-volume:has(.focus-translate-button--inline) > .material-symbols-rounded {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 44px;
+}
 .focus-portrait-volume button .material-symbols-rounded { font-size: 22px; }
 .focus-portrait-controls button:disabled { opacity: .3; }
 .focus-portrait-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 8px; }

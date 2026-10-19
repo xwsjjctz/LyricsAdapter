@@ -51,14 +51,19 @@
   background: #fff;
 }
 
-/* Portrait volume row: a plain icon like its neighbours; translated gets a soft disc. */
+/* Portrait volume row: a plain icon like its neighbours; translated turns the icon blue. */
 .focus-portrait-controls .focus-translate-button--inline {
   color: rgba(255, 255, 255, 0.72);
 }
 
+/* The translate glyph fills its em box, so it needs a smaller size to match the speaker icons. */
+.focus-portrait-volume .focus-translate-button--inline .material-symbols-rounded {
+  font-size: 18px;
+}
+
 .focus-portrait-controls .focus-translate-button--inline[aria-pressed='true'] {
-  color: #fff;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0 15px, transparent 15.5px);
+  /* macOS system blue (dark appearance). */
+  color: #0a84ff;
 }
 
 .focus-portrait-controls .focus-translate-button--inline:disabled {
