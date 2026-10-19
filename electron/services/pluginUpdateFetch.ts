@@ -75,7 +75,8 @@ export function fetchPluginUpdate(url: string, init: RequestInit = {}): Promise<
               controller.close();
             });
             response.on('error', fail);
-            response.on('close', () => fail(new Error('Plugin update response closed before completion')));
+            // IncomingMessage is a Readable and emits 'close'; Electron's typings omit that overload.
+            (response as unknown as NodeJS.EventEmitter).on('close', () => fail(new Error('Plugin update response closed before completion')));
             response.on('aborted', () => fail(new Error('Plugin update response aborted')));
             response.on('data', chunk => { if (!finished) controller.enqueue(chunk); });
           },
