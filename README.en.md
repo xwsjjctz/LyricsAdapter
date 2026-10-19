@@ -120,15 +120,15 @@ Cloud playback requires a working network connection. Uploading local files and 
 The QQ Music and NetEase Cloud Music integrations are maintained separately in [LyricsAdapter-Music-Plugins](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins). The main app starts without any plugins:
 
 1. Open **Settings → Plugins** and download the QQ Music or NetEase Cloud Music plugin under **Official plugins**, or use **Install local plugin** to import a `.laplugin` file.
-2. Once a plugin is enabled, an **Online Music** page appears in Settings.
+2. Once a plugin is enabled, its songs appear in command palette searches; sign in from the plugin card's **Settings**.
 
 A first install takes effect immediately; updating an installed plugin requires restarting the app. Each plugin runs in its own process, and the app asks you to confirm the source before installing or updating a third-party plugin. Disabling a plugin keeps its songs, playlists, and sign-in data.
 
-Plugins are stored in `~/.la/plugin/<plugin ID>/`; the Plugins page shows the actual path and can open the folder. Third-party developers can read the [plugin API documentation](docs/plugins/README.md) to register music sources or lyric translation through the general API; any music source plugin can join the online music interface through its manifest. Translation plugins can be selected on the Plugins page to show side-by-side translations in Focus Mode. See [music source plugins](docs/music-source-plugins.md) for the contract and build notes.
+Plugins are stored in `~/.la/plugin/<plugin ID>/`; the Plugins page shows the actual path and can open the folder. Third-party developers can read the [plugin API documentation](docs/plugins/README.md) to register music sources or lyric translation through the general API; any music source plugin can join the online music interface through its manifest. An enabled translation plugin adds a Translate button to Focus Mode for side-by-side translations. See [music source plugins](docs/music-source-plugins.md) for the contract and build notes.
 
 ### Sign in
 
-In **Settings → Online Music**, choose a source, then scan the QR code with that platform's mobile app and confirm, or paste a cookie and save.
+In **Settings → Plugins**, open the music source plugin's **Settings**, then scan the QR code with that platform's mobile app and confirm, or paste a cookie and choose **Verify & Save**. The plugin card shows whether you are signed in.
 
 QQ Music requires valid sign-in credentials for online search. NetEase Cloud Music supports anonymous search and previews. Personal playlists require signing in to the platform. Playback, downloads, and available audio quality depend on the resources and account permissions returned by each platform.
 
@@ -136,7 +136,7 @@ QQ Music requires valid sign-in credentials for online search. NetEase Cloud Mus
 
 Type in the command palette's **Library** mode; online results are labeled QQ or NetEase. Click a song to preview it, and it will appear in **Online History**.
 
-Before downloading, choose a destination in **Settings → Online Music**, or enter a path such as `~/Music`. Right-click an online result in the command palette, or a cover in **Online History** or a playlist, and choose a quality:
+Before downloading, choose a destination in **Settings → General**, or enter a path such as `~/Music`. Right-click an online result in the command palette, or a cover in **Online History** or a playlist, and choose a quality:
 
 | Quality | Option |
 | --- | --- |

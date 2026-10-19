@@ -4,10 +4,6 @@ import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache'
 import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
 import { cookieStoreFor, providerFor, sourceHasCapability } from '../services/musicSources';
 import { useMusicPlugins } from '../stores/musicPluginStore';
-import { settingsManager } from '../services/settingsManager';
-import { useSettingValue } from './useSettingValue';
-
-const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
 
 /**
  * Fetch the user's playlists from every signed-in source that offers them,
@@ -24,8 +20,7 @@ const readOnlineEnabled = () => settingsManager.getQqMusicEnabled();
  */
 export function useOnlinePlaylists(): { playlists: PlaylistInfo[]; loading: boolean } {
   const { sources } = useMusicPlugins();
-  const onlineEnabled = useSettingValue(readOnlineEnabled);
-  const playlistSources = onlineEnabled ? sources.filter(source => sourceHasCapability(source, 'playlists')) : [];
+  const playlistSources = sources.filter(source => sourceHasCapability(source, 'playlists'));
   // Stable while the set of sources is unchanged.
   const sourceKey = playlistSources.join('|');
   const [playlists, setPlaylists] = useState<PlaylistInfo[]>([]);

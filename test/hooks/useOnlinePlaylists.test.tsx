@@ -1,7 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { musicPluginStore } from '@/stores/musicPluginStore';
-import { settingsManager } from '@/services/settingsManager';
 
 const mocks = vi.hoisted(() => {
   const loggedIn = new Map<string, boolean>();
@@ -57,7 +56,6 @@ const notify = (id: string) => act(() => mocks.listenersFor(id).forEach(listener
 
 describe('useOnlinePlaylists', () => {
   beforeEach(() => {
-    vi.spyOn(settingsManager, 'getQqMusicEnabled').mockReturnValue(true);
     musicPluginStore.setState({ loaded: true, error: '', plugins: ['qq', 'netease'].map(plugin) });
     mocks.reset();
     mocks.playlistSources = new Set(['qq', 'netease']);

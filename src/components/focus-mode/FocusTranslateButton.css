@@ -1,11 +1,4 @@
-/* Icon-only translate toggle, in Focus Mode's fixed dark palette. */
-.focus-translate {
-  --focus-translate-scale: 1;
-  display: flex;
-  justify-content: center;
-  margin-top: calc(16px * var(--focus-translate-scale));
-}
-
+/* Icon-only translate toggle inside Focus Mode's playback controls. */
 .focus-translate-button {
   display: inline-grid;
   place-items: center;
@@ -13,42 +6,7 @@
   padding: 0;
   border-radius: 999px;
   cursor: pointer;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-/* Under the track title: a round chip matching the former pill. */
-.focus-translate-button--meta {
-  width: calc(32px * var(--focus-translate-scale));
-  height: calc(32px * var(--focus-translate-scale));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.focus-translate-button--meta .material-symbols-rounded {
-  font-size: calc(18px * var(--focus-translate-scale));
-}
-
-.focus-translate-button--meta:is(:hover, :focus-visible):not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-}
-
-.focus-translate-button--meta:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.8);
-  outline-offset: 2px;
-}
-
-/* Translated: a filled chip. Pressing it again shows only the original lyrics. */
-.focus-translate-button--meta[aria-pressed='true'],
-.focus-translate-button--meta[aria-pressed='true']:is(:hover, :focus-visible) {
-  border-color: transparent;
-  background: rgba(255, 255, 255, 0.9);
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.focus-translate-button--meta[aria-pressed='true']:is(:hover, :focus-visible) {
-  background: #fff;
+  transition: color 160ms ease;
 }
 
 /* Portrait volume row: a plain icon like its neighbours; translated turns the icon blue. */
@@ -68,6 +26,15 @@
 
 .focus-portrait-controls .focus-translate-button--inline:disabled {
   opacity: 1;
+}
+
+/* Landscape web controls: sits beside the playback mode toggle at its size. */
+.focus-translate-button--bar .material-symbols-rounded {
+  font-size: 1rem;
+}
+
+.focus-translate-button--bar[aria-pressed='true'] {
+  color: var(--theme-primary);
 }
 
 .focus-translate-button:disabled {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
-import type { FocusGlassAction, FocusGlassState, FocusGlassPresentation } from '../types/focusGlass';
+import type { FocusGlassAction, FocusGlassState, FocusGlassPresentation, FocusGlassTranslation } from '../types/focusGlass';
 
 interface Options {
   anchorRef: RefObject<HTMLElement | null>;
@@ -15,6 +15,7 @@ interface Options {
   duration: number;
   volume: number;
   playbackMode: FocusGlassState['playbackMode'];
+  translation?: FocusGlassTranslation | undefined;
   scale: number;
   onSeek: (time: number) => void;
   onTogglePlay: () => void;
@@ -23,6 +24,7 @@ interface Options {
   onVolumeChange: (volume: number) => void;
   onToggleMute: () => void;
   onTogglePlaybackMode: () => void;
+  onToggleTranslation?: (() => void) | undefined;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
@@ -42,6 +44,15 @@ export function readFocusGlassPresentation(element: HTMLElement | null): FocusGl
 }
 
 export type FocusGlassStatus = 'pending' | 'active' | 'fallback';
+
+// Same accessible names as the web translate button; `unavailable` still needs a non-empty label.
+const TRANSLATION_LABEL_KEYS: Record<FocusGlassTranslation, string> = {
+  unavailable: 'plugins.translate',
+  idle: 'plugins.translate',
+  translating: 'plugins.translating',
+  translated: 'plugins.translated',
+  error: 'plugins.translateRetry',
+};
 
 /** A pending native surface reserves its anchor without flashing web controls. */
 export function useFocusGlassControls(options: Options): FocusGlassStatus {
@@ -77,6 +88,7 @@ export function useFocusGlassControls(options: Options): FocusGlassStatus {
         case 'seek': current.onSeek(Math.max(0, Math.min(current.duration, action.value))); break;
         case 'volume': current.onVolumeChange(Math.max(0, Math.min(1, action.value))); break;
         case 'hover': action.value ? current.onMouseEnter() : current.onMouseLeave(); break;
+        case 'translate': current.onToggleTranslation?.(); break;
       }
     });
     void api.start().then(result => {
@@ -95,9 +107,10 @@ export function useFocusGlassControls(options: Options): FocusGlassStatus {
   // Time labels and the native slider only need four updates per second.
   const currentTime = Math.floor(Math.max(0, options.currentTime) * 4) / 4;
   const { visible, enabled, isPlaying, duration, volume, playbackMode, scale } = options;
+  const translation = options.translation ?? 'unavailable';
   const state = useRef<FocusGlassState | null>(null);
   state.current = {
-    visible, enabled, isPlaying, currentTime, duration: Math.max(0, duration), volume, playbackMode,
+    visible, enabled, isPlaying, currentTime, duration: Math.max(0, duration), volume, playbackMode, translation,
     darkMode: document.documentElement.classList.contains('theme-dark'),
     // Placeholder; the main process replaces it with the analyzed cover luminance.
     backdropLuminance: -1,
@@ -107,6 +120,7 @@ export function useFocusGlassControls(options: Options): FocusGlassStatus {
       playPause: t('shortcut.playPause'), previous: t('shortcut.prevTrack'), next: t('shortcut.nextTrack'),
       seek: t('controls.seek'), volume: t('controls.volume'), mute: t('controls.mute'),
       mode: t(playbackMode === 'shuffle' ? 'controls.shuffleMode' : playbackMode === 'repeat-one' ? 'controls.repeatOneMode' : 'controls.sequence'),
+      translate: t(TRANSLATION_LABEL_KEYS[translation]),
     },
   };
   const sync = useRef<(() => void) | null>(null);
@@ -173,7 +187,7 @@ export function useFocusGlassControls(options: Options): FocusGlassStatus {
       animate.current = null;
     };
   }, [api, active]);
-  useEffect(() => { sync.current?.(); }, [active, visible, enabled, isPlaying, currentTime, duration, volume, playbackMode, scale, t]);
+  useEffect(() => { sync.current?.(); }, [active, visible, enabled, isPlaying, currentTime, duration, volume, playbackMode, translation, scale, t]);
   useEffect(() => { animate.current?.(); }, [active, visible, options.focusVisible, scale]);
   return status;
 }

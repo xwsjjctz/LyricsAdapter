@@ -49,7 +49,7 @@ function RangeRow({ theme, label, value, min, max, step, display, onChange }: Ra
   );
 }
 
-/** Focus mode appearance: backdrop and scrolling lyrics. */
+/** Focus mode appearance: backdrop and scrolling lyrics. Shown under Experimental features. */
 export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
   const { t } = useTranslation();
   const { colors } = theme;
@@ -71,47 +71,51 @@ export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
   }, [opacity, storedOpacity]);
 
   return (
-    <div className="settings-card r-card border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      <div className="settings-row" style={{ borderColor: colors.borderLight }}>
-        <div className="min-w-0">
-          <div className="settings-row__label" style={{ color: colors.textSecondary }}>{t('settings.focusAmllBackground')}</div>
-          <div id="focus-amll-background-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>
-            {t('settings.focusAmllBackgroundDesc')}
-          </div>
-        </div>
-        <Switch checked={amllBackground} label={t('settings.focusAmllBackground')}
-          describedBy="focus-amll-background-description"
-          onChange={enabled => { void settingsManager.setFocusAmllBackgroundEnabled(enabled); }} />
-      </div>
-      <RangeRow theme={theme} label={t('settings.bgBlurTrans')} value={opacity} min={0} max={1} step={0.01}
-        display={opacity.toFixed(2)}
-        onChange={value => {
-          setOpacity(value);
-          const preview = (window as unknown as { bg_blur_trans?: (value: number) => void }).bg_blur_trans;
-          if (typeof preview === 'function') preview(value);
-        }} />
-      {/* The mesh gradient has no blur radius; it only applies to the classic cover. */}
-      {!amllBackground && (
-        <RangeRow theme={theme} label={t('settings.focusBgBlurRadius')} value={blurRadius} min={40} max={80} step={1}
-          display={`${blurRadius}px`} onChange={value => { void settingsManager.setFocusBgBlurRadius(value); }} />
-      )}
-      <RangeRow theme={theme} label={t('settings.focusLyricsFontSize')} value={fontSize} min={24} max={40} step={1}
-        display={`${fontSize}px`} onChange={value => { void settingsManager.setFocusLyricsFontSize(value); }} />
-      <RangeRow theme={theme} label={t('settings.focusLyricLineSpacing')} value={lineSpacing} min={12} max={48} step={1}
-        display={`${lineSpacing}px`} onChange={value => { void settingsManager.setFocusLyricLineSpacing(value); }} />
-      {isWindows && (
+    <section className="space-y-2" aria-labelledby="focus-mode-settings-title">
+      {/* The section is "Experimental features", so the card says what it configures. */}
+      <h3 id="focus-mode-settings-title" className="px-1 text-sm font-medium" style={{ color: colors.textPrimary }}>{t('settings.nav.focus')}</h3>
+      <div className="settings-card r-card border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
         <div className="settings-row" style={{ borderColor: colors.borderLight }}>
           <div className="min-w-0">
-            <div className="settings-row__label" style={{ color: colors.textSecondary }}>{t('settings.focusEnhancedFontEnabled')}</div>
-            <div id="focus-enhanced-font-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>
-              {t('settings.focusEnhancedFontEnabledDesc')}
+            <div className="settings-row__label" style={{ color: colors.textSecondary }}>{t('settings.focusAmllBackground')}</div>
+            <div id="focus-amll-background-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>
+              {t('settings.focusAmllBackgroundDesc')}
             </div>
           </div>
-          <Switch checked={enhancedFont} label={t('settings.focusEnhancedFontEnabled')}
-            describedBy="focus-enhanced-font-description"
-            onChange={enabled => { void settingsManager.setFocusEnhancedFontEnabled(enabled); }} />
+          <Switch checked={amllBackground} label={t('settings.focusAmllBackground')}
+            describedBy="focus-amll-background-description"
+            onChange={enabled => { void settingsManager.setFocusAmllBackgroundEnabled(enabled); }} />
         </div>
-      )}
-    </div>
+        <RangeRow theme={theme} label={t('settings.bgBlurTrans')} value={opacity} min={0} max={1} step={0.01}
+          display={opacity.toFixed(2)}
+          onChange={value => {
+            setOpacity(value);
+            const preview = (window as unknown as { bg_blur_trans?: (value: number) => void }).bg_blur_trans;
+            if (typeof preview === 'function') preview(value);
+          }} />
+        {/* The mesh gradient has no blur radius; it only applies to the classic cover. */}
+        {!amllBackground && (
+          <RangeRow theme={theme} label={t('settings.focusBgBlurRadius')} value={blurRadius} min={40} max={80} step={1}
+            display={`${blurRadius}px`} onChange={value => { void settingsManager.setFocusBgBlurRadius(value); }} />
+        )}
+        <RangeRow theme={theme} label={t('settings.focusLyricsFontSize')} value={fontSize} min={24} max={40} step={1}
+          display={`${fontSize}px`} onChange={value => { void settingsManager.setFocusLyricsFontSize(value); }} />
+        <RangeRow theme={theme} label={t('settings.focusLyricLineSpacing')} value={lineSpacing} min={12} max={48} step={1}
+          display={`${lineSpacing}px`} onChange={value => { void settingsManager.setFocusLyricLineSpacing(value); }} />
+        {isWindows && (
+          <div className="settings-row" style={{ borderColor: colors.borderLight }}>
+            <div className="min-w-0">
+              <div className="settings-row__label" style={{ color: colors.textSecondary }}>{t('settings.focusEnhancedFontEnabled')}</div>
+              <div id="focus-enhanced-font-description" className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>
+                {t('settings.focusEnhancedFontEnabledDesc')}
+              </div>
+            </div>
+            <Switch checked={enhancedFont} label={t('settings.focusEnhancedFontEnabled')}
+              describedBy="focus-enhanced-font-description"
+              onChange={enabled => { void settingsManager.setFocusEnhancedFontEnabled(enabled); }} />
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

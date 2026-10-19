@@ -26,6 +26,10 @@ const RETIRED_LOCAL_SETTING_KEYS = new Set([
   'soda_cookie_last_check',
   'la_list_density',
   'la_library_mode',
+  // Online music follows enabled music source plugins; the old master switch is gone.
+  'la_qq_music_enabled',
+  // Focus Mode translates with the enabled translation plugin; there is no provider choice.
+  'plugin_lyrics_provider',
 ]);
 
 /**
@@ -46,7 +50,6 @@ const LEGACY_MIGRATABLE_SETTING_KEYS = new Set([
   'la_download_path',
   'la_floating_panel',
   'la_bg_blur_trans',
-  'la_qq_music_enabled',
   'la_online_source',
   'la_gsap_button_bounce',
   'la_focus_bg_blur_radius',

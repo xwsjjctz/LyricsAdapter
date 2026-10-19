@@ -109,7 +109,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
     const openFocusSettings = async () => {
       await runPaletteCommand('settings');
       await expect(page.locator('.settings-sheet')).toBeVisible();
-      await page.locator('.settings-sheet__tabs').getByRole('tab').nth(3).click();
+      await page.locator('.settings-sheet__tabs').getByRole('link').nth(3).click();
     };
     const leaveSettings = async () => {
       await page.keyboard.press('Escape');

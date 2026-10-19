@@ -8,6 +8,7 @@ import FocusMode from './FocusMode';
 import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
 import DownloadStatusPill from './wall/DownloadStatusPill';
+import WelcomePreview from './wall/WelcomePreview';
 import SettingsSurface, { usePrewarmSettingsPanel } from './settings/SettingsSurface';
 import CommandPalette from './palette/CommandPalette';
 import PlaylistSwitcher from './playlist-switcher/PlaylistSwitcher';
@@ -139,6 +140,8 @@ const AppShell: React.FC<AppShellProps> = ({
   }, [refreshCloudTracks, t]);
 
   const [selectionRequest, setSelectionRequest] = useState(0);
+  // Experimental settings can show the first-launch welcome page over a non-empty library.
+  const [welcomePreview, setWelcomePreview] = useState(false);
   const selectTracks = useCallback(() => {
     setSelectionRequest(token => token + 1);
   }, []);
@@ -358,7 +361,8 @@ const AppShell: React.FC<AppShellProps> = ({
             floating={floatingPanel}
           />
         </main>
-        {settingsSection && <SettingsSurface initialSection={settingsSection} onClose={closeSettings} />}
+        {settingsSection && <SettingsSurface initialSection={settingsSection} onClose={closeSettings} onPreviewWelcome={() => setWelcomePreview(true)} />}
+        {welcomePreview && <WelcomePreview onClose={() => setWelcomePreview(false)} onImport={importVm.importClick} />}
         <FocusMode
           track={player.currentTrack}
           isVisible={isFocusMode}

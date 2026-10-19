@@ -1,6 +1,6 @@
 export type PlaybackSymbol = 'skip_previous' | 'play_arrow' | 'pause' | 'skip_next'
   | 'repeat' | 'shuffle' | 'repeat_one' | 'volume_off' | 'volume_up' | 'open_in_full'
-  | 'fast_rewind' | 'fast_forward' | 'volume_down';
+  | 'fast_rewind' | 'fast_forward' | 'volume_down' | 'translate';
 export type PlaybackSymbols = Partial<Record<PlaybackSymbol, string>>;
 
 /** Rectangle normalized to the renderer viewport; y starts at the top. */
@@ -11,6 +11,9 @@ export interface FocusGlassPresentation {
   height: number;
   opacity: number;
 }
+
+/** Plugin lyric translation; `unavailable` hides the button. */
+export type FocusGlassTranslation = 'unavailable' | 'idle' | 'translating' | 'translated' | 'error';
 
 export interface FocusGlassState {
   visible: boolean;
@@ -25,6 +28,7 @@ export interface FocusGlassState {
   duration: number;
   volume: number;
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  translation: FocusGlassTranslation;
   scale: number;
   labels: {
     playPause: string;
@@ -34,10 +38,11 @@ export interface FocusGlassState {
     volume: string;
     mute: string;
     mode: string;
+    translate: string;
   };
 }
 
 export type FocusGlassAction = {
-  type: 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume' | 'hover';
+  type: 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume' | 'hover' | 'translate';
   value: number;
 };

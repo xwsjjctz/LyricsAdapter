@@ -72,7 +72,7 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
     }, { feed, feedUrl, updated, packageUrl });
     await expect(page.locator('.poster-wall')).toBeVisible();
     await page.keyboard.press('ControlOrMeta+K'); const palette = page.locator('.command-palette__input'); await palette.click(); await page.keyboard.press('Shift+Tab'); await palette.fill('settings'); await page.keyboard.press('Enter');
-    await page.getByRole('tab', { name: 'Plugins' }).click();
+    await page.getByRole('link', { name: 'Plugins', exact: true }).click();
     await app.evaluate(({ dialog }, file) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       // Approve the main-process trust prompts for the third-party source and record them.
@@ -84,11 +84,11 @@ test('third-party updates bind a GitHub source, retry corrupt downloads, preserv
       }) as typeof dialog.showMessageBox;
     }, oldFile);
     await page.getByRole('button', { name: 'Install local plugin' }).click();
+    await page.getByRole('button', { name: 'Update translator settings' }).click();
     const row = page.getByTestId('plugin-update-update-translator');
     await expect(row).toContainText('No update source');
     await page.getByRole('textbox', { name: 'Prefix', exact: true }).fill('Saved');
-    await page.getByRole('button', { name: 'Save plugin settings' }).click();
-    await row.locator('summary').click();
+    await page.getByRole('textbox', { name: 'Prefix', exact: true }).press('Enter');
     await row.getByLabel('Source type', { exact: true }).selectOption('github');
     await row.getByLabel('GitHub repository', { exact: true }).fill('test/translator');
     await row.getByRole('button', { name: 'Save source and check' }).click();

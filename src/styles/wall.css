@@ -561,3 +561,128 @@
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* First-launch welcome: the empty library's first page.              */
+/* ------------------------------------------------------------------ */
+
+.wall-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  width: min(420px, 100%);
+  padding: 0 24px;
+  text-align: left;
+  color: var(--theme-text-primary);
+}
+
+.wall-welcome__eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--theme-text-muted);
+}
+
+.wall-welcome__title {
+  margin-top: -6px;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: var(--theme-text-heading-weight, 700);
+  letter-spacing: -0.01em;
+}
+
+.wall-welcome__lead {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--theme-text-secondary);
+}
+
+.wall-welcome__keys {
+  width: 100%;
+  margin-top: 12px;
+  padding-top: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+}
+
+.wall-welcome__keys-title {
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-muted);
+}
+
+.wall-welcome__keys dl {
+  display: grid;
+  gap: 10px;
+}
+
+.wall-welcome__key-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--theme-text-secondary);
+}
+
+.wall-welcome__caps {
+  display: flex;
+  gap: 4px;
+}
+
+.wall-welcome kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--theme-text-primary) 14%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+  color: var(--theme-text-primary);
+  font: 600 12px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+/* Trying the welcome page from Experimental settings, over a library that has songs. */
+.welcome-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--theme-background-dark) 70%, transparent);
+  backdrop-filter: blur(24px) saturate(140%);
+  animation: welcome-preview-in 180ms ease-out;
+  -webkit-app-region: no-drag;
+}
+
+.welcome-preview__page {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: min(560px, 100%);
+  padding: 56px 0 40px;
+  outline: none;
+}
+
+.welcome-preview__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 6px;
+}
+
+@keyframes welcome-preview-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-preview {
+    animation: none;
+  }
+}

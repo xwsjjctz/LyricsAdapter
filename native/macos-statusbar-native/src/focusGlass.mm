@@ -103,6 +103,8 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) NSButton* next;
 @property(nonatomic, strong) NSButton* mode;
 @property(nonatomic, strong) NSButton* mute;
+@property(nonatomic, strong) NSButton* translate;
+@property(nonatomic, strong) NSProgressIndicator* translating;
 @property(nonatomic, strong) LAFocusSlider* seek;
 @property(nonatomic, strong) LAFocusSlider* volume;
 @property(nonatomic, strong) NSTextField* elapsed;
@@ -110,8 +112,10 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) NSTrackingArea* tracking;
 @property(nonatomic) NSRect presentationFrame;
 @property(nonatomic) BOOL shown;
+@property(nonatomic) BOOL translationShown;
 - (void)apply:(napi_value)state;
 - (void)applyDarkMode:(BOOL)darkMode;
+- (void)applyTranslation:(NSString*)status enabled:(BOOL)enabled;
 - (void)refreshAccessibility:(NSNotification*)notification;
 @end
 
@@ -158,6 +162,12 @@ API_AVAILABLE(macos(26.0))
   _play = [self button:@"play.fill" name:@"focus-glass-play" action:@selector(play:) parent:content];
   _next = [self button:@"forward.end.fill" name:@"focus-glass-next" action:@selector(next:) parent:content];
   _mode = [self button:@"repeat" name:@"focus-glass-mode" action:@selector(mode:) parent:content];
+  _translate = [self button:@"translate" name:@"focus-glass-translate" action:@selector(toggleTranslation:) parent:content];
+  _translate.hidden = YES;
+  _translating = [[NSProgressIndicator alloc] initWithFrame:NSZeroRect];
+  _translating.style = NSProgressIndicatorStyleSpinning; _translating.controlSize = NSControlSizeSmall;
+  _translating.displayedWhenStopped = NO; _translating.accessibilityIdentifier = @"focus-glass-translating";
+  [content addSubview:_translating];
   _seek = [[LAFocusSlider alloc] initWithFrame:NSZeroRect];
   _seek.focusRingType = NSFocusRingTypeNone;
   _seek.minValue = 0; _seek.maxValue = 1; _seek.continuous = NO;
@@ -214,12 +224,25 @@ API_AVAILABLE(macos(26.0))
   self.elapsed.frame = NSMakeRect(12, 67, 40, 14);
   self.total.frame = NSMakeRect(298, 67, 40, 14);
   self.seek.frame = NSMakeRect(56, 65, 238, 18);
-  self.mode.frame = NSMakeRect(16, 14, 32, 36);
-  self.previous.frame = NSMakeRect(72, 14, 36, 36);
-  self.play.frame = NSMakeRect(116, 10, 44, 44);
-  self.next.frame = NSMakeRect(168, 14, 36, 36);
-  self.mute.frame = NSMakeRect(224, 14, 32, 36);
-  self.volume.frame = NSMakeRect(266, 22, 68, 20);
+  if (self.translationShown) {
+    // Translate leads the row, centred under the elapsed time. Icon centres are evenly
+    // spaced (about 44) from translate to the speaker; the volume slider shortens to fit.
+    self.translate.frame = NSMakeRect(18, 14, 28, 36);
+    self.translating.frame = NSMakeRect(24, 24, 16, 16);
+    self.mode.frame = NSMakeRect(62, 14, 28, 36);
+    self.previous.frame = NSMakeRect(102, 14, 36, 36);
+    self.play.frame = NSMakeRect(143, 10, 44, 44);
+    self.next.frame = NSMakeRect(192, 14, 36, 36);
+    self.mute.frame = NSMakeRect(238, 14, 32, 36);
+    self.volume.frame = NSMakeRect(280, 22, 50, 20);
+  } else {
+    self.mode.frame = NSMakeRect(16, 14, 32, 36);
+    self.previous.frame = NSMakeRect(72, 14, 36, 36);
+    self.play.frame = NSMakeRect(116, 10, 44, 44);
+    self.next.frame = NSMakeRect(168, 14, 36, 36);
+    self.mute.frame = NSMakeRect(224, 14, 32, 36);
+    self.volume.frame = NSMakeRect(266, 22, 68, 20);
+  }
   [self updateTrackingAreas];
 }
 - (void)updateTrackingAreas {
@@ -230,8 +253,10 @@ API_AVAILABLE(macos(26.0))
   self.tracking = [[NSTrackingArea alloc] initWithRect:rect options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways owner:self userInfo:nil];
   [self addTrackingArea:self.tracking];
 }
-- (void)mouseEntered:(NSEvent*)event { (void)event; FocusGlass::Emit("hover", 1); }
-- (void)mouseExited:(NSEvent*)event { (void)event; FocusGlass::Emit("hover", 0); }
+// Buttons track their own hover and forward unhandled enter/exit events up the responder
+// chain; leaving a button must not count as leaving the bar.
+- (void)mouseEntered:(NSEvent*)event { if (event.trackingArea == self.tracking) FocusGlass::Emit("hover", 1); }
+- (void)mouseExited:(NSEvent*)event { if (event.trackingArea == self.tracking) FocusGlass::Emit("hover", 0); }
 - (void)apply:(napi_value)state {
   using namespace FocusGlass;
   double duration = Number(state, "duration", 0, 604800);
@@ -256,17 +281,19 @@ API_AVAILABLE(macos(26.0))
   self.mode.image = Symbol([mode isEqualToString:@"shuffle"] ? @"shuffle" : [mode isEqualToString:@"repeat-one"] ? @"repeat.1" : @"repeat", 17);
   self.mode.contentTintColor = [mode isEqualToString:@"order"] ? NSColor.secondaryLabelColor : NSColor.controlAccentColor;
   self.mute.image = Symbol(volume == 0 ? @"speaker.slash.fill" : @"speaker.wave.2.fill", 17);
+  [self applyTranslation:String(state, "translation") enabled:enabled];
   self.elapsed.stringValue = Time(current); self.total.stringValue = Time(duration);
   if (!self.seek.dragging) { self.seek.maxValue = std::max(1.0, duration); self.seek.doubleValue = current; }
   if (!self.volume.dragging) self.volume.doubleValue = volume;
   for (NSControl* control in @[self.play, self.previous, self.next, self.mode]) control.enabled = enabled;
   self.seek.enabled = enabled && duration > 0;
   napi_value labels = Property(state, "labels");
-  NSArray<NSView*>* controls = @[self.play, self.previous, self.next, self.seek, self.volume, self.mute, self.mode];
-  const char* keys[] = {"playPause", "previous", "next", "seek", "volume", "mute", "mode"};
+  NSArray<NSView*>* controls = @[self.play, self.previous, self.next, self.seek, self.volume, self.mute, self.mode, self.translate];
+  const char* keys[] = {"playPause", "previous", "next", "seek", "volume", "mute", "mode", "translate"};
   for (NSUInteger i = 0; i < controls.count; i++) {
     NSString* label = String(labels, keys[i]); controls[i].accessibilityLabel = label;
   }
+  self.translating.accessibilityLabel = self.translate.accessibilityLabel;
   [self layoutSubtreeIfNeeded];
   // No second AppKit animation: position and opacity already include the page
   // transition and the controls' auto-hide transition (including reversals).
@@ -279,11 +306,22 @@ API_AVAILABLE(macos(26.0))
     if ([responder isKindOfClass:NSView.class] && [(NSView*)responder isDescendantOf:self]) [self.window makeFirstResponder:nil];
   }
 }
+// Mirrors the web toggle: a spinner while translating, the accent tint once translated.
+- (void)applyTranslation:(NSString*)status enabled:(BOOL)enabled {
+  BOOL available = ![status isEqualToString:@"unavailable"];
+  BOOL busy = [status isEqualToString:@"translating"];
+  if (available != self.translationShown) { self.translationShown = available; [self setNeedsLayout:YES]; }
+  self.translate.hidden = !available || busy;
+  self.translate.enabled = enabled;
+  self.translate.contentTintColor = [status isEqualToString:@"translated"] ? NSColor.controlAccentColor : NSColor.secondaryLabelColor;
+  if (available && busy) [self.translating startAnimation:nil]; else [self.translating stopAnimation:nil];
+}
 - (void)play:(id)sender { (void)sender; FocusGlass::Emit("toggle-play"); }
 - (void)previous:(id)sender { (void)sender; FocusGlass::Emit("previous"); }
 - (void)next:(id)sender { (void)sender; FocusGlass::Emit("next"); }
 - (void)mode:(id)sender { (void)sender; FocusGlass::Emit("mode"); }
 - (void)mute:(id)sender { (void)sender; FocusGlass::Emit("mute"); }
+- (void)toggleTranslation:(id)sender { (void)sender; FocusGlass::Emit("translate"); }
 - (void)seek:(NSSlider*)sender { FocusGlass::Emit("seek", sender.doubleValue); }
 - (void)volume:(NSSlider*)sender { FocusGlass::Emit("volume", sender.doubleValue); }
 @end
@@ -351,8 +389,8 @@ napi_value PlaybackSymbols(napi_env e, napi_callback_info) {
   napi_value symbols;
   napi_value result = Guard(e, [&] {
     Check(napi_create_object(e, &symbols));
-    NSArray<NSString*>* keys = @[@"skip_previous", @"play_arrow", @"pause", @"skip_next", @"repeat", @"shuffle", @"repeat_one", @"volume_off", @"volume_up", @"open_in_full", @"fast_rewind", @"fast_forward", @"volume_down"];
-    NSArray<NSString*>* names = @[@"backward.end.fill", @"play.fill", @"pause.fill", @"forward.end.fill", @"repeat", @"shuffle", @"repeat.1", @"speaker.slash.fill", @"speaker.wave.2.fill", @"arrow.up.left.and.arrow.down.right", @"backward.fill", @"forward.fill", @"speaker.wave.1.fill"];
+    NSArray<NSString*>* keys = @[@"skip_previous", @"play_arrow", @"pause", @"skip_next", @"repeat", @"shuffle", @"repeat_one", @"volume_off", @"volume_up", @"open_in_full", @"fast_rewind", @"fast_forward", @"volume_down", @"translate"];
+    NSArray<NSString*>* names = @[@"backward.end.fill", @"play.fill", @"pause.fill", @"forward.end.fill", @"repeat", @"shuffle", @"repeat.1", @"speaker.slash.fill", @"speaker.wave.2.fill", @"arrow.up.left.and.arrow.down.right", @"backward.fill", @"forward.fill", @"speaker.wave.1.fill", @"translate"];
     for (NSUInteger i = 0; i < keys.count; i++) {
       NSImage* image = Symbol(names[i], 20);
       if (!image || image.size.width <= 0 || image.size.height <= 0) continue;

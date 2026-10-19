@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Language } from '../../../i18n';
 import { getDesktopAPI, type UpdaterState } from '../../../services/desktopAdapter';
 import { logger } from '../../../services/logger';
+import { settingsManager } from '../../../services/settingsManager';
 import { LANGUAGE_OPTIONS, type SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
 
@@ -33,7 +34,45 @@ function useAppUpdater(): UpdaterState | null {
   return state;
 }
 
-/** Language, version information and installed-app updates. */
+/** Where online songs are saved. A preference, not a credential: it applies without a Save step. */
+function DownloadPathRow({ theme }: { theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const { colors, inputStyle, inputFocus, inputBlur } = theme;
+  const pathId = useId();
+  const [path, setPath] = useState('');
+  useEffect(() => {
+    let live = true;
+    void settingsManager.ensureLoaded().then(() => { if (live) setPath(settingsManager.getDownloadPath()); });
+    return () => { live = false; };
+  }, []);
+  const store = (value: string) => {
+    void settingsManager.setDownloadPath(value)
+      .catch(error => logger.error('[Settings] setDownloadPath failed:', error));
+  };
+  const chooseFolder = async () => {
+    const result = await getDesktopAPI()?.selectDownloadFolder?.();
+    if (result?.success && result.path) { setPath(result.path); store(result.path); }
+  };
+  return (
+    <div className="settings-row settings-row--stacked" style={{ borderColor: colors.borderLight }}>
+      <label htmlFor={pathId} className="settings-row__label" style={{ color: colors.textPrimary }}>{t('settingsDialog.savePath')}</label>
+      <div className="flex gap-2">
+        <input id={pathId} type="text" value={path} placeholder={t('settingsDialog.downloadFolderPath')}
+          className="min-w-0 flex-1 r-control py-2 px-2.5 text-sm focus:outline-none focus:ring-0 transition-all"
+          style={inputStyle} onFocus={inputFocus}
+          onChange={event => setPath(event.target.value)}
+          onBlur={event => { inputBlur(event); store(event.target.value.trim()); }} />
+        <button type="button" onClick={() => void chooseFolder()} aria-label={t('settingsDialog.chooseDownloadFolder')}
+          className="ui-btn ui-btn--secondary ui-btn--md flex-shrink-0">
+          <span className="material-symbols-rounded text-base" aria-hidden="true">folder_open</span>
+        </button>
+      </div>
+      <p className="text-xs" style={{ color: colors.textMuted }}>{t('settingsDialog.tip')}</p>
+    </div>
+  );
+}
+
+/** Language, download folder, version information and installed-app updates. */
 export default function GeneralSection({ theme }: GeneralSectionProps) {
   const { t, i18n } = useTranslation();
   const { colors } = theme;
@@ -87,6 +126,7 @@ export default function GeneralSection({ theme }: GeneralSectionProps) {
           ))}
         </select>
       </div>
+      <DownloadPathRow theme={theme} />
       <div className="settings-row" style={{ borderColor: colors.borderLight }}>
         <span className="settings-row__label" style={{ color: colors.textPrimary }}>{t('settings.about')}</span>
         <span className="text-sm tabular-nums" style={{ color: colors.textMuted }}>LyricsAdapter v{appVersion || '…'}</span>

@@ -72,9 +72,10 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     await testInfo.attach('settings-native-glass', { path: screenshot, contentType: 'image/png' });
     await settings.getByLabel('Language', { exact: true }).selectOption('zh');
     await expect(settings.getByRole('dialog', { name: '设置', exact: true })).toBeVisible();
-    await expect(page.getByText('还没有导入曲目', { exact: true })).toBeVisible();
+    // The empty library's welcome page follows the language chosen in the child.
+    await expect(page.getByText('从你的音乐开始', { exact: true })).toBeVisible();
     // A preference edited in the child applies to the player immediately.
-    await settings.getByRole('tab', { name: '专注模式', exact: true }).click();
+    await settings.getByRole('link', { name: '实验性', exact: true }).click();
     const slider = settings.getByRole('slider', { name: 'Focus Mode 滚动歌词字号' });
     await slider.fill('36');
     await expect.poll(() => page.evaluate(async () => {
@@ -96,7 +97,7 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     await choose('menu-showShortcuts');
     await expect.poll(panelVisible).toBe(true);
     settings = app.windows().find(window => window.url().includes('settings-panel='))!;
-    await expect(settings.getByRole('tabpanel', { name: '快捷键', exact: true })).toBeVisible();
+    await expect(settings.getByRole('link', { name: '快捷键', exact: true })).toHaveAttribute('aria-current', 'location');
     await settings.getByRole('button', { name: '关闭', exact: true }).click().catch(error => { if (!settings.isClosed()) throw error; });
     await expect.poll(panelVisible).toBe(false);
     await choose('menu-gotoSettings');
@@ -108,7 +109,7 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     settings = app.windows().find(window => window.url().includes('settings-panel='))!;
     await expect(settings.getByRole('dialog', { name: '设置', exact: true })).toBeVisible();
     await choose('menu-showShortcuts');
-    await expect(settings.getByRole('tabpanel', { name: '快捷键', exact: true })).toBeVisible();
+    await expect(settings.getByRole('link', { name: '快捷键', exact: true })).toHaveAttribute('aria-current', 'location');
     expect(await panelVisible()).toBe(true);
     await settings.keyboard.press('Meta+K').catch(error => { if (!settings.isClosed()) throw error; });
     await expect.poll(panelVisible).toBe(false);

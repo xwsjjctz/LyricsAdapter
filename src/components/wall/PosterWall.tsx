@@ -28,8 +28,8 @@ interface PosterWallProps {
   onTrackSelect: (index: number) => void;
   hasMenu: (track: Track) => boolean;
   onOpenMenu: (track: Track, x: number, y: number, trigger: HTMLElement) => void;
-  /** Shown under the empty label, e.g. an import button. */
-  emptyAction?: React.ReactNode;
+  /** Replaces the empty label once loading has finished, e.g. the welcome page. */
+  emptyContent?: React.ReactNode;
   selecting?: boolean;
   selectedIds?: ReadonlySet<string>;
   onToggleSelect?: ((track: Track) => void) | undefined;
@@ -101,7 +101,7 @@ const TILE_DRAG_TYPE = 'application/x-lyricsadapter-tile';
 const PosterWall: React.FC<PosterWallProps> = ({
   tracks, sourceKey, currentTrackId, nowPlayingAnimated = false, loading = false, emptyLabel, loadingLabel, downloadProgress,
   hasMore = false, loadError = false, onLoadMore, onTrackSelect, hasMenu, onOpenMenu,
-  emptyAction, selecting = false, selectedIds, onToggleSelect, onSwap,
+  emptyContent, selecting = false, selectedIds, onToggleSelect, onSwap,
   autoLocateToken = 0, locateRequest, onLocateRequestHandled,
   topInset = 0, bottomInset = 0, restoreScrollTop, onScrollPositionChange,
 }) => {
@@ -335,8 +335,7 @@ const PosterWall: React.FC<PosterWallProps> = ({
     >
       {isEmpty ? (
         <div className="poster-wall__status" style={{ color: 'var(--theme-text-muted)' }}>
-          <p>{loading ? loadingLabel : emptyLabel}</p>
-          {!loading && emptyAction}
+          {!loading && emptyContent ? emptyContent : <p>{loading ? loadingLabel : emptyLabel}</p>}
         </div>
       ) : (
         <div className="poster-wall__canvas" style={{ height: layout.height }}>

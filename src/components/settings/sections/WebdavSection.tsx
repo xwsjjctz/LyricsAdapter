@@ -2,6 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import SettingsMessage from '../SettingsMessage';
+import type { SettingsMessageState } from '../hooks/useSettingsMessage';
 
 // Presentational WebDAV settings section used by the application settings panel.
 
@@ -10,14 +12,13 @@ interface WebdavSectionProps {
   serverUrl: string;
   username: string;
   password: string;
-  message: string | null;
-  messageType: 'success' | 'error' | null;
+  message: SettingsMessageState | null;
   isTesting: boolean;
   isSaving: boolean;
+  isDirty: boolean;
   setServerUrl: (v: string) => void;
   setUsername: (v: string) => void;
   setPassword: (v: string) => void;
-  onTest: () => void;
   onSave: () => void;
 }
 
@@ -31,13 +32,12 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
   username,
   password,
   message,
-  messageType,
   isTesting,
   isSaving,
+  isDirty,
   setServerUrl,
   setUsername,
   setPassword,
-  onTest,
   onSave,
 }) => {
   const { t } = useTranslation();
@@ -45,12 +45,6 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      <div className="mb-3">
-        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>cloud</span>
-          {t('settingsDialog.webdavTitle')}
-        </h3>
-      </div>
       <div className="space-y-3">
         <input
           type="text"
@@ -84,36 +78,21 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
         />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="secondary" size="sm" onClick={onTest} disabled={isTesting || isSaving}>
-          {isTesting ? (
-            <>
-              <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
-              {t('settingsDialog.webdavTesting')}
-            </>
-          ) : (
-            t('settingsDialog.webdavTestConnection')
-          )}
-        </Button>
+      <div className="mt-3 flex items-center justify-end gap-3">
+        {isDirty && <span className="text-xs" role="status" style={{ color: colors.textMuted }}>{t('settingsDialog.unsaved')}</span>}
         <Button variant="primary" size="sm" onClick={onSave} disabled={isTesting || isSaving}>
-          {isSaving ? (
+          {isTesting || isSaving ? (
             <>
               <span className="material-symbols-rounded animate-spin text-sm">refresh</span>
-              {t('settingsDialog.saving')}
+              {t(isTesting ? 'settingsDialog.webdavTesting' : 'settingsDialog.saving')}
             </>
           ) : (
-            t('settingsDialog.save')
+            t('settingsDialog.webdavConnectAndSave')
           )}
         </Button>
       </div>
 
-      {message && (
-        <span className={`mt-3 block text-xs ${
-          messageType === 'success' ? 'text-green-400' : 'text-red-400'
-        }`}>
-          {message}
-        </span>
-      )}
+      {message && <div className="mt-3"><SettingsMessage tone={message.tone}>{message.text}</SettingsMessage></div>}
     </section>
   );
 };

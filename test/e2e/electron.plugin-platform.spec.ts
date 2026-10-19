@@ -28,19 +28,20 @@ test('platform packages install, configure and translate in both Focus renderers
   expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginHostInfo())).toMatchObject({coreApi:'1.1.0',legacyMusicApi:1,extensionApis:{'lyrics.translation':'1.2.0'}});
   await expect(page.locator('.poster-wall')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+K');const palette=page.locator('.command-palette__input');await palette.click();await page.keyboard.press('Shift+Tab');await palette.fill('settings');await page.keyboard.press('Enter');
-  await page.getByRole('tab',{name:'Plugins'}).click();
+  await page.getByRole('link',{name:'Plugins',exact:true}).click();
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},packageFile);
   await page.getByRole('button',{name:'Install local plugin'}).click();
   const providers=await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginProviders('lyrics.translation'));
   expect(providers).toMatchObject([{key:'example-translation:default'}] satisfies Partial<PluginProviderInfo>[]);
-  await expect(page.getByRole('tab',{name:'Online Music'})).toHaveCount(0);
+  // Plugin settings open inside the card and apply without a Save step; Enter commits typed text.
+  await page.getByRole('button',{name:'歌词翻译开发示例 settings'}).click();
   await page.getByRole('textbox',{name:'译文前缀 / Translation prefix'}).fill('Test translation');
-  await page.getByRole('button',{name:'Save plugin settings'}).click();
+  await page.getByRole('textbox',{name:'译文前缀 / Translation prefix'}).press('Enter');
   await expect.poll(()=>page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginConfiguration('example-translation'))).toEqual({prefix:'Test translation'});
-  await page.getByLabel('Translation plugin',{exact:true}).selectOption('example-translation:default');
+  // An enabled translation plugin is what Focus Mode translates with; its target language sits with its settings.
+  await expect(page.getByLabel('Target language',{exact:true})).toBeEnabled();
   await page.screenshot({path:testInfo.outputPath('plugin-platform-settings.png')});
-  await expect(page.getByLabel('Translation plugin',{exact:true})).toBeEnabled();
-  await page.getByRole('tab',{name:'Plugins'}).click();await page.keyboard.press('Escape');await expect(page.locator('.settings-sheet')).toHaveCount(0);await page.getByRole('button',{name:/Enter Focus Mode/}).click();
+  await page.getByRole('link',{name:'Plugins',exact:true}).click();await page.keyboard.press('Escape');await expect(page.locator('.settings-sheet')).toHaveCount(0);await page.getByRole('button',{name:/Enter Focus Mode/}).click();
   await expect(page.getByTestId('focus-legacy-lyrics')).toBeVisible();
   // Lyrics stay untranslated until the Focus Mode button asks the provider.
   const translate=page.getByTestId('focus-translate-button');

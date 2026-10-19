@@ -5,7 +5,7 @@ import {
   subscribeTranslationPreference,
 } from '../services/pluginTranslationPreference';
 
-export { setTranslationPreference } from '../services/pluginTranslationPreference';
+export { setTranslationLanguage } from '../services/pluginTranslationPreference';
 
 export function useTranslationPreference() {
   const snapshot = useSyncExternalStore(subscribeTranslationPreference, getTranslationPreference);

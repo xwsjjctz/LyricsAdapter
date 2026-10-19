@@ -89,6 +89,9 @@ describe('native settings panel', () => {
     expect(f.owner.send).toHaveBeenCalledWith('settings-panel-shortcut', 'k', 1);
     expect(f.invoke('shortcut', { key: 'k', modifiers: 16 }, f.childEvent).ok).toBe(false);
     expect(f.invoke('shortcut', { key: 'k', modifiers: 1 }).ok).toBe(false);
+    expect(f.invoke('previewWelcome', undefined, f.childEvent).ok).toBe(true);
+    expect(f.owner.send).toHaveBeenCalledWith('settings-panel-preview-welcome');
+    expect(f.invoke('previewWelcome').ok).toBe(false);
     f.invoke('close', undefined, f.childEvent);
     expect(f.owner.send).toHaveBeenCalledWith('settings-panel-closed');
     // The renderer is kept for the next open, which only shows it again.

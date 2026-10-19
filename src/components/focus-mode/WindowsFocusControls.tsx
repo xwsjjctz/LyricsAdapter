@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLiquidGlass } from '../LiquidGlass';
 import '../../styles/playerSliders.css';
 import type { FocusControlsProps } from './FocusControls';
+import FocusTranslateButton from './FocusTranslateButton';
 
 const timeLabel = (seconds: number) => {
   const value = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
@@ -33,10 +34,11 @@ export default function WindowsFocusControls(props: FocusControlsProps & { backd
   const trackColor = light == null ? props.colors.borderLight : light ? 'rgba(15, 23, 42, .16)' : 'rgba(255, 255, 255, .22)';
   const mode = props.playbackMode === 'shuffle' ? 'shuffleMode' : props.playbackMode === 'repeat-one' ? 'repeatOneMode' : 'sequence';
   const icon = (name: string) => <span className="material-symbols-rounded" aria-hidden="true">{name}</span>;
+  const translation = props.onToggleTranslation ? props.translationStatus ?? 'unavailable' : 'unavailable';
   return <>
     {glass.filter}
     <div ref={setRef} className="windows-focus-glass liquid-glass liquid-glass--clear transition-opacity duration-500 motion-reduce:transition-none"
-      data-testid="focus-web-controls" data-glass-material="clear" aria-hidden={!shown || undefined}
+      data-testid="focus-web-controls" data-glass-material="clear" data-translation={translation !== 'unavailable'} aria-hidden={!shown || undefined}
       onMouseEnter={props.onMouseEnter}
       onMouseLeave={event => { if (!event.currentTarget.contains(document.activeElement)) props.onMouseLeave(); }}
       onFocusCapture={props.onMouseEnter}
@@ -57,6 +59,7 @@ export default function WindowsFocusControls(props: FocusControlsProps & { backd
         <span className="player-slider-thumb" aria-hidden="true" />
       </div>
       <span className="focus-glass-time focus-glass-total">{timeLabel(duration)}</span>
+      {props.onToggleTranslation && <FocusTranslateButton status={translation} onToggle={props.onToggleTranslation} placement="glass" disabled={!shown} />}
       <button type="button" className="focus-glass-mode" data-active={props.playbackMode !== 'order'} aria-label={t(`controls.${mode}`)}
         disabled={!shown || !props.track} onClick={props.onTogglePlaybackMode}>
         {icon(props.playbackMode === 'shuffle' ? 'shuffle' : props.playbackMode === 'repeat-one' ? 'repeat_one' : 'repeat')}

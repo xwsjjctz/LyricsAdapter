@@ -24,7 +24,7 @@ test('music plugins work through real IPC, stream and download; local updates an
   const userData = path.join(root, 'user-data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(userData);
-  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_qq_music_enabled: 'true', la_online_source: 'netease' }));
+  await writeFile(path.join(isolatedHome, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_online_source: 'netease' }));
   const env = Object.fromEntries(Object.entries({ ...process.env,
     HOME: isolatedHome, USERPROFILE: isolatedHome, APPDATA: path.join(root, 'app-data'),
     LOCALAPPDATA: path.join(root, 'local-app-data'), XDG_CONFIG_HOME: path.join(root, 'config'),
@@ -87,16 +87,18 @@ test('music plugins work through real IPC, stream and download; local updates an
     await palette.click(); await expect(palette).toBeFocused();
     await page.keyboard.press('Shift+Tab'); await palette.fill('settings'); await page.keyboard.press('Enter');
     await expect(page.locator('.settings-sheet')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Online Music' })).toHaveCount(0);
-    await page.getByRole('tab', { name: 'Plugins' }).click();
+    await page.getByRole('link', { name: 'Plugins', exact: true }).click();
     await expect(page.getByTestId('plugin-directory')).toHaveText(path.join(isolatedHome, '.la/plugin'));
     await page.screenshot({ path: testInfo.outputPath('plugins-empty.png') });
     await page.getByTestId('official-plugin-netease').getByRole('button', { name: 'Download and install' }).click();
-    await expect(page.getByRole('tab', { name: 'Online Music' })).toBeVisible();
+    // A music source signs in from its own plugin card; there is no separate online music tab.
+    await expect(page.getByTestId('installed-plugin-netease')).toContainText('Not signed in');
     const qqFile = path.join(root, 'qq.laplugin'); await writeFile(qqFile, packageFor('qq'));
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, qqFile);
     await page.getByRole('button', { name: 'Install local plugin' }).click();
-    await expect(page.getByTestId('installed-plugin-qq').getByRole('button', { name: 'Disable QQ 音乐', exact: true })).toBeVisible();
+    // An installed official plugin leaves the catalog and appears in the installed list.
+    await expect(page.getByTestId('official-plugin-netease')).toHaveCount(0);
+    await expect(page.getByTestId('installed-plugin-qq').getByRole('switch', { name: 'Enable QQ 音乐', exact: true })).toHaveAttribute('aria-checked', 'true');
     const plugins = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginList());
     expect(plugins.map(plugin => plugin.id).sort()).toEqual(['netease', 'qq']);
     expect(plugins.every(plugin => plugin.enabled && plugin.origin === 'installed' && !plugin.restartRequired)).toBe(true);
@@ -121,7 +123,7 @@ test('music plugins work through real IPC, stream and download; local updates an
     const manager = page.getByTestId('music-plugin-manager');
     await expect(manager).toBeVisible();
     const neteaseCard = manager.getByTestId('installed-plugin-netease');
-    await neteaseCard.getByRole('button', { name: 'Disable 网易云音乐', exact: true }).click();
+    await neteaseCard.getByRole('switch', { name: 'Enable 网易云音乐', exact: true }).click();
     await expect(neteaseCard.getByText('Disabled', { exact: true })).toBeVisible();
     await expect(neteaseCard.getByRole('button', { name: 'Uninstall', exact: true })).toBeEnabled();
     const disabled = await page.evaluate(async () => {
@@ -129,10 +131,10 @@ test('music plugins work through real IPC, stream and download; local updates an
       catch (error) { return String(error); }
     });
     expect(disabled).toContain('disabled');
-    await neteaseCard.getByRole('button', { name: 'Enable 网易云音乐', exact: true }).click();
-    await expect(neteaseCard.getByText('Enabled', { exact: true })).toBeVisible();
+    await neteaseCard.getByRole('switch', { name: 'Enable 网易云音乐', exact: true }).click();
+    await expect(neteaseCard.getByRole('switch', { name: 'Enable 网易云音乐', exact: true })).toHaveAttribute('aria-checked', 'true');
     expect(await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginCall('netease', 'searchMusic', ['song']))).toMatchObject([{ songmid: '42' }]);
-    await manager.getByTestId('installed-plugin-qq').getByRole('button', { name: 'Disable QQ 音乐', exact: true }).click();
+    await manager.getByTestId('installed-plugin-qq').getByRole('switch', { name: 'Enable QQ 音乐', exact: true }).click();
     await expect(manager.getByTestId('installed-plugin-qq').getByText('Disabled', { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('music-plugins-settings.png') });
 
@@ -160,7 +162,5 @@ test('music plugins work through real IPC, stream and download; local updates an
     expect(persisted.find(plugin => plugin.id === 'netease')).toMatchObject({ origin: 'installed', version: '9.0.0' });
     const uninstalled = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginUninstall('netease'));
     expect(uninstalled.find(plugin => plugin.id === 'netease')).toBeUndefined();
-    await page.keyboard.press('ControlOrMeta+,');
-    await expect(page.getByRole('tab', { name: 'Online Music' })).toHaveCount(0);
   } finally { await app?.close(); await rm(root, { recursive: true, force: true }); }
 });

@@ -13,6 +13,7 @@ import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
 import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
 import WallSelectionBar from './wall/WallSelectionBar';
 import WallStatusPill from './wall/WallStatusPill';
+import WallWelcome from './wall/WallWelcome';
 import type { OnlineProgress } from '../types/onlineProgress';
 
 type Progress = { loaded: number; total: number } | null | undefined;
@@ -132,12 +133,10 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
     ? `${t('library.importing')} ${importProgress.loaded}/${importProgress.total}`
     : progress ? `${t('library.loadingMetadata')}${progress.loaded}/${progress.total}` : '';
 
-  const emptyAction = dataSource === 'local' && !importDisabled && onImportClick ? (
-    <button type="button" className="wall-float wall-float__button wall-empty-action" onClick={onImportClick}>
-      <span className="material-symbols-rounded" aria-hidden="true">library_add</span>
-      {t('sidebar.importFiles')}
-    </button>
-  ) : undefined;
+  // An empty local library is the first thing a new user sees, so it greets them.
+  const emptyContent = dataSource === 'local'
+    ? <WallWelcome onImport={!importDisabled && onImportClick ? onImportClick : undefined} />
+    : undefined;
 
   return (
     <div
@@ -161,7 +160,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
         onTrackSelect={onTrackSelect}
         hasMenu={hasMenu}
         onOpenMenu={actions.openTrackMenu}
-        emptyAction={emptyAction}
+        emptyContent={emptyContent}
         selecting={actions.isSelecting}
         selectedIds={actions.selectedIds}
         onToggleSelect={toggleSelect}

@@ -50,7 +50,7 @@ describe('buildAppCommands', () => {
       'navigation.layout', 'source.local', 'source.cloud', 'source.online', 'playlist.open', 'playlist.manage',
       'library.import', 'playback.playAll', 'playback.shuffleAll', 'playback.focusMode', 'playback.mode',
       'playback.mute', 'appearance.colorMode', 'appearance.language', 'settings.open', 'settings.general',
-      'settings.online', 'settings.cloud', 'settings.focus', 'settings.shortcuts', 'settings.about',
+      'settings.plugins', 'settings.cloud', 'settings.focus', 'settings.shortcuts', 'settings.about',
     ]));
   });
 

@@ -39,7 +39,7 @@ async function bootstrap(): Promise<void> {
       document.title = 'LyricsAdapter Settings';
       dismissStartupScreen();
       const { default: SettingsWindow } = await import('./components/settings/SettingsWindow');
-      const sections = ['general', 'plugins', 'online', 'cloud', 'focus', 'shortcuts'];
+      const sections = ['general', 'plugins', 'cloud', 'focus', 'shortcuts'];
       const section = sections.includes(settingsSection) ? settingsSection as import('./types/settingsPanel').SettingsSectionId : 'general';
       root.render(<SettingsWindow section={section} />);
     } else {

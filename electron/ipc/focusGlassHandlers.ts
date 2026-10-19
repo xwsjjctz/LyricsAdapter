@@ -14,6 +14,7 @@ export const focusGlassStateSchema = z.object({
   duration: z.number().finite().min(0).max(604800),
   volume: z.number().finite().min(0).max(1),
   playbackMode: z.enum(['order', 'shuffle', 'repeat-one']),
+  translation: z.enum(['unavailable', 'idle', 'translating', 'translated', 'error']),
   // Renderer placeholder; the main process overwrites it from the analyzed cover.
   backdropLuminance: z.number().finite().min(-1).max(1),
   presentation: z.object({
@@ -22,7 +23,7 @@ export const focusGlassStateSchema = z.object({
     opacity: z.number().finite().min(0).max(1),
   }),
   scale: z.number().finite().min(1).max(3),
-  labels: z.object({ playPause: label, previous: label, next: label, seek: label, volume: label, mute: label, mode: label }),
+  labels: z.object({ playPause: label, previous: label, next: label, seek: label, volume: label, mute: label, mode: label, translate: label }),
 });
 
 const backdropSourceSchema = z.object({ source: z.string().max(8192).nullable() });

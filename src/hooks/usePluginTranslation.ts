@@ -32,27 +32,27 @@ export function usePluginTranslation(track: Track | null, visible: boolean) {
   const { plugins } = useMusicPlugins();
   const preference = useTranslationPreference();
   const scope = useMemo(() => JSON.stringify(plugins), [plugins]);
+  // The enabled translation plugin provides the button; disabling it removes the button.
   // Plugin changes re-read the providers. Keeping the same info object while the provider
   // is unchanged stops that refresh from cancelling and restarting a running translation.
-  const [lookup, setLookup] = useState<{ key: string; scope: string; info: PluginProviderInfo | null }>();
+  const [lookup, setLookup] = useState<{ scope: string; info: PluginProviderInfo | null }>();
   useEffect(() => {
-    if (!visible || !preference.loaded || !preference.provider) return;
+    if (!visible || !preference.loaded) return;
     let disposed = false;
-    const key = preference.provider;
     const settle = (found: PluginProviderInfo | null) => {
-      if (!disposed) setLookup(previous => ({ key, scope, info: previous?.key === key && sameProvider(previous.info, found) ? previous.info : found }));
+      if (!disposed) setLookup(previous => ({ scope, info: previous && sameProvider(previous.info, found) ? previous.info : found }));
     };
     void (async () => {
       const providers = await getDesktopAPI()?.pluginProviders?.('lyrics.translation') ?? [];
-      settle(providers.find(provider => provider.key === key) ?? null);
+      settle(providers[0] ?? null);
     })().catch(error => {
       logger.warn('[Plugins] Translation providers unavailable', error);
       settle(null);
     });
     return () => { disposed = true; };
-  }, [visible, preference.loaded, preference.provider, scope]);
+  }, [visible, preference.loaded, scope]);
 
-  const info = preference.loaded && preference.provider && lookup && lookup.key === preference.provider ? lookup.info : null;
+  const info = preference.loaded && lookup ? lookup.info : null;
   const fresh = lookup?.scope === scope;
   // A preference the provider does not support falls back to one of its declared languages.
   const language = effectiveTranslationLanguage(info, preference.language);

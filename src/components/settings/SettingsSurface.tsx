@@ -21,12 +21,21 @@ export function usePrewarmSettingsPanel(): void {
   }, []);
 }
 
-export default function SettingsSurface({ initialSection, onClose }: { initialSection: SettingsSectionId; onClose: () => void }) {
+interface SettingsSurfaceProps {
+  initialSection: SettingsSectionId;
+  onClose: () => void;
+  /** Shows the first-launch welcome page in the player window; settings close first. */
+  onPreviewWelcome: () => void;
+}
+
+export default function SettingsSurface({ initialSection, onClose, onPreviewWelcome }: SettingsSurfaceProps) {
   const desktop = getDesktopAPI();
   const api = desktop?.platform === 'darwin' ? desktop.ipc?.settingsPanel : undefined;
   const [native, setNative] = useState<boolean | null>(api ? null : false);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const previewRef = useRef(onPreviewWelcome);
+  previewRef.current = onPreviewWelcome;
   const sectionRef = useRef(initialSection);
   sectionRef.current = initialSection;
   const sentSection = useRef(initialSection);
@@ -37,6 +46,7 @@ export default function SettingsSurface({ initialSection, onClose }: { initialSe
     let cancelled = false;
     let opened = false;
     const unsubscribe = api.onClosed(() => { if (opened && !cancelled) closeRef.current(); });
+    const unsubscribeWelcome = api.onPreviewWelcome(() => { closeRef.current(); previewRef.current(); });
     const unsubscribePreview = api.onPreviewOpacity(value => {
       const preview = (window as unknown as { bg_blur_trans?: (value: number) => void }).bg_blur_trans;
       preview?.(value);
@@ -53,7 +63,7 @@ export default function SettingsSurface({ initialSection, onClose }: { initialSe
       setNative(opened);
     }).catch(error => { logger.warn('[SettingsPanel] Using web settings:', error); if (!cancelled) setNative(false); });
     return () => {
-      cancelled = true; unsubscribe(); unsubscribePreview(); unsubscribeShortcuts();
+      cancelled = true; unsubscribe(); unsubscribeWelcome(); unsubscribePreview(); unsubscribeShortcuts();
       void api.close().catch(error => logger.warn('[SettingsPanel] Cleanup failed:', error));
     };
   }, [api]);
@@ -73,7 +83,8 @@ export default function SettingsSurface({ initialSection, onClose }: { initialSe
     return () => setNativeSettingsOwnsKeyboard(false);
   }, [native]);
 
-  if (native === false) return <SettingsView initialSection={initialSection} onClose={onClose} usePaletteMaterial={desktop?.platform === 'darwin'} />;
+  if (native === false) return <SettingsView initialSection={initialSection} onClose={onClose} usePaletteMaterial={desktop?.platform === 'darwin'}
+    onPreviewWelcome={() => { onClose(); onPreviewWelcome(); }} />;
   return <div className="settings-sheet-backdrop" data-native-settings="true" data-controlbar-passthrough
     onMouseDown={onClose} onKeyDown={event => { if (event.key === 'Escape') onClose(); }} />;
 }

@@ -64,6 +64,9 @@ export function useUIStore() {
     setIsFocusMode(false);
   }, []);
   const closeSettings = useCallback(() => setSettingsSection(null), []);
+  // Focus Mode and settings replace each other too: entering Focus Mode from anywhere
+  // (control bar cover, title bar, menu, shortcut) closes the sheet or native panel.
+  useEffect(() => { if (isFocusMode) setSettingsSection(null); }, [isFocusMode]);
   /** The settings shortcut: opens the sheet, or closes it when already open. */
   const toggleSettings = useCallback(() => {
     commandPalette.close();

@@ -24,7 +24,7 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
   const userData = path.join(root, 'data');
   await mkdir(path.join(home, '.la'), { recursive: true });
   await mkdir(userData, { recursive: true });
-  await writeFile(path.join(home, '.la/settings.json'), JSON.stringify({ 'app-language': 'en', la_qq_music_enabled: 'true' }));
+  await writeFile(path.join(home, '.la/settings.json'), JSON.stringify({ 'app-language': 'en' }));
   // Seven online playlists appear once the test signs in to this fixture plugin.
   const plugin = path.join(home, '.la/plugin/netease');
   await mkdir(plugin, { recursive: true });

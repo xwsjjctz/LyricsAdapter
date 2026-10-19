@@ -7,6 +7,8 @@ import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
 import { resolveCoverUrl } from '../../services/coverUrl';
 import FocusPortraitControls from './FocusPortraitControls';
 import WindowsFocusControls from './WindowsFocusControls';
+import FocusTranslateButton from './FocusTranslateButton';
+import type { PluginTranslationStatus } from '../../hooks/usePluginTranslation';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 
 type PlaybackMode = 'order' | 'shuffle' | 'repeat-one';
@@ -34,8 +36,9 @@ export interface FocusControlsProps {
   glassMaterial?: boolean;
   scale?: number;
   portrait?: boolean;
-  /** Rendered at the start of the portrait volume row only. */
-  portraitVolumeLeading?: React.ReactNode;
+  /** Plugin lyric translation toggle, shown in every playback control layout. */
+  translationStatus?: PluginTranslationStatus | undefined;
+  onToggleTranslation?: (() => void) | undefined;
 }
 
 const formatTime = (seconds: number): string => {
@@ -74,7 +77,8 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   glassMaterial = false,
   scale = 1,
   portrait = false,
-  portraitVolumeLeading,
+  translationStatus = 'unavailable',
+  onToggleTranslation,
 }) => {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const setPlayerRef = useCallback((element: HTMLDivElement | null) => {
@@ -82,12 +86,26 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     if (typeof playerRef === 'function') playerRef(element);
     else if (playerRef) (playerRef as React.MutableRefObject<HTMLDivElement | null>).current = element;
   }, [playerRef]);
+  // The native bar and its web anchor both report hover, in either order: Chromium sees the
+  // cursor leave the page when it moves onto the native view. Stay shown while either is hovered.
+  const hover = useRef({ native: false, web: false });
+  const setHover = (source: 'native' | 'web', inside: boolean) => {
+    const before = hover.current.native || hover.current.web;
+    hover.current = { ...hover.current, [source]: inside };
+    const after = hover.current.native || hover.current.web;
+    if (after && !before) onMouseEnter();
+    else if (!after && before) onMouseLeave();
+  };
   const nativeGlass = useFocusGlassControls({
     anchorRef, focusVisible: isFocusVisible, visible: isPlayerVisible, enabled: !!track, nativeEnabled: !portrait, isPlaying,
     currentTime: activeCurrentTime, duration: track?.duration ?? 0, volume, playbackMode, scale,
+    translation: translationStatus,
     onSeek, onTogglePlay, onSkipNext, onSkipPrev, onVolumeChange, onToggleMute,
-    onTogglePlaybackMode, onMouseEnter, onMouseLeave,
+    onTogglePlaybackMode, onToggleTranslation,
+    onMouseEnter: () => setHover('native', true), onMouseLeave: () => setHover('native', false),
   });
+  const translateButton = (placement: 'inline' | 'bar') => onToggleTranslation
+    && <FocusTranslateButton status={translationStatus} onToggle={onToggleTranslation} placement={placement} />;
   const { t } = useTranslation();
   const backdropLight = useFocusBackdropLuminance(track ? resolveCoverUrl(track.coverUrl) : undefined);
   // Glass panels pick foreground colors from the analyzed backdrop instead of
@@ -117,11 +135,12 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     currentTime={activeCurrentTime} duration={track?.duration ?? 0} volume={volume} playbackMode={playbackMode}
     onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
     onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
-    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} volumeLeading={portraitVolumeLeading} />;
+    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} volumeLeading={translateButton('inline')} />;
   if (getDesktopAPI()?.platform === 'win32') return <WindowsFocusControls
     track={track} colors={colors} isPlaying={isPlaying} isPlayerVisible={isPlayerVisible} isFocusVisible={isFocusVisible}
     activeCurrentTime={activeCurrentTime} progress={progress} volume={volume} playbackMode={playbackMode}
     playerRef={setPlayerRef} scale={scale} backdropLight={backdropLight}
+    translationStatus={translationStatus} onToggleTranslation={onToggleTranslation}
     onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
     onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
     onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />;
@@ -134,8 +153,8 @@ const FocusControls: React.FC<FocusControlsProps> = ({
       data-testid="focus-native-controls"
       data-native-status={nativeGlass}
       aria-hidden="true"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={() => setHover('web', true)}
+      onMouseLeave={() => setHover('web', false)}
       style={{ position: 'fixed', bottom: 24 * scale, left: '50%', transform: 'translateX(-50%)', width: `min(${350 * scale}px, calc(100vw - 48px))`, aspectRatio: '350 / 96', opacity: isPlayerVisible ? 1 : 0 }}
     />;
   }
@@ -212,6 +231,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
 
       <div className="flex items-center justify-between px-4">
         <div className="flex gap-4" style={{ color: fg.muted }}>
+          {translateButton('bar')}
           <button
             type="button"
             className="focus-control-icon focus-control-icon--muted material-symbols-rounded text-lg relative -left-[4px]"

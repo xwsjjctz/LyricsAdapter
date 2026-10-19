@@ -12,10 +12,10 @@ vi.mock('electron', () => ({
   nativeImage: { createFromBuffer: mocks.createFromBuffer },
 }));
 const state: FocusGlassState = {
-  visible: true, darkMode: true, enabled: true, isPlaying: false, currentTime: 0, duration: 60, volume: 0.5, playbackMode: 'order', scale: 1,
+  visible: true, darkMode: true, enabled: true, isPlaying: false, currentTime: 0, duration: 60, volume: 0.5, playbackMode: 'order', translation: 'idle', scale: 1,
   backdropLuminance: -1,
   presentation: { x: 0.25, y: 0.8, width: 0.5, height: 0.15, opacity: 1 },
-  labels: { playPause: 'Play', previous: 'Previous', next: 'Next', seek: 'Seek', volume: 'Volume', mute: 'Mute', mode: 'Repeat' },
+  labels: { playPause: 'Play', previous: 'Previous', next: 'Next', seek: 'Seek', volume: 'Volume', mute: 'Mute', mode: 'Repeat', translate: 'Translate' },
 };
 function sender() { return Object.assign(new EventEmitter(), { mainFrame: {}, send: vi.fn(), isDestroyed: () => false }); }
 function whiteCoverImage() {

@@ -8,7 +8,7 @@ import { fail, ok } from './typedResult';
 import { handleIpc, sendIpc } from './ipcMainTyped';
 import { sandboxedPreloadPreferences } from '../services/preloadOptions';
 
-const sectionSchema = z.enum(['general', 'plugins', 'online', 'cloud', 'focus', 'shortcuts']);
+const sectionSchema = z.enum(['general', 'plugins', 'cloud', 'focus', 'shortcuts']);
 const heightSchema = z.number().finite().min(1).max(10000);
 const surfaceSchema = z.union([heightSchema, z.object({ height: heightSchema, darkMode: z.boolean() })]);
 const shortcutSchema = z.object({ key: z.string().min(1).max(64), modifiers: z.number().int().min(0).max(15) });
@@ -184,6 +184,12 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     const shortcut = shortcutSchema.safeParse(payload);
     if (!shortcut.success || event.sender !== panel?.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings shortcut');
     if (owner) sendIpc(owner, 'settings-panel-shortcut', shortcut.data.key, shortcut.data.modifiers);
+    return ok(undefined);
+  });
+  // The welcome page shows in the player window; its settings sheet closes in response.
+  handleIpc('ipc:settingsPanel:previewWelcome', event => {
+    if (event.sender !== panel?.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings request');
+    if (owner) sendIpc(owner, 'settings-panel-preview-welcome');
     return ok(undefined);
   });
 }
