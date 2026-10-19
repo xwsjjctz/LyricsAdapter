@@ -45,12 +45,6 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
 
   return (
     <section className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      <div className="mb-3">
-        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>cloud</span>
-          {t('settingsDialog.webdavTitle')}
-        </h3>
-      </div>
       <div className="space-y-3">
         <input
           type="text"

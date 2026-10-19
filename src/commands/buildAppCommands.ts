@@ -45,11 +45,10 @@ export interface AppCommandDeps {
 }
 
 const SETTINGS_SECTIONS: { id: SettingsSectionId; icon: string; titleKey: string; keywords: string[] }[] = [
-  { id: 'general', icon: 'tune', titleKey: 'settings.nav.general', keywords: ['general', 'settings'] },
-  { id: 'plugins', icon: 'extension', titleKey: 'settings.nav.plugins', keywords: ['plugin', 'plugins', 'extension', 'install', 'update', '插件', '安装', '更新'] },
-  { id: 'online', icon: 'language', titleKey: 'settings.nav.online', keywords: ['online', 'qq', 'netease', 'login'] },
+  { id: 'general', icon: 'tune', titleKey: 'settings.nav.general', keywords: ['general', 'settings', 'download', 'folder', '下载'] },
+  { id: 'plugins', icon: 'extension', titleKey: 'settings.nav.plugins', keywords: ['plugin', 'plugins', 'extension', 'install', 'update', 'online', 'qq', 'netease', 'login', 'cookie', '插件', '安装', '更新', '登录'] },
   { id: 'cloud', icon: 'cloud', titleKey: 'settings.nav.cloud', keywords: ['webdav', 'cloud'] },
-  { id: 'focus', icon: 'fullscreen', titleKey: 'settings.nav.focus', keywords: ['focus', 'lyrics'] },
+  { id: 'focus', icon: 'science', titleKey: 'settings.nav.experimental', keywords: ['experimental', 'focus', 'lyrics'] },
   { id: 'shortcuts', icon: 'keyboard', titleKey: 'settings.shortcuts.title', keywords: ['shortcuts', 'keyboard', 'hotkey'] },
 ];
 

@@ -1,1 +1,1 @@
-export type SettingsSectionId = 'general' | 'plugins' | 'online' | 'cloud' | 'focus' | 'shortcuts';
+export type SettingsSectionId = 'general' | 'plugins' | 'cloud' | 'focus' | 'shortcuts';

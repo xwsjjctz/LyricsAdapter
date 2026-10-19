@@ -55,14 +55,12 @@ const makeTrack = (id: string): Track => ({
   audioUrl: 'blob:test',
   syncedLyrics: [{ time: 0, text: 'First line' }, { time: 2, text: 'Second line' }],
 });
-const selectProvider = (key: string) =>
-  applyExternalTranslationPreference({ plugin_lyrics_provider: key, plugin_lyrics_language: 'zh' }, true);
 
 beforeEach(() => {
   vi.stubGlobal('crypto', webcrypto);
   mocks.providers.mockResolvedValue([provider]);
   mocks.translate.mockImplementation(async (call: PluginTranslationCall) => translated(call));
-  selectProvider(provider.key);
+  applyExternalTranslationPreference({ plugin_lyrics_language: 'zh' }, true);
 });
 
 afterEach(() => {
@@ -130,19 +128,21 @@ describe('usePluginTranslation', () => {
     expect(mocks.translate).toHaveBeenCalledTimes(2);
   });
 
-  it('offers no control without a selected, installed provider or without lyrics', async () => {
+  it('offers no control without an enabled translation plugin or without lyrics', async () => {
     const track = makeTrack('unavailable');
-    selectProvider('');
-    expect(renderHook(() => usePluginTranslation(track, true)).result.current.status).toBe('unavailable');
-
-    selectProvider('missing:default');
+    mocks.providers.mockResolvedValue([]);
     const missing = renderHook(() => usePluginTranslation(track, true));
     await waitFor(() => expect(mocks.providers).toHaveBeenCalled());
     await act(async () => {});
     expect(missing.result.current.status).toBe('unavailable');
 
-    selectProvider(provider.key);
+    mocks.providers.mockResolvedValue([provider]);
     expect(renderHook(() => usePluginTranslation(null, true)).result.current.status).toBe('unavailable');
     expect(mocks.translate).not.toHaveBeenCalled();
+  });
+
+  it('uses the enabled translation plugin without a separate choice', async () => {
+    const { result } = renderHook(() => usePluginTranslation(makeTrack('enabled'), true));
+    await waitFor(() => expect(result.current.status).toBe('idle'));
   });
 });

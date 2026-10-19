@@ -87,15 +87,17 @@ test('music plugins work through real IPC, stream and download; local updates an
     await palette.click(); await expect(palette).toBeFocused();
     await page.keyboard.press('Shift+Tab'); await palette.fill('settings'); await page.keyboard.press('Enter');
     await expect(page.locator('.settings-sheet')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Online Music' })).toHaveCount(0);
-    await page.getByRole('tab', { name: 'Plugins' }).click();
+    await page.getByRole('link', { name: 'Plugins', exact: true }).click();
     await expect(page.getByTestId('plugin-directory')).toHaveText(path.join(isolatedHome, '.la/plugin'));
     await page.screenshot({ path: testInfo.outputPath('plugins-empty.png') });
     await page.getByTestId('official-plugin-netease').getByRole('button', { name: 'Download and install' }).click();
-    await expect(page.getByRole('tab', { name: 'Online Music' })).toBeVisible();
+    // A music source signs in from its own plugin card; there is no separate online music tab.
+    await expect(page.getByTestId('installed-plugin-netease')).toContainText('Not signed in');
     const qqFile = path.join(root, 'qq.laplugin'); await writeFile(qqFile, packageFor('qq'));
     await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, qqFile);
     await page.getByRole('button', { name: 'Install local plugin' }).click();
+    // An installed official plugin leaves the catalog and appears in the installed list.
+    await expect(page.getByTestId('official-plugin-netease')).toHaveCount(0);
     await expect(page.getByTestId('installed-plugin-qq').getByRole('button', { name: 'Disable QQ 音乐', exact: true })).toBeVisible();
     const plugins = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginList());
     expect(plugins.map(plugin => plugin.id).sort()).toEqual(['netease', 'qq']);
@@ -160,7 +162,5 @@ test('music plugins work through real IPC, stream and download; local updates an
     expect(persisted.find(plugin => plugin.id === 'netease')).toMatchObject({ origin: 'installed', version: '9.0.0' });
     const uninstalled = await page.evaluate(() => (window as unknown as { electron: PluginAPI }).electron.musicPluginUninstall('netease'));
     expect(uninstalled.find(plugin => plugin.id === 'netease')).toBeUndefined();
-    await page.keyboard.press('ControlOrMeta+,');
-    await expect(page.getByRole('tab', { name: 'Online Music' })).toHaveCount(0);
   } finally { await app?.close(); await rm(root, { recursive: true, force: true }); }
 });

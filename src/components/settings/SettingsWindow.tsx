@@ -7,6 +7,9 @@ import type { SettingsSectionId } from '../../types/settingsPanel';
 import { shortcutManager, type ShortcutAction } from '../../services/shortcuts';
 import { useDocumentDarkMode } from '../../hooks/useNativePalette';
 
+/** Matches the sheet's 560px cap; the main process also limits it to 72% of the window. */
+const SETTINGS_PANEL_HEIGHT = 560;
+
 export default function SettingsWindow({ section }: { section: SettingsSectionId }) {
   const api = getDesktopAPI()?.ipc?.settingsPanel;
   const darkMode = useDocumentDarkMode();
@@ -39,27 +42,10 @@ export default function SettingsWindow({ section }: { section: SettingsSectionId
   }, [api]);
   useEffect(() => {
     themeManager.applyCurrentTheme();
-    const sheet = document.querySelector<HTMLElement>('.settings-sheet');
-    const content = sheet?.querySelector<HTMLElement>('.settings-sheet__content');
-    const header = sheet?.querySelector<HTMLElement>('.settings-sheet__header');
-    if (!sheet || !content || !header || !api) return;
-    let frame = 0;
-    let lastHeight = 0;
-    const measure = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const height = header.offsetHeight + content.scrollHeight;
-        if (height === lastHeight || !height) return;
-        lastHeight = height;
-        void api.ready(height, darkMode).catch(error => logger.warn('[SettingsPanel] Resize failed:', error));
-      });
-    };
-    const resize = new ResizeObserver(measure);
-    resize.observe(header); resize.observe(content);
-    const mutations = new MutationObserver(measure);
-    mutations.observe(content, { childList: true, subtree: true, attributes: true, characterData: true });
-    measure();
-    return () => { cancelAnimationFrame(frame); resize.disconnect(); mutations.disconnect(); };
+    if (!api) return;
+    // The sections scroll inside a fixed window, so the panel takes the full frame the
+    // main process allows (it caps the height) instead of following the content.
+    void api.ready(SETTINGS_PANEL_HEIGHT, darkMode).catch(error => logger.warn('[SettingsPanel] Resize failed:', error));
   }, [api, darkMode, request.token]);
   return <SettingsView key={request.token} initialSection={request.section} onClose={() => { void api?.close(); }} />;
 }

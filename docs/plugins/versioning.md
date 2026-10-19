@@ -87,5 +87,5 @@ export function activate(context: PluginContext) {
 - Core 1.1.0：新增 `context.cache`（插件私有文件缓存，卸载时删除）；配置项 `description`、`format: "secret"`（凭据输入，不回传界面）、`format: "endpoint"`（用户填写的地址加入网络白名单）；`network.fetchText` 支持 `timeoutMs`（最长 120 秒）和本机回环 HTTP，非 2xx 错误附带响应摘要。声明 `^1.0.0` 的插件行为不变。
 - lyrics.translation 1.1.0：文档增加可选 `metadata`（歌名、歌手、专辑）；翻译请求上限从 20 秒放宽到 180 秒。
 - SDK 包 1.2.0：导出上述类型（`PluginCache`、`PluginFetchOptions`、`LyricTrackMetadata`、`PluginDataInfo`）。首个使用这些能力的示例是 [llm-translation](../../examples/plugins/llm-translation/README.md)。
-- lyrics.translation 1.2.0：翻译提供者声明可选 `languages`（设置页按它列出目标语言，不支持的偏好回退到声明的语言）和 `timeoutSeconds`（整次调用期限 20–600 秒，默认仍为 180）；`callContext.timeoutMs` 告诉提供者剩余时间。旧宿主忽略这两个声明字段，声明 `^1.1.0` 的插件行为不变。
+- lyrics.translation 1.2.0：翻译提供者声明可选 `languages`（插件设置中按它列出目标语言，不支持的偏好回退到声明的语言）和 `timeoutSeconds`（整次调用期限 20–600 秒，默认仍为 180）；`callContext.timeoutMs` 告诉提供者剩余时间。旧宿主忽略这两个声明字段，声明 `^1.1.0` 的插件行为不变。
 - SDK 包 1.3.0：导出 `ProviderContribution`，`ProviderCallContext.timeoutMs` 与 `PluginProviderInfo.languages`。

@@ -28,6 +28,8 @@ const RETIRED_LOCAL_SETTING_KEYS = new Set([
   'la_library_mode',
   // Online music follows enabled music source plugins; the old master switch is gone.
   'la_qq_music_enabled',
+  // Focus Mode translates with the enabled translation plugin; there is no provider choice.
+  'plugin_lyrics_provider',
 ]);
 
 /**

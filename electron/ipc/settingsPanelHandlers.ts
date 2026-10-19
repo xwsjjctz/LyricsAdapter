@@ -8,7 +8,7 @@ import { fail, ok } from './typedResult';
 import { handleIpc, sendIpc } from './ipcMainTyped';
 import { sandboxedPreloadPreferences } from '../services/preloadOptions';
 
-const sectionSchema = z.enum(['general', 'plugins', 'online', 'cloud', 'focus', 'shortcuts']);
+const sectionSchema = z.enum(['general', 'plugins', 'cloud', 'focus', 'shortcuts']);
 const heightSchema = z.number().finite().min(1).max(10000);
 const surfaceSchema = z.union([heightSchema, z.object({ height: heightSchema, darkMode: z.boolean() })]);
 const shortcutSchema = z.object({ key: z.string().min(1).max(64), modifiers: z.number().int().min(0).max(15) });

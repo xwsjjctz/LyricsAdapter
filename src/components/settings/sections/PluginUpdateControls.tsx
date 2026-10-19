@@ -36,34 +36,33 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
     {info.status === 'available' && info.latestVersion !== info.targetVersion && <p>{t('pluginUpdates.newerIncompatible', { version: info.latestVersion })}</p>}
     {info.notes && <p className="whitespace-pre-wrap break-words max-h-28 overflow-y-auto">{info.notes}</p>}
     {info.error && <p role="alert">{info.error}</p>}
-    <details>
-      <summary className="cursor-pointer">{t('pluginUpdates.source')}</summary>
-      <div className="mt-2 space-y-2">
+    {/* Already inside the card's settings area, so the source is shown, not folded again. */}
+    <div className="space-y-2">
+      <p className="font-medium" style={{ color: theme.colors.textPrimary }}>{t('pluginUpdates.source')}</p>
+      <label className="flex flex-wrap items-center gap-2">
+        <span>{t('pluginUpdates.sourceType')}</span>
+        <select aria-label={t('pluginUpdates.sourceType')} className="rounded border p-1 bg-transparent" value={kind} disabled={busy} onChange={event => setKind(event.target.value as typeof kind)}>
+          <option value="none">{t('pluginUpdates.none')}</option>
+          <option value="github">GitHub Releases</option>
+          <option value="manifest">{t('pluginUpdates.feed')}</option>
+          {isOfficialMusicSource(info.id) && <option value="official">{t('pluginUpdates.official')}</option>}
+        </select>
+      </label>
+      {(kind === 'github' || kind === 'manifest') && <>
         <label className="flex flex-wrap items-center gap-2">
-          <span>{t('pluginUpdates.sourceType')}</span>
-          <select aria-label={t('pluginUpdates.sourceType')} className="rounded border p-1 bg-transparent" value={kind} disabled={busy} onChange={event => setKind(event.target.value as typeof kind)}>
-            <option value="none">{t('pluginUpdates.none')}</option>
-            <option value="github">GitHub Releases</option>
-            <option value="manifest">{t('pluginUpdates.feed')}</option>
-            {isOfficialMusicSource(info.id) && <option value="official">{t('pluginUpdates.official')}</option>}
+          <span>{t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')}</span>
+          <input aria-label={t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')} className="rounded border p-1 bg-transparent flex-1 min-w-48" value={value} disabled={busy}
+            placeholder={kind === 'github' ? 'owner/repository' : 'https://example.com/plugins.update.json'} onChange={event => setValue(event.target.value)} />
+        </label>
+        <label className="flex flex-wrap items-center gap-2">
+          <span>{t('pluginUpdates.channel')}</span>
+          <select aria-label={t('pluginUpdates.channel')} className="rounded border p-1 bg-transparent" value={channel} disabled={busy} onChange={event => setChannel(event.target.value as PluginUpdateChannel)}>
+            <option value="stable">{t('pluginUpdates.stable')}</option><option value="prerelease">{t('pluginUpdates.prerelease')}</option>
           </select>
         </label>
-        {(kind === 'github' || kind === 'manifest') && <>
-          <label className="flex flex-wrap items-center gap-2">
-            <span>{t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')}</span>
-            <input aria-label={t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')} className="rounded border p-1 bg-transparent flex-1 min-w-48" value={value} disabled={busy}
-              placeholder={kind === 'github' ? 'owner/repository' : 'https://example.com/plugins.update.json'} onChange={event => setValue(event.target.value)} />
-          </label>
-          <label className="flex flex-wrap items-center gap-2">
-            <span>{t('pluginUpdates.channel')}</span>
-            <select aria-label={t('pluginUpdates.channel')} className="rounded border p-1 bg-transparent" value={channel} disabled={busy} onChange={event => setChannel(event.target.value as PluginUpdateChannel)}>
-              <option value="stable">{t('pluginUpdates.stable')}</option><option value="prerelease">{t('pluginUpdates.prerelease')}</option>
-            </select>
-          </label>
-          <p>{t('pluginUpdates.sourceHint')}</p>
-        </>}
-        <Button size="sm" disabled={busy || ((kind === 'github' || kind === 'manifest') && !value.trim())} onClick={save}>{t('pluginUpdates.saveSource')}</Button>
-      </div>
-    </details>
+        <p>{t('pluginUpdates.sourceHint')}</p>
+      </>}
+      <Button size="sm" disabled={busy || ((kind === 'github' || kind === 'manifest') && !value.trim())} onClick={save}>{t('pluginUpdates.saveSource')}</Button>
+    </div>
   </div>;
 }

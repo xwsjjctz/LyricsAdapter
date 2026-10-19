@@ -63,7 +63,7 @@ test('macOS menus import music, perform app actions and follow live language and
     await page.keyboard.up('Control');
     await choose('menu-showShortcuts');
     const settings = page.getByRole('dialog', { name: '设置', exact: true });
-    await expect(settings.getByRole('tabpanel', { name: '快捷键', exact: true })).toBeVisible();
+    await expect(settings.getByRole('link', { name: '快捷键', exact: true })).toHaveAttribute('aria-current', 'location');
     const row = settings.getByText('进入/退出专注模式', { exact: true }).locator('..');
     await row.getByRole('button', { name: 'Cmd/Ctrl+Enter', exact: true }).click();
     await settings.locator('[data-shortcut-recorder]').press('Meta+Shift+L');

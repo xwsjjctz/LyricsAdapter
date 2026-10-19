@@ -1,27 +1,27 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import ShortcutsSettings from '../ShortcutsSettings';
-import { useOnlineMusicSettings } from './hooks/useOnlineMusicSettings';
+import { useSectionScroll } from './hooks/useSectionScroll';
 import { useWebdavSettings } from './hooks/useWebdavSettings';
 import FocusModeSection from './sections/FocusModeSection';
 import GeneralSection from './sections/GeneralSection';
-import OnlineMusicSection from './sections/OnlineMusicSection';
 import MusicPluginManager from './sections/MusicPluginManager';
-import { useMusicPlugins } from '../../stores/musicPluginStore';
 import WebdavSection from './sections/WebdavSection';
 import { useCurrentTheme, useSettingsTheme } from './shared';
 
 import type { SettingsSectionId } from '../../types/settingsPanel';
 export type { SettingsSectionId } from '../../types/settingsPanel';
 
-const SECTIONS: { id: SettingsSectionId; icon: string; labelKey: string }[] = [
-  { id: 'general', icon: 'tune', labelKey: 'settings.nav.general' },
-  { id: 'plugins', icon: 'extension', labelKey: 'settings.nav.plugins' },
-  { id: 'online', icon: 'language', labelKey: 'settings.nav.online' },
-  { id: 'cloud', icon: 'cloud', labelKey: 'settings.nav.cloud' },
-  { id: 'focus', icon: 'fullscreen', labelKey: 'settings.nav.focus' },
-  { id: 'shortcuts', icon: 'keyboard', labelKey: 'settings.shortcuts.title' },
+/** `navKey` labels the short link in the bar; `titleKey` heads the section in the list. */
+const SECTIONS: { id: SettingsSectionId; icon: string; navKey: string; titleKey: string }[] = [
+  { id: 'general', icon: 'tune', navKey: 'settings.nav.general', titleKey: 'settings.nav.general' },
+  { id: 'plugins', icon: 'extension', navKey: 'settings.nav.plugins', titleKey: 'settings.nav.plugins' },
+  { id: 'cloud', icon: 'cloud', navKey: 'settings.nav.cloudShort', titleKey: 'settings.nav.cloud' },
+  // Focus Mode's settings, presented as experimental.
+  { id: 'focus', icon: 'science', navKey: 'settings.nav.experimentalShort', titleKey: 'settings.nav.experimental' },
+  { id: 'shortcuts', icon: 'keyboard', navKey: 'settings.nav.shortcutsShort', titleKey: 'settings.shortcuts.title' },
 ];
+const SECTION_IDS = SECTIONS.map(entry => entry.id);
 
 interface SettingsViewProps {
   initialSection?: SettingsSectionId | undefined;
@@ -30,27 +30,20 @@ interface SettingsViewProps {
 }
 
 /**
- * Settings as a glass sheet floating over the poster wall. Sections are tabs;
+ * Settings as a glass sheet floating over the poster wall: every section in one scrolling
+ * list of fixed height, with a bar that jumps to a section and follows the one being read.
  * Esc, the close button or a click outside returns to the wall.
  */
 export default function SettingsView({ initialSection = 'general', onClose, usePaletteMaterial = false }: SettingsViewProps) {
   const { t } = useTranslation();
   const themeUtils = useSettingsTheme(useCurrentTheme());
-  const [section, setSection] = useState<SettingsSectionId>(initialSection);
-  const { sources } = useMusicPlugins();
-  const hasMusicPlugins = sources.length > 0;
-  const activeSection = section === 'online' && !hasMusicPlugins ? 'plugins' : section;
   const webdav = useWebdavSettings();
-  const onlineMusic = useOnlineMusicSettings({ enabled: hasMusicPlugins && activeSection === 'online', sources });
-  // Credential drafts survive tab switches; the dot shows where one is waiting.
-  const unsaved: Partial<Record<SettingsSectionId, boolean>> = {
-    online: hasMusicPlugins && onlineMusic.cookieDirty,
-    cloud: webdav.isDirty,
-  };
-  const activeLabel = t(SECTIONS.find(entry => entry.id === activeSection)!.labelKey);
+  // The WebDAV draft is kept while the sheet is open; the dot shows it is waiting.
+  const unsaved: Partial<Record<SettingsSectionId, boolean>> = { cloud: webdav.isDirty };
   const sheetRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { active, scrollTo } = useSectionScroll(contentRef, SECTION_IDS, initialSection);
 
-  useEffect(() => { setSection(initialSection); }, [initialSection]);
   useEffect(() => { sheetRef.current?.focus(); }, []);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -58,6 +51,30 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
     event.preventDefault();
     event.stopPropagation();
     onClose();
+  };
+
+  const content: Record<SettingsSectionId, ReactNode> = {
+    general: <GeneralSection theme={themeUtils} />,
+    plugins: <MusicPluginManager theme={themeUtils} />,
+    cloud: (
+      <WebdavSection
+        theme={themeUtils}
+        serverUrl={webdav.serverUrl}
+        username={webdav.username}
+        password={webdav.password}
+        message={webdav.message}
+        messageType={webdav.messageType}
+        isTesting={webdav.isTesting}
+        isSaving={webdav.isSaving}
+        isDirty={webdav.isDirty}
+        setServerUrl={webdav.setServerUrl}
+        setUsername={webdav.setUsername}
+        setPassword={webdav.setPassword}
+        onSave={webdav.handleSave}
+      />
+    ),
+    focus: <FocusModeSection theme={themeUtils} />,
+    shortcuts: <ShortcutsSettings layout="single" />,
   };
 
   return (
@@ -74,79 +91,35 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
       >
         <header className="settings-sheet__header">
           <h1 className="settings-sheet__title">{t('settings.title')}</h1>
-          <div role="tablist" aria-label={t('settings.title')} className="settings-sheet__tabs no-scrollbar">
-            {SECTIONS.filter(entry => entry.id !== 'online' || hasMusicPlugins).map(entry => (
-              <button
+          <nav aria-label={t('settings.title')} className="settings-sheet__tabs no-scrollbar">
+            {SECTIONS.map(entry => (
+              <a
                 key={entry.id}
-                type="button"
-                role="tab"
-                aria-selected={entry.id === activeSection}
+                href={`#settings-section-${entry.id}`}
+                aria-current={entry.id === active ? 'location' : undefined}
                 className="settings-sheet__tab"
-                onClick={() => setSection(entry.id)}
+                onClick={event => { event.preventDefault(); scrollTo(entry.id); }}
               >
                 <span className="material-symbols-rounded" aria-hidden="true">{entry.icon}</span>
-                <span>{t(entry.labelKey)}</span>
+                <span>{t(entry.navKey)}</span>
                 {unsaved[entry.id] && <span className="settings-sheet__tab-dot" role="img" aria-label={t('settingsDialog.unsaved')} />}
-              </button>
+              </a>
             ))}
-          </div>
+          </nav>
           <button type="button" className="wall-float__button settings-sheet__close" onClick={onClose} aria-label={t('common.close')}>
             <span className="material-symbols-rounded" aria-hidden="true">close</span>
           </button>
         </header>
 
-        <section role="tabpanel" aria-label={activeLabel} className="settings-sheet__content no-scrollbar">
-          {activeSection === 'general' && <GeneralSection theme={themeUtils} />}
-          {activeSection === 'plugins' && <MusicPluginManager theme={themeUtils} />}
-
-          {activeSection === 'online' && (
-            <OnlineMusicSection
-              theme={themeUtils}
-              sources={sources}
-              onlineSource={onlineMusic.onlineSource}
-              login={onlineMusic.login}
-              cookie={onlineMusic.cookie}
-              cookieDirty={onlineMusic.cookieDirty}
-              downloadPath={onlineMusic.downloadPath}
-              isQrLoggedIn={onlineMusic.isQrLoggedIn}
-              qrScanning={onlineMusic.qrScanning}
-              qrState={onlineMusic.qrState}
-              qrImage={onlineMusic.qrImage}
-              qrMsg={onlineMusic.qrMsg}
-              isSaving={onlineMusic.isSaving}
-              message={onlineMusic.message}
-              messageType={onlineMusic.messageType}
-              setOnlineSource={onlineMusic.setOnlineSource}
-              setCookie={onlineMusic.setCookie}
-              setDownloadPath={onlineMusic.setDownloadPath}
-              onSaveCookie={onlineMusic.saveCookie}
-              startQr={onlineMusic.startQr}
-              onQrLogout={onlineMusic.handleQrLogout}
-            />
-          )}
-
-          {section === 'cloud' && (
-            <WebdavSection
-              theme={themeUtils}
-              serverUrl={webdav.serverUrl}
-              username={webdav.username}
-              password={webdav.password}
-              message={webdav.message}
-              messageType={webdav.messageType}
-              isTesting={webdav.isTesting}
-              isSaving={webdav.isSaving}
-              isDirty={webdav.isDirty}
-              setServerUrl={webdav.setServerUrl}
-              setUsername={webdav.setUsername}
-              setPassword={webdav.setPassword}
-              onSave={webdav.handleSave}
-            />
-          )}
-
-          {section === 'focus' && <FocusModeSection theme={themeUtils} />}
-
-          {section === 'shortcuts' && <ShortcutsSettings layout="single" />}
-        </section>
+        <div ref={contentRef} className="settings-sheet__content no-scrollbar">
+          {SECTIONS.map(entry => (
+            <section key={entry.id} id={`settings-section-${entry.id}`} data-settings-section={entry.id}
+              aria-labelledby={`settings-heading-${entry.id}`} className="settings-section">
+              <h2 id={`settings-heading-${entry.id}`} className="settings-section__title">{t(entry.titleKey)}</h2>
+              {content[entry.id]}
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );

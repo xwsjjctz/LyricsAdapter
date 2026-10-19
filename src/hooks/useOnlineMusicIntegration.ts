@@ -189,7 +189,7 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
     source?: OnlineSource,
   ) => {
     const downloadPath = settingsManager.getDownloadPath();
-    if (!downloadPath) { openSettings('online'); return; }
+    if (!downloadPath) { openSettings('general'); return; }
     // Playlist and queue tracks carry their own source; search results use the active one.
     const provider = getOnlineProvider(source);
     // Same identity as onlineSongToTrack, including the provider.
@@ -255,7 +255,7 @@ export function useOnlineMusicIntegration({ openSettings, mergeCloudTracks, onDo
     if (!WEBDAV_AUDIO_UPLOAD_ENABLED) return;
     if (!webdavClient.hasConfig()) { openSettings('cloud'); return; }
     const downloadPath = settingsManager.getDownloadPath();
-    if (!downloadPath) { openSettings('online'); return; }
+    if (!downloadPath) { openSettings('general'); return; }
     const provider = getOnlineProvider();
     const songId = `upload-${provider.id}-${song.songmid}`;
     const requestId = crypto.randomUUID();

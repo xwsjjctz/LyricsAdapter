@@ -205,14 +205,11 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   );
 
   return (
-    <section ref={sectionRef} className="r-card p-4 border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
-      {/* Header with Reset All button */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textPrimary }}>
-          <span className="material-symbols-rounded text-lg" style={{ color: colors.primary }}>keyboard</span>
-          {t('settings.shortcuts.title')}
-        </h3>
-        <Button variant="secondary" size="sm" onClick={() => setShowResetConfirm(true)}>
+    // The settings tab already names this page, so the list is the only card.
+    <section ref={sectionRef} className="space-y-2">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <p className="min-w-0 text-xs" style={{ color: colors.textMuted }}>{t('settings.shortcuts.legend')}</p>
+        <Button variant="secondary" size="sm" className="flex-shrink-0" onClick={() => setShowResetConfirm(true)}>
           {t('settings.shortcuts.resetAll')}
         </Button>
       </div>
@@ -223,12 +220,6 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
             renderShortcutRow(action, config)
           )}
         </div>
-      </div>
-
-      {/* 提示信息 */}
-      <div className="flex items-center gap-2 px-3 py-2 r-card border mt-2" style={{ backgroundColor: colors.backgroundCardHover, borderColor: colors.borderLight }}>
-        <span className="material-symbols-rounded text-sm" style={{ color: colors.textMuted }}>info</span>
-        <span className="text-xs" style={{ color: colors.textMuted }}>{t('settings.shortcuts.legend')}</span>
       </div>
 
       <ConfirmDialog
