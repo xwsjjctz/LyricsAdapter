@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MusicPluginInfo } from '@/shared/musicPlugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '@/shared/pluginUpdate';
@@ -6,6 +6,8 @@ import { sourceLogin } from '@/services/musicSources';
 import type { SettingsTheme } from '../shared';
 import { useSourceSignedIn } from '../hooks/useSourceLogin';
 import Button from '../../ui/Button';
+import SettingsMessage from '../SettingsMessage';
+import { Switch } from '../../ui';
 import PluginConfiguration from './PluginConfiguration';
 import PluginUpdateControls from './PluginUpdateControls';
 import SourceLoginSection from './SourceLoginSection';
@@ -18,6 +20,8 @@ interface InstalledPluginCardProps {
   /** The running operation, if any; every action waits for it. */
   busy: string | null;
   available: boolean;
+  /** Why the last enable or update-source change for this plugin failed. */
+  error?: string | undefined;
   onSetEnabled: (plugin: MusicPluginInfo, enabled: boolean) => void;
   onUninstall: (plugin: MusicPluginInfo) => void;
   onUpdate: (id: string) => void;
@@ -28,7 +32,7 @@ interface InstalledPluginCardProps {
 function SignInSummary({ source }: { source: string }) {
   const { t } = useTranslation();
   const signedIn = useSourceSignedIn(source);
-  return <>{` · ${t(signedIn ? 'musicPlugins.signedIn' : 'musicPlugins.signedOut')}`}</>;
+  return <>{t(signedIn ? 'musicPlugins.signedIn' : 'musicPlugins.signedOut')}</>;
 }
 
 /**
@@ -37,7 +41,7 @@ function SignInSummary({ source }: { source: string }) {
  * own configuration and its update source.
  */
 export default function InstalledPluginCard({
-  theme, plugin, update, busy, available, onSetEnabled, onUninstall, onUpdate, onSetUpdateSource,
+  theme, plugin, update, busy, available, error, onSetEnabled, onUninstall, onUpdate, onSetUpdateSource,
 }: InstalledPluginCardProps) {
   const { t } = useTranslation();
   const { colors } = theme;
@@ -48,25 +52,26 @@ export default function InstalledPluginCard({
   const configurable = usable && !!plugin.platform?.contributes.configuration;
   const translates = usable && !!translationProviderOf(plugin);
   const detailsId = `plugin-details-${plugin.id}`;
+  // The switch shows whether the plugin is on; the summary adds only what it does not say.
+  const summary: ReactNode[] = [];
+  if (!plugin.enabled) summary.push(t('musicPlugins.disabled'));
+  if (signsIn) summary.push(<SignInSummary source={plugin.id} />);
+  if (update?.status === 'available') summary.push(t('musicPlugins.updateAvailable', { version: update.targetVersion }));
   return (
     <div data-testid={`installed-plugin-${plugin.id}`} className="r-card border p-4 space-y-3" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 text-xs space-y-1" style={{ color: colors.textPrimary }}>
           <p>{plugin.name} · {plugin.version}</p>
-          <p style={{ color: colors.textSecondary }}>
-            {t(plugin.enabled ? 'musicPlugins.enabled' : 'musicPlugins.disabled')}
-            {signsIn && <SignInSummary source={plugin.id} />}
-            {update?.status === 'available' && ` · ${t('musicPlugins.updateAvailable', { version: update.targetVersion })}`}
-          </p>
+          {summary.length > 0 && (
+            <p style={{ color: colors.textSecondary }}>
+              {summary.map((part, index) => <Fragment key={index}>{index > 0 && ' · '}{part}</Fragment>)}
+            </p>
+          )}
           {plugin.restartRequired && <p role="status">{t('musicPlugins.restart')}</p>}
-          {plugin.error && <p role="alert">{plugin.error}</p>}
+          {plugin.error && <SettingsMessage tone="error">{plugin.error}</SettingsMessage>}
+          {error && <SettingsMessage tone="error">{error}</SettingsMessage>}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <Button size="sm" disabled={!!busy || !available}
-            aria-label={t(plugin.enabled ? 'musicPlugins.disablePlugin' : 'musicPlugins.enablePlugin', { name: plugin.name })}
-            onClick={() => onSetEnabled(plugin, !plugin.enabled)}>
-            {t(plugin.enabled ? 'musicPlugins.disable' : 'musicPlugins.enable')}
-          </Button>
           {plugin.origin === 'installed' && (
             <Button size="sm" disabled={!!busy || !available} onClick={() => onUninstall(plugin)}>{t('musicPlugins.uninstall')}</Button>
           )}
@@ -77,6 +82,8 @@ export default function InstalledPluginCard({
               <span className="material-symbols-rounded text-base" aria-hidden="true">{open ? 'expand_less' : 'expand_more'}</span>
             </Button>
           )}
+          <Switch checked={plugin.enabled} label={t('musicPlugins.enablePlugin', { name: plugin.name })}
+            disabled={!!busy || !available} onChange={enabled => onSetEnabled(plugin, enabled)} />
         </div>
       </div>
       {open && (

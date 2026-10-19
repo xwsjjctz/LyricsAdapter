@@ -6,6 +6,7 @@ interface RetroSwitchProps {
   ariaDescribedBy?: string;
   onChange: (checked: boolean) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 const RetroSwitch: React.FC<RetroSwitchProps> = ({
@@ -14,6 +15,7 @@ const RetroSwitch: React.FC<RetroSwitchProps> = ({
   ariaDescribedBy,
   onChange,
   className = '',
+  disabled = false,
 }) => {
   return (
     <button
@@ -23,6 +25,7 @@ const RetroSwitch: React.FC<RetroSwitchProps> = ({
       aria-checked={checked}
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
     >
       <span className="retro-switch__thumb" />

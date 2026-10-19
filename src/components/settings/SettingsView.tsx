@@ -66,7 +66,6 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
         username={webdav.username}
         password={webdav.password}
         message={webdav.message}
-        messageType={webdav.messageType}
         isTesting={webdav.isTesting}
         isSaving={webdav.isSaving}
         isDirty={webdav.isDirty}

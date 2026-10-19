@@ -6,10 +6,12 @@ import { getDesktopAPI } from '@/services/desktopAdapter';
 import { updateMusicPlugins } from '@/stores/musicPluginStore';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import { Switch } from '../../ui';
+import SettingsMessage from '../SettingsMessage';
 
 type Value = string | boolean | number;
 const EMPTY_INFO: PluginDataInfo = { configuredSecrets: [], cacheEntries: 0, cacheBytes: 0 };
-const INPUT_CLASS = 'rounded border p-1 bg-transparent';
+const INPUT_CLASS = 'settings-field';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -92,7 +94,7 @@ function ConfigurationInput({ field, value, onCommit }: ConfigurationInputProps)
     </select>;
   }
   if (field.type === 'boolean') {
-    return <input type="checkbox" aria-label={field.title} checked={Boolean(value)} onChange={event => void onCommit(event.target.checked, true)} />;
+    return <Switch checked={Boolean(value)} label={field.title} onChange={checked => void onCommit(checked, true)} />;
   }
   // A rejected text value stays in the field to be corrected.
   return <TextField field={field} value={value} onCommit={next => onCommit(next, false)} />;
@@ -147,20 +149,23 @@ export default function PluginConfiguration({ plugin, theme }: { plugin: MusicPl
   };
   return <div className="w-full space-y-2 text-xs" style={{ color: theme.colors.textPrimary }}>
     {fields.map(([key, field]) => <div key={key} className="space-y-1">
-      <label className="flex flex-wrap items-center gap-3">
+      {/* Label left, control right, like the other settings rows. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <span>{field.title}</span>
-        {field.format === 'secret'
-          ? <SecretField field={field} busy={busy} configured={info.configuredSecrets.includes(key)}
-            onCommit={value => write(key, value, false)} />
-          : <ConfigurationInput field={field} value={values[key] ?? field.default}
-            onCommit={(value, optimistic) => write(key, value, optimistic)} />}
-      </label>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {field.format === 'secret'
+            ? <SecretField field={field} busy={busy} configured={info.configuredSecrets.includes(key)}
+              onCommit={value => write(key, value, false)} />
+            : <ConfigurationInput field={field} value={values[key] ?? field.default}
+              onCommit={(value, optimistic) => write(key, value, optimistic)} />}
+        </div>
+      </div>
       {field.description && <p style={{ color: theme.colors.textSecondary }}>{field.description}</p>}
     </div>)}
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" disabled={busy || !info.cacheEntries} onClick={() => void clearCache()}>{t('plugins.clearCache')}</Button>
       <span style={{ color: theme.colors.textSecondary }}>{t('plugins.cacheSummary', { count: info.cacheEntries, size: formatBytes(info.cacheBytes) })}</span>
     </div>
-    {error && <p role="alert">{error}</p>}
+    {error && <SettingsMessage tone="error">{error}</SettingsMessage>}
   </div>;
 }

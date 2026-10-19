@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
 import { themeManager } from '../services/themeManager';
@@ -14,7 +14,8 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   const { t } = useTranslation();
   const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, ShortcutConfig>>({} as Record<ShortcutAction, ShortcutConfig>);
   const [editingAction, setEditingAction] = useState<ShortcutAction | null>(null);
-  const [conflictAction, setConflictAction] = useState<ShortcutAction | null>(null);
+  // The recorded key and the action that already uses it, waiting for Replace or a second press.
+  const [conflict, setConflict] = useState<{ action: ShortcutAction; key: string } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,8 +50,14 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   const finishRecording = useCallback((action: ShortcutAction) => {
     restoreFocusTo.current = action;
     setEditingAction(null);
-    setConflictAction(null);
+    setConflict(null);
   }, []);
+
+  const replace = useCallback((action: ShortcutAction, key: string) => {
+    shortcutManager.replaceShortcut(action, key);
+    setShortcuts(shortcutManager.getAllShortcuts());
+    finishRecording(action);
+  }, [finishRecording]);
 
   const formatKey = useCallback((event: React.KeyboardEvent): string => {
     const parts: string[] = [];
@@ -106,10 +113,14 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
       return;
     }
 
-    // Check for conflicts
-    const conflict = shortcutManager.findConflict(action, newKey);
-    if (conflict) {
-      setConflictAction(conflict);
+    // A key in use asks first; pressing the same key again confirms the replacement.
+    const owner = shortcutManager.findConflict(action, newKey);
+    if (owner) {
+      if (conflict?.key === newKey) {
+        replace(action, newKey);
+        return;
+      }
+      setConflict({ action: owner, key: newKey });
       return;
     }
 
@@ -119,7 +130,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
       setShortcuts(shortcutManager.getAllShortcuts());
       finishRecording(action);
     }
-  }, [finishRecording, formatKey]);
+  }, [conflict, finishRecording, formatKey, replace]);
 
   const handleReset = useCallback((action: ShortcutAction) => {
     shortcutManager.resetToDefault(action);
@@ -147,8 +158,8 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
 
   // 渲染单行快捷键
   const renderShortcutRow = (action: ShortcutAction, config: ShortcutConfig) => (
+    <Fragment key={action}>
     <div
-      key={action}
       className="flex items-center justify-between py-1.5 px-3 border-b"
       style={{ borderColor: colors.borderLight }}
     >
@@ -168,14 +179,9 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
               onKeyDown={(e) => handleKeyDown(e, action)}
               onBlur={() => {
                 setEditingAction(null);
-                setConflictAction(null);
+                setConflict(null);
               }}
             />
-            {conflictAction && (
-              <div className="absolute top-full right-0 mt-1 w-40 p-1.5 r-sm text-xs z-10" style={{ backgroundColor: `${colors.error}20`, border: `1px solid ${colors.error}30`, color: colors.error }}>
-                {t('settings.shortcuts.conflict')}: {t(shortcuts[conflictAction]?.name || '')}
-              </div>
-            )}
           </div>
         ) : (
           <button
@@ -202,10 +208,24 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
         )}
       </div>
     </div>
+    {/* Inline under the row: a floating box would be clipped by the list's rounded card. */}
+    {editingAction === action && conflict && (
+      <div role="alert" className="shortcut-conflict col-span-full flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b text-xs">
+        <span>
+          {t('settings.shortcuts.conflictWith', { key: displayKey(conflict.key), name: t(shortcuts[conflict.action]?.name || '') })}
+          <span className="shortcut-conflict__hint"> {t('settings.shortcuts.replaceHint')}</span>
+        </span>
+        {/* Keep the recorder focused: losing it would cancel the recording. */}
+        <Button size="sm" variant="primary" onMouseDown={event => event.preventDefault()} onClick={() => replace(action, conflict.key)}>
+          {t('settings.shortcuts.replace')}
+        </Button>
+      </div>
+    )}
+    </Fragment>
   );
 
   return (
-    // The settings tab already names this page, so the list is the only card.
+    // The section heading names this page, so the list is the only card.
     <section ref={sectionRef} className="space-y-2">
       <div className="flex items-center justify-between gap-3 px-1">
         <p className="min-w-0 text-xs" style={{ color: colors.textMuted }}>{t('settings.shortcuts.legend')}</p>

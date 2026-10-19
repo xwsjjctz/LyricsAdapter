@@ -4,6 +4,7 @@ import type { OnlineSource } from '@/services/settingsManager';
 import type { SettingsTheme } from '../shared';
 import { useSourceLogin } from '../hooks/useSourceLogin';
 import Button from '../../ui/Button';
+import SettingsMessage from '../SettingsMessage';
 
 /**
  * A music source's sign-in inside its plugin card: QR login for the sources that support
@@ -87,12 +88,7 @@ export default function SourceLoginSection({ source, theme }: { source: OnlineSo
             )}
           </Button>
         </div>
-        {state.message && (
-          <p className={`flex items-center gap-1.5 ${state.messageType === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-            <span className="material-symbols-rounded text-xs" aria-hidden="true">{state.messageType === 'success' ? 'check' : 'error'}</span>
-            {state.message}
-          </p>
-        )}
+        {state.message && <SettingsMessage tone={state.message.tone}>{state.message.text}</SettingsMessage>}
       </div>
     </div>
   );

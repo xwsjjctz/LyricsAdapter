@@ -2,6 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import SettingsMessage from '../SettingsMessage';
+import type { SettingsMessageState } from '../hooks/useSettingsMessage';
 
 // Presentational WebDAV settings section used by the application settings panel.
 
@@ -10,8 +12,7 @@ interface WebdavSectionProps {
   serverUrl: string;
   username: string;
   password: string;
-  message: string | null;
-  messageType: 'success' | 'error' | null;
+  message: SettingsMessageState | null;
   isTesting: boolean;
   isSaving: boolean;
   isDirty: boolean;
@@ -31,7 +32,6 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
   username,
   password,
   message,
-  messageType,
   isTesting,
   isSaving,
   isDirty,
@@ -92,13 +92,7 @@ const WebdavSection: React.FC<WebdavSectionProps> = ({
         </Button>
       </div>
 
-      {message && (
-        <span className={`mt-3 block text-xs ${
-          messageType === 'success' ? 'text-green-400' : 'text-red-400'
-        }`}>
-          {message}
-        </span>
-      )}
+      {message && <div className="mt-3"><SettingsMessage tone={message.tone}>{message.text}</SettingsMessage></div>}
     </section>
   );
 };

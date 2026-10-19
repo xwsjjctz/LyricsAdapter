@@ -607,3 +607,69 @@ html[data-settings-panel='native'] .settings-sheet {
   box-shadow: var(--theme-elevated-shadow);
 }
 
+
+/* Compact inputs inside a plugin card's settings, drawn like the other settings inputs. */
+.settings-field {
+  min-width: 0;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--theme-border-light);
+  border-radius: var(--theme-control-radius);
+  background: var(--theme-background-card);
+  color: var(--theme-text-primary);
+  font-size: 0.8rem;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+select.settings-field {
+  min-width: 8rem;
+}
+
+.settings-field:focus {
+  outline: none;
+  border-color: var(--theme-border-hover);
+  background: var(--theme-background-card-hover);
+}
+
+.settings-field:disabled {
+  opacity: 0.5;
+}
+
+.ui-switch:disabled,
+.retro-switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The result of a settings action, under the control that started it. */
+.settings-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-message .material-symbols-rounded {
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.settings-message[data-tone='success'] {
+  color: var(--theme-success);
+}
+
+.settings-message[data-tone='error'] {
+  color: var(--theme-error);
+}
+
+/* A recorded shortcut that another action already uses, shown under its row. */
+.shortcut-conflict {
+  border-color: var(--theme-border-light);
+  background: color-mix(in srgb, var(--theme-error) 10%, transparent);
+  color: var(--theme-error);
+}
+
+.shortcut-conflict__hint {
+  color: var(--theme-text-secondary);
+}

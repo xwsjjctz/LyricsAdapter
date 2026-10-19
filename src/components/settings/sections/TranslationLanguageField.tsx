@@ -4,6 +4,7 @@ import type { MusicPluginInfo } from '@/shared/musicPlugin';
 import { effectiveTranslationLanguage, languageDisplayName, translationLanguages } from '@/services/pluginTranslation';
 import { setTranslationLanguage, useTranslationPreference } from '@/stores/pluginTranslationStore';
 import type { SettingsTheme } from '../shared';
+import SettingsMessage from '../SettingsMessage';
 
 /** The plugin's first lyrics.translation provider, which Focus Mode translates with. */
 export function translationProviderOf(plugin: MusicPluginInfo) {
@@ -25,13 +26,13 @@ export default function TranslationLanguageField({ plugin, theme }: { plugin: Mu
     try { await setTranslationLanguage(value); } catch (reason) { setError(String(reason)); }
   };
   return <div className="space-y-1 text-xs" style={{ color: theme.colors.textPrimary }}>
-    <label className="flex flex-wrap items-center gap-3">
+    <label className="flex flex-wrap items-center justify-between gap-3">
       <span>{t('plugins.translationLanguage')}</span>
-      <select aria-label={t('plugins.translationLanguage')} className="rounded border p-1 bg-transparent" disabled={!preference.loaded}
+      <select aria-label={t('plugins.translationLanguage')} className="settings-field" disabled={!preference.loaded}
         value={language} onChange={event => void change(event.target.value)}>
         {translationLanguages(provider).map(tag => <option key={tag} value={tag}>{languageDisplayName(tag)}</option>)}
       </select>
     </label>
-    {error && <p role="alert">{error}</p>}
+    {error && <SettingsMessage tone="error">{error}</SettingsMessage>}
   </div>;
 }

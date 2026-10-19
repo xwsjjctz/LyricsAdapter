@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { isOfficialMusicSource, type PluginUpdateInfo, type PluginUpdateSource, type PluginUpdateChannel } from '@/shared/pluginUpdate';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import SettingsMessage from '../SettingsMessage';
 
 interface Props {
   info: PluginUpdateInfo;
@@ -35,13 +36,13 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
     </div>
     {info.status === 'available' && info.latestVersion !== info.targetVersion && <p>{t('pluginUpdates.newerIncompatible', { version: info.latestVersion })}</p>}
     {info.notes && <p className="whitespace-pre-wrap break-words max-h-28 overflow-y-auto">{info.notes}</p>}
-    {info.error && <p role="alert">{info.error}</p>}
+    {info.error && <SettingsMessage tone="error">{info.error}</SettingsMessage>}
     {/* Already inside the card's settings area, so the source is shown, not folded again. */}
     <div className="space-y-2">
       <p className="font-medium" style={{ color: theme.colors.textPrimary }}>{t('pluginUpdates.source')}</p>
-      <label className="flex flex-wrap items-center gap-2">
+      <label className="flex flex-wrap items-center justify-between gap-2">
         <span>{t('pluginUpdates.sourceType')}</span>
-        <select aria-label={t('pluginUpdates.sourceType')} className="rounded border p-1 bg-transparent" value={kind} disabled={busy} onChange={event => setKind(event.target.value as typeof kind)}>
+        <select aria-label={t('pluginUpdates.sourceType')} className="settings-field" value={kind} disabled={busy} onChange={event => setKind(event.target.value as typeof kind)}>
           <option value="none">{t('pluginUpdates.none')}</option>
           <option value="github">GitHub Releases</option>
           <option value="manifest">{t('pluginUpdates.feed')}</option>
@@ -49,14 +50,14 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
         </select>
       </label>
       {(kind === 'github' || kind === 'manifest') && <>
-        <label className="flex flex-wrap items-center gap-2">
+        <label className="flex flex-wrap items-center justify-between gap-2">
           <span>{t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')}</span>
-          <input aria-label={t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')} className="rounded border p-1 bg-transparent flex-1 min-w-48" value={value} disabled={busy}
+          <input aria-label={t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')} className="settings-field flex-1 min-w-48" value={value} disabled={busy}
             placeholder={kind === 'github' ? 'owner/repository' : 'https://example.com/plugins.update.json'} onChange={event => setValue(event.target.value)} />
         </label>
-        <label className="flex flex-wrap items-center gap-2">
+        <label className="flex flex-wrap items-center justify-between gap-2">
           <span>{t('pluginUpdates.channel')}</span>
-          <select aria-label={t('pluginUpdates.channel')} className="rounded border p-1 bg-transparent" value={channel} disabled={busy} onChange={event => setChannel(event.target.value as PluginUpdateChannel)}>
+          <select aria-label={t('pluginUpdates.channel')} className="settings-field" value={channel} disabled={busy} onChange={event => setChannel(event.target.value as PluginUpdateChannel)}>
             <option value="stable">{t('pluginUpdates.stable')}</option><option value="prerelease">{t('pluginUpdates.prerelease')}</option>
           </select>
         </label>

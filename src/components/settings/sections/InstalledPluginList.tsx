@@ -3,6 +3,7 @@ import type { MusicPluginInfo } from '@/shared/musicPlugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '@/shared/pluginUpdate';
 import type { SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import SettingsMessage from '../SettingsMessage';
 import InstalledPluginCard from './InstalledPluginCard';
 
 interface InstalledPluginListProps {
@@ -12,6 +13,10 @@ interface InstalledPluginListProps {
   /** The running operation, if any; every action waits for it. */
   busy: string | null;
   available: boolean;
+  /** Why the list or the update check failed, shown under its header. */
+  listError?: string | undefined;
+  /** A failed action on that plugin, shown inside its card. */
+  errorFor: (id: string) => string | undefined;
   onCheckUpdates: () => void;
   onSetEnabled: (plugin: MusicPluginInfo, enabled: boolean) => void;
   onUninstall: (plugin: MusicPluginInfo) => void;
@@ -21,7 +26,7 @@ interface InstalledPluginListProps {
 
 /** Installed plugins as one-line cards whose settings open one level deep. */
 export default function InstalledPluginList({
-  theme, plugins, updates, busy, available, onCheckUpdates, ...cardActions
+  theme, plugins, updates, busy, available, listError, errorFor, onCheckUpdates, ...cardActions
 }: InstalledPluginListProps) {
   const { t } = useTranslation();
   const { colors } = theme;
@@ -34,10 +39,11 @@ export default function InstalledPluginList({
           <Button size="sm" disabled={!!busy || !available || checking} onClick={onCheckUpdates}>{t('pluginUpdates.check')}</Button>
         )}
       </div>
+      {listError && <SettingsMessage tone="error">{listError}</SettingsMessage>}
       {!plugins.length && <p className="text-xs" style={{ color: colors.textSecondary }}>{t('musicPlugins.empty')}</p>}
       {plugins.map(plugin => (
         <InstalledPluginCard key={plugin.id} theme={theme} plugin={plugin} update={updates.find(info => info.id === plugin.id)}
-          busy={busy} available={available} {...cardActions} />
+          busy={busy} available={available} error={errorFor(plugin.id)} {...cardActions} />
       ))}
     </section>
   );

@@ -99,6 +99,15 @@ class ShortcutManager {
     return true;
   }
 
+  /** Gives `newKey` to `action` and clears it from the action that had it; returns that action. */
+  replaceShortcut(action: ShortcutAction, newKey: string): ShortcutAction | null {
+    const previous = this.findConflict(action, newKey);
+    if (previous) this.shortcuts[previous] = { ...this.shortcuts[previous], currentKey: '' };
+    this.shortcuts[action] = { ...this.shortcuts[action], currentKey: newKey };
+    this.saveShortcuts();
+    return previous;
+  }
+
   resetToDefault(action: ShortcutAction): void {
     this.shortcuts[action] = {
       ...this.shortcuts[action],

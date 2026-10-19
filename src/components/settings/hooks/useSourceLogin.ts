@@ -4,6 +4,7 @@ import type { OnlineSource } from '@/services/settingsManager';
 import { qqCredentialManager } from '@/services/qqCredentialManager';
 import { cookieStoreFor, sourceLogin, syncOnlineCookiesToMain, type MusicSourceLogin } from '@/services/musicSources';
 import { logger } from '@/services/logger';
+import { useSettingsMessage, type SettingsMessageState } from './useSettingsMessage';
 import {
   startQQLogin,
   pollQQLogin,
@@ -30,8 +31,8 @@ export interface SourceLogin {
   qrMsg: string;
   qrScanning: boolean;
   isSaving: boolean;
-  message: string | null;
-  messageType: 'success' | 'error' | null;
+  /** The last sign-in or cookie result; errors stay until the next attempt. */
+  message: SettingsMessageState | null;
   setCookie: (value: string) => void;
   /** Validates and stores the cookie draft. */
   saveCookie: () => Promise<void>;
@@ -39,7 +40,6 @@ export interface SourceLogin {
   logout: () => Promise<void>;
 }
 
-const MESSAGE_DURATION_MS = 3000;
 const QR_POLL_INTERVAL_MS = 2000;
 
 export const supportsQr = (login: MusicSourceLogin): login is 'qq-qr' | 'netease-qr' => login === 'qq-qr' || login === 'netease-qr';
@@ -79,11 +79,9 @@ export function useSourceLogin(source: OnlineSource): SourceLogin {
   const [qrImage, setQrImage] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageType, setMessageType] = useState<'success' | 'error' | null>(null);
+  const { message, show: showMessage, clear: clearMessage } = useSettingsMessage();
   const sessionRef = useRef<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const messageTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const mountedRef = useRef(true);
 
   // Follow the cookie store. A silent QQ musickey refresh rewrites the cookie, so the
@@ -101,13 +99,6 @@ export function useSourceLogin(source: OnlineSource): SourceLogin {
     const unsubscribe = store.subscribe(read);
     return () => { active = false; unsubscribe(); };
   }, [source]);
-
-  const showMessage = useCallback((text: string, type: 'success' | 'error') => {
-    clearTimeout(messageTimerRef.current);
-    setMessage(text);
-    setMessageType(type);
-    messageTimerRef.current = setTimeout(() => { setMessage(null); setMessageType(null); }, MESSAGE_DURATION_MS);
-  }, []);
 
   const stopQrPolling = useCallback(() => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
@@ -189,7 +180,6 @@ export function useSourceLogin(source: OnlineSource): SourceLogin {
     return () => {
       mountedRef.current = false;
       stopQrPolling();
-      clearTimeout(messageTimerRef.current);
       sessionRef.current = null;
     };
   }, [stopQrPolling]);
@@ -209,7 +199,7 @@ export function useSourceLogin(source: OnlineSource): SourceLogin {
 
   const saveCookie = useCallback(async () => {
     setIsSaving(true);
-    setMessage(null);
+    clearMessage();
     try {
       const store = cookieStoreFor(source);
       const value = cookie.trim();
@@ -234,7 +224,7 @@ export function useSourceLogin(source: OnlineSource): SourceLogin {
     } finally {
       setIsSaving(false);
     }
-  }, [cookie, login, showMessage, source, t]);
+  }, [cookie, clearMessage, login, showMessage, source, t]);
 
   return {
     login,
@@ -248,7 +238,6 @@ export function useSourceLogin(source: OnlineSource): SourceLogin {
     qrScanning: qrState === 'loading' || qrState === 'waiting' || qrState === 'confirming',
     isSaving,
     message,
-    messageType,
     setCookie,
     saveCookie,
     startQr,
