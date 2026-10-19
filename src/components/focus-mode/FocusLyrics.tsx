@@ -3,13 +3,14 @@ import type { Track } from '../../types';
 import FocusLegacyLyrics from './FocusLegacyLyrics';
 import { hasTrackLyrics } from './focusLyricsTrack';
 import './FocusLyrics.css';
-import { usePluginTranslation } from '../../hooks/usePluginTranslation';
-import { useTranslation } from 'react-i18next';
 
 const FocusAmlLyrics = lazy(() => import('./FocusAmlLyrics'));
+const NO_TRANSLATIONS: Readonly<Record<string, string>> = {};
 
 export interface FocusLyricsProps {
   track: Track | null;
+  /** Plugin translations by lyric line ID. Renderers add or remove them without resetting the scroll. */
+  translations?: Readonly<Record<string, string>>;
   currentTime: number;
   currentTimeRef: MutableRefObject<number>;
   isPlaying: boolean;
@@ -28,6 +29,7 @@ export interface FocusLyricsProps {
 /** Mount exactly one lyric renderer. The AMLL runtime stays in its lazy chunk. */
 export default function FocusLyrics({
   track,
+  translations = NO_TRANSLATIONS,
   currentTime,
   currentTimeRef,
   isPlaying,
@@ -42,8 +44,6 @@ export default function FocusLyrics({
   textMuted,
   onSeek,
 }: FocusLyricsProps) {
-  const translation = usePluginTranslation(track, isVisible);
-  const { t } = useTranslation();
   if (!track || !hasTrackLyrics(track)) return null;
 
   return (
@@ -51,11 +51,10 @@ export default function FocusLyrics({
       className="focus-lyrics-viewport flex-1 h-full min-h-0 min-w-0 max-h-[50vh] lg:max-h-[60vh] overflow-hidden relative px-8 select-none"
       data-testid={useAmlLyrics ? 'focus-amll-lyrics' : undefined}
     >
-      {translation.error && <p role="status" className="text-xs" style={{ color: textMuted }}>{t('plugins.translationError')}</p>}
       {!useAmlLyrics ? (
         <FocusLegacyLyrics
           track={track}
-          translations={translation.lines}
+          translations={translations}
           currentTime={currentTime}
           currentTimeRef={currentTimeRef}
           isPlaying={isPlaying}
@@ -73,7 +72,7 @@ export default function FocusLyrics({
         <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
           <FocusAmlLyrics
             track={track}
-            translations={translation.lines}
+            translations={translations}
             currentTime={currentTime}
             isPlaying={isPlaying}
             isVisible={isVisible}

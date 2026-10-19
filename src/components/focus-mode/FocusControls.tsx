@@ -34,6 +34,8 @@ export interface FocusControlsProps {
   glassMaterial?: boolean;
   scale?: number;
   portrait?: boolean;
+  /** Rendered at the start of the portrait volume row only. */
+  portraitVolumeLeading?: React.ReactNode;
 }
 
 const formatTime = (seconds: number): string => {
@@ -72,6 +74,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   glassMaterial = false,
   scale = 1,
   portrait = false,
+  portraitVolumeLeading,
 }) => {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const setPlayerRef = useCallback((element: HTMLDivElement | null) => {
@@ -114,7 +117,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
     currentTime={activeCurrentTime} duration={track?.duration ?? 0} volume={volume} playbackMode={playbackMode}
     onSeek={onSeek} onTogglePlay={onTogglePlay} onSkipPrev={onSkipPrev} onSkipNext={onSkipNext}
     onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onTogglePlaybackMode={onTogglePlaybackMode}
-    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} />;
+    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} volumeLeading={portraitVolumeLeading} />;
   if (getDesktopAPI()?.platform === 'win32') return <WindowsFocusControls
     track={track} colors={colors} isPlaying={isPlaying} isPlayerVisible={isPlayerVisible} isFocusVisible={isFocusVisible}
     activeCurrentTime={activeCurrentTime} progress={progress} volume={volume} playbackMode={playbackMode}

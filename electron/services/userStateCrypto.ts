@@ -15,7 +15,9 @@ export class SafeStorageUserStateCrypto implements UserStateCrypto {
     // Values entering the runtime API are plaintext even when a user-provided
     // cookie/password happens to start with "enc:". Legacy stored envelopes are
     // decoded explicitly by the migration layer before they reach this method.
-    if (!isSensitiveSettingKey(key)) return value;
+    // Empty credentials contain no secret material. Store them canonically so
+    // Electron's empty encrypted buffer cannot become a bare enc: envelope.
+    if (!isSensitiveSettingKey(key) || value === '') return value;
     if (!this.isAvailable()) {
       throw new Error('safeStorage is unavailable; refusing to persist a sensitive setting as plaintext');
     }
@@ -24,10 +26,13 @@ export class SafeStorageUserStateCrypto implements UserStateCrypto {
 
   decodeSetting(key: string, value: string): string {
     if (!isSensitiveSettingKey(key) || !value.startsWith(ENCRYPTED_VALUE_PREFIX)) return value;
+    const payload = value.slice(ENCRYPTED_VALUE_PREFIX.length);
+    // Older versions could persist encryptString('') as an empty buffer.
+    // Electron decodes that buffer as '', so accept its historical envelope.
+    if (payload === '') return '';
     if (!this.isAvailable()) {
       throw new Error('safeStorage is unavailable; cannot decrypt a sensitive setting');
     }
-    const payload = value.slice(ENCRYPTED_VALUE_PREFIX.length);
     if (!/^(?:[0-9a-fA-F]{2})+$/.test(payload)) {
       throw new Error('Invalid encrypted setting envelope');
     }

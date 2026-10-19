@@ -13,7 +13,11 @@
     "secrets": "own"
   },
   "contributes": {
-    "providers": [{ "type": "lyrics.translation", "id": "default", "name": "大语言模型翻译" }],
+    "providers": [{
+      "type": "lyrics.translation", "id": "default", "name": "大语言模型翻译",
+      "languages": ["zh", "zh-Hant", "en", "ja", "ko", "fr", "de", "es", "ru"],
+      "timeoutSeconds": 600
+    }],
     "configuration": {
       "api-format": {
         "title": "接口格式 / API format",

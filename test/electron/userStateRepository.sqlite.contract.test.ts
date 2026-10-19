@@ -189,6 +189,53 @@ describe('UserStateRepository SQLite migration and transaction contract', () => 
     }]);
   });
 
+  it('opens an existing database with an empty encrypted plugin credential without rewriting it', () => {
+    const { repository } = fixture();
+    repository.initialize();
+    repository.setManySettings({ 'app-theme': 'default-light', 'music-plugin:llm-translation:secret:api-key': 'saved-key' });
+    repository.close();
+    const database = new DatabaseSync(repository.databasePath);
+    database.prepare('INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)')
+      .run('music-plugin:llm-translation:secret:cookie', 'enc:', 123);
+    database.close();
+
+    expect(() => repository.initialize()).not.toThrow();
+    expect(repository.getSetting('music-plugin:llm-translation:secret:cookie')).toBe('');
+    expect(repository.getSetting('music-plugin:llm-translation:secret:api-key')).toBe('saved-key');
+    expect(repository.getSetting('app-theme')).toBe('default-light');
+    expect(readSqliteRows(repository.databasePath,
+      "SELECT value, updated_at FROM settings WHERE key = 'music-plugin:llm-translation:secret:cookie'"))
+      .toEqual([{ value: 'enc:', updated_at: 123 }]);
+  });
+
+  it('migrates a legacy empty encrypted credential and survives restart', () => {
+    const { repository } = fixture();
+    writeJson(repository.legacySettingsPath, { qq_music_cookie: 'enc:', 'app-theme': 'default-light' });
+    repository.initialize();
+    expect(repository.getSetting('qq_music_cookie')).toBe('');
+    repository.close();
+    expect(() => repository.initialize()).not.toThrow();
+    expect(repository.getSetting('app-theme')).toBe('default-light');
+    expect(JSON.parse(fs.readFileSync(repository.legacySettingsPath, 'utf8')).qq_music_cookie).toBe('enc:');
+  });
+
+  it('clears credentials and reads historical empty envelopes even without secure storage', () => {
+    electronMocks.isEncryptionAvailable.mockReturnValue(false);
+    const crypto = new SafeStorageUserStateCrypto();
+    expect(crypto.encodeSetting('qq_music_cookie', '')).toBe('');
+    expect(crypto.decodeSetting('qq_music_cookie', 'enc:')).toBe('');
+    expect(electronMocks.encryptString).not.toHaveBeenCalled();
+    expect(electronMocks.decryptString).not.toHaveBeenCalled();
+    expect(() => crypto.encodeSetting('qq_music_cookie', 'nonempty')).toThrow('safeStorage is unavailable');
+  });
+
+  it('still rejects malformed nonempty envelopes and preserves literal enc-prefixed credentials', () => {
+    const crypto = new SafeStorageUserStateCrypto();
+    expect(() => crypto.decodeSetting('qq_music_cookie', 'enc:xyz')).toThrow('Invalid encrypted setting envelope');
+    expect(() => crypto.decodeSetting('qq_music_cookie', 'enc:a')).toThrow('Invalid encrypted setting envelope');
+    expect(crypto.decodeSetting('qq_music_cookie', crypto.encodeSetting('qq_music_cookie', 'enc:'))).toBe('enc:');
+  });
+
   it('refuses Linux basic_text instead of presenting weak storage as encrypted', () => {
     electronMocks.getSelectedStorageBackend.mockReturnValue('basic_text');
     const crypto = new SafeStorageUserStateCrypto('linux');

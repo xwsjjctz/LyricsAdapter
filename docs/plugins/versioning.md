@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | `manifestVersion` | 1 | 清单解析和包语义；不兼容结构才增加版本 |
 | `coreApi` | 1.1.0 | 生命周期和基础服务；插件声明要求范围 |
-| `extensionApis[type]` | music.source 1.0.0 / lyrics.translation 1.1.0 | 每个扩展独立演进，音乐变化不强迫翻译插件升级 |
-| 插件 `version` / SDK 包版本 | 插件自行维护 / SDK 1.2.0 | 插件发布版本、开发工具版本；不能代替宿主能力判断 |
+| `extensionApis[type]` | music.source 1.0.0 / lyrics.translation 1.2.0 | 每个扩展独立演进，音乐变化不强迫翻译插件升级 |
+| 插件 `version` / SDK 包版本 | 插件自行维护 / SDK 1.3.0 | 插件发布版本、开发工具版本；不能代替宿主能力判断 |
 | 更新清单 `schemaVersion` | 1 | 分发信息独立演进，不改变已有运行时 API |
 
 API 的 patch 修正实现而不改契约；minor 只增加可选字段、新方法或新能力，不删除字段、不改变已有单位/默认行为/语义；major 才允许不兼容变化。新必需服务方法通过 `coreApi: "^1.1.0"` 声明最低版本，而不是假设用户都安装最新宿主。扩展点也声明自己的最低版本。
@@ -87,3 +87,5 @@ export function activate(context: PluginContext) {
 - Core 1.1.0：新增 `context.cache`（插件私有文件缓存，卸载时删除）；配置项 `description`、`format: "secret"`（凭据输入，不回传界面）、`format: "endpoint"`（用户填写的地址加入网络白名单）；`network.fetchText` 支持 `timeoutMs`（最长 120 秒）和本机回环 HTTP，非 2xx 错误附带响应摘要。声明 `^1.0.0` 的插件行为不变。
 - lyrics.translation 1.1.0：文档增加可选 `metadata`（歌名、歌手、专辑）；翻译请求上限从 20 秒放宽到 180 秒。
 - SDK 包 1.2.0：导出上述类型（`PluginCache`、`PluginFetchOptions`、`LyricTrackMetadata`、`PluginDataInfo`）。首个使用这些能力的示例是 [llm-translation](../../examples/plugins/llm-translation/README.md)。
+- lyrics.translation 1.2.0：翻译提供者声明可选 `languages`（设置页按它列出目标语言，不支持的偏好回退到声明的语言）和 `timeoutSeconds`（整次调用期限 20–600 秒，默认仍为 180）；`callContext.timeoutMs` 告诉提供者剩余时间。旧宿主忽略这两个声明字段，声明 `^1.1.0` 的插件行为不变。
+- SDK 包 1.3.0：导出 `ProviderContribution`，`ProviderCallContext.timeoutMs` 与 `PluginProviderInfo.languages`。

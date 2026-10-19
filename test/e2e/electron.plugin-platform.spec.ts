@@ -25,7 +25,7 @@ test('platform packages install, configure and translate in both Focus renderers
   app=await electron.launch({cwd:root,args:[...(process.platform==='linux'?['--no-sandbox']:[]),`--user-data-dir=${userData}`,repo],env});
   const page=await app.firstWindow();await page.waitForFunction(()=>Boolean((window as unknown as { electron?: Bridge }).electron?.pluginHostInfo));
   await app.evaluate(({BrowserWindow,net})=>{BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.focus();const originalFetch=net.fetch.bind(net);net.fetch=async(input,init)=>String(input).includes('LyricsAdapter-Music-Plugins')?new Response(JSON.stringify({apiVersion:1,plugins:[]})):originalFetch(input,init);});
-  expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginHostInfo())).toMatchObject({coreApi:'1.1.0',legacyMusicApi:1,extensionApis:{'lyrics.translation':'1.1.0'}});
+  expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginHostInfo())).toMatchObject({coreApi:'1.1.0',legacyMusicApi:1,extensionApis:{'lyrics.translation':'1.2.0'}});
   await expect(page.locator('.poster-wall')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+K');const palette=page.locator('.command-palette__input');await palette.click();await page.keyboard.press('Shift+Tab');await palette.fill('settings');await page.keyboard.press('Enter');
   await page.getByRole('tab',{name:'Plugins'}).click();
@@ -42,6 +42,10 @@ test('platform packages install, configure and translate in both Focus renderers
   await expect(page.getByLabel('Translation plugin',{exact:true})).toBeEnabled();
   await page.getByRole('tab',{name:'Plugins'}).click();await page.keyboard.press('Escape');await expect(page.locator('.settings-sheet')).toHaveCount(0);await page.getByRole('button',{name:/Enter Focus Mode/}).click();
   await expect(page.getByTestId('focus-legacy-lyrics')).toBeVisible();
+  // Lyrics stay untranslated until the Focus Mode button asks the provider.
+  const translate=page.getByTestId('focus-translate-button');
+  await expect(translate).toHaveAttribute('data-status','idle');await expect(page.getByTestId('lyric-translation')).toHaveCount(0);
+  await translate.click();await expect(translate).toHaveAttribute('data-status','translated');await expect(translate).toHaveAttribute('aria-pressed','true');
   await expect(page.getByTestId('lyric-translation').first()).toHaveText('Test translation (zh) · Original one');
   await expect(page.getByTestId('lyric-translation').first()).toBeVisible();
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.focus-mode-content')!).opacity) >= 0.99);
@@ -50,7 +54,9 @@ test('platform packages install, configure and translate in both Focus renderers
   // Switch through persisted settings then reload, exercising independent AMLL conversion.
   await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).ipc.settings.set('la_focus_amll_lyrics_enabled','true'));
   await page.reload();await expect(page.locator('.poster-wall')).toBeVisible();await page.getByRole('button',{name:/Enter Focus Mode/}).click();
-  await expect(page.locator('.amll-lyric-player')).toBeVisible();await expect(page.locator('.amll-lyric-player')).toContainText('Test translation (zh) · Original one');
+  // A reload starts a new session, so the translation is requested again.
+  await expect(page.locator('.amll-lyric-player')).toBeVisible();await page.getByTestId('focus-translate-button').click();
+  await expect(page.locator('.amll-lyric-player')).toContainText('Test translation (zh) · Original one');
   await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.focus-mode-content')!).opacity) >= 0.99);
   await page.screenshot({path:testInfo.outputPath('focus-amll-parallel-translation.png')});
   await page.evaluate(()=>((window as unknown as {electron:Bridge}).electron).pluginSetConfiguration('example-translation','prefix','Updated translation'));
@@ -59,6 +65,7 @@ test('platform packages install, configure and translate in both Focus renderers
   await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).musicPluginSetEnabled('example-translation',false));
   await expect(page.locator('.amll-lyric-player')).not.toContainText('Updated translation');
   await expect(page.locator('.amll-lyric-player')).toContainText('Original one');
+  await expect(page.getByTestId('focus-translate-button')).toHaveCount(0);
   // Request cancellation is scoped to the owning webContents and reaches provider AbortSignal.
   const example=JSON.parse(await readFile(packageFile,'utf8')) as {manifest:Record<string,unknown>};
   const code=`exports.activate=c=>c.extensions.register('lyrics.translation','default',{translate:async(r,{signal})=>new Promise(resolve=>signal.addEventListener('abort',()=>{c.storage.set('aborted',true);resolve({documentId:r.document.id,documentRevision:r.document.revision,targetLanguage:r.targetLanguage,lines:[]});},{once:true}))});`;

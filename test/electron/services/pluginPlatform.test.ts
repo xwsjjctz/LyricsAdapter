@@ -54,7 +54,7 @@ describe('public plugin API negotiation and compatibility', () => {
   const {registry,logger} = fixture(code,selected);
   expect(registry.providers('lyrics.translation')).toHaveLength(1);
   await translate(registry);
-  expect(logger.info).toHaveBeenCalledWith('activate',expect.objectContaining({coreApi:'1.1.0',extensionApis:{'lyrics.translation':'1.1.0'}}));
+  expect(logger.info).toHaveBeenCalledWith('activate',expect.objectContaining({coreApi:'1.1.0',extensionApis:{'lyrics.translation':'1.2.0'}}));
  });
  it('lazily activates once, cleans up on disable, reactivates with preserved private data and respects config validation', async () => {
   const {registry,logger,data,options} = fixture();
@@ -200,5 +200,37 @@ describe('core 1.1 data, secret configuration and endpoint services', () => {
   expect(host.logger.info).toHaveBeenCalledWith('timeout rejected');
   expect(() => runtime.setConfiguration('endpoint','ftp://custom.example')).toThrow('Invalid');
   runtime.dispose();
+ });
+});
+
+describe('lyrics.translation 1.2 provider languages and deadlines', () => {
+ const declared = (fields: Record<string, unknown>, type = 'lyrics.translation'): PluginManifest => ({...manifest,
+  ...(type === 'music.source' ? {id:'netease',extensionApis:{'music.source':'^1.0.0'}} : {}),
+  contributes:{...manifest.contributes,providers:[{type,id:'default',name:'Translation',...fields}]}});
+ it('exposes declared languages and rejects invalid language or timeout declarations', () => {
+  const {registry} = fixture(code,declared({languages:['zh','zh-Hant','en'],timeoutSeconds:600}));
+  expect(registry.list()[0]?.error).toBeUndefined();
+  expect(registry.providers('lyrics.translation')[0]?.languages).toEqual(['zh','zh-Hant','en']);
+  for (const fields of [{languages:[]}, {languages:['zh','ZH']}, {languages:['not a tag']}, {languages:'zh'},
+   {timeoutSeconds:10}, {timeoutSeconds:601}, {timeoutSeconds:90.5}, {timeoutSeconds:'300'}]) {
+   expect(fixture(code,declared(fields)).registry.list()[0]?.error).toContain('provider contribution');
+  }
+  expect(fixture(code,declared({languages:['zh']},'music.source')).registry.list()[0]?.error).toContain('provider contribution');
+ });
+ it('applies the declared deadline and tells the provider how much time is left', async () => {
+  const reporting = code.replace('{signal}) =>', '{signal,timeoutMs}) =>').replace('signal.throwIfAborted();', "signal.throwIfAborted(); context.logger.info('timeout', timeoutMs);");
+  const {registry,logger} = fixture(reporting,declared({timeoutSeconds:300}));
+  await translate(registry);
+  const timeout = logger.info.mock.calls.find(([kind]) => kind==='timeout')?.[1] as number;
+  expect(timeout).toBeGreaterThan(290_000); expect(timeout).toBeLessThanOrEqual(300_000);
+  const fallback = fixture(reporting);
+  await translate(fallback.registry);
+  expect(fallback.logger.info.mock.calls.find(([kind]) => kind==='timeout')?.[1]).toBeLessThanOrEqual(180_000);
+ });
+ it('abandons a provider that runs past its declared deadline', async () => {
+  vi.useFakeTimers();
+  const {registry} = fixture(code.replace("signal.throwIfAborted();", "await new Promise(() => {});"),declared({timeoutSeconds:20}));
+  const result = translate(registry); const assertion = expect(result).rejects.toThrow('timed out');
+  await vi.advanceTimersByTimeAsync(20_000); await assertion;
  });
 });

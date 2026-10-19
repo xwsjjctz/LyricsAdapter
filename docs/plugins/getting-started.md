@@ -13,7 +13,7 @@ npm run electron:dev
 
 `plugins:check` 检查公共契约、生成 SDK，并在独立 NodeNext 项目中验证包的类型和运行时导入；`plugins:package` 将 [示例目录](../../examples/plugins/lyric-translation/manifest.json) 打包为 `dist-plugins/example-translation.laplugin`。开发启动不依赖这些命令，未安装任何插件也能启动。
 
-进入「设置 → 插件 → 安装本地插件」，选择这个文件。出现「歌词对照翻译」后选择「对照译文示例」。可修改示例的译文前缀并保存，进入有歌词的歌曲的专注模式，在两种歌词渲染器中都能看到对照文本。安装只添加能力，翻译默认关闭；选择翻译插件后，宿主才会把歌词交给它。
+进入「设置 → 插件 → 安装本地插件」，选择这个文件。出现「歌词对照翻译」后选择「对照译文示例」。可修改示例的译文前缀并保存，进入有歌词的歌曲的专注模式，点击歌曲信息下方的「翻译」按钮，在两种歌词渲染器中都能看到对照文本。安装只添加能力，翻译默认关闭；选择翻译插件后，宿主也只在点击「翻译」时才把歌词交给它。
 
 示例是契约演示，没有真实翻译效果。接入翻译服务时，将服务的 HTTPS origin 写入 `permissions.network`（或提供 `format: "endpoint"` 配置让用户填写地址），在 `translate` 中通过 `context.network.fetchText` 调用服务，并将请求的 `signal` 传入。密钥使用 `format: "secret"` 配置或 `context.secrets`，不要放在普通配置字段或普通存储中。需要跨重启保存的译文写入 `context.cache`。完整的真实服务示例见 [大语言模型歌词翻译插件](../../examples/plugins/llm-translation/README.md)，打包命令：
 

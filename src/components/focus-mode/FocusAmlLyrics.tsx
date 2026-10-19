@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExtern
 import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/react';
 import {
   DomLyricPlayer,
+  type LyricLine,
   type LyricLineMouseEvent,
   type OptimizeLyricOptions,
 } from '@applemusic-like-lyrics/core';
@@ -34,6 +35,30 @@ export class FocusDomLyricPlayer extends DomLyricPlayer {
   override update(delta?: number): void {
     super.update(delta);
     this.animationBudget?.update(this.currentLyricGroups, this.getCurrentTime());
+  }
+
+  /**
+   * Write translation text into the lines already on screen. AMLL's setLyricLines rebuilds
+   * every line and springs them in from the top; here AMLL's own ResizeObserver measures the
+   * taller lines and springs the following ones down. `lines` must come from the same track:
+   * AMLL's optimizer keeps one processed line per input line.
+   */
+  updateTranslations(lines: readonly LyricLine[]): void {
+    if (lines.length !== this.processedLines.length) return;
+    lines.forEach((line, index) => {
+      // AMLL keeps its own clones; mutate them so a later rebuild of a line keeps the text.
+      for (const owned of [this.currentLyricLines[index], this.processedLines[index]]) {
+        if (owned) owned.translatedLyric = line.translatedLyric;
+      }
+    });
+    for (const group of this.currentLyricGroups) {
+      for (const lineEl of [group.mainLine, group.bgLine]) {
+        // AMLL 0.5.2 renders [main, translation, romanisation] as the line's children.
+        const subLine = lineEl?.getElement().children[1];
+        const text = lineEl?.getLine().translatedLyric ?? '';
+        if (subLine && subLine.textContent !== text) subLine.textContent = text;
+      }
+    }
   }
 
   override dispose(): void {
@@ -81,7 +106,11 @@ export default function FocusAmlLyrics({
   const scrollReturnTimerRef = useRef<number | null>(null);
   const previousTimeRef = useRef(Math.round(currentTime * 1000));
   const previousTrackRef = useRef(track.id);
-  const lyricLines = useMemo(() => trackToAmlLyricLines(track, translations), [track, translations]);
+  const translatedLines = useMemo(() => trackToAmlLyricLines(track, translations), [track, translations]);
+  // Only a new track hands AMLL a new array: setLyricLines restarts the layout from the top.
+  // Translation changes are patched into the existing lines by the effect below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lyricLines = useMemo(() => translatedLines, [track]);
   const currentTimeMs = Math.max(0, Math.round(currentTime * 1000));
   const isSeeking = previousTrackRef.current !== track.id
     || !isPlaying
@@ -97,6 +126,11 @@ export default function FocusAmlLyrics({
   useLayoutEffect(() => {
     void playerRef.current?.lyricPlayer?.calcLayout(true, true);
   }, [fontSize, lineSpacing, enhancedFont]);
+
+  useLayoutEffect(() => {
+    const player = playerRef.current?.lyricPlayer;
+    if (player instanceof FocusDomLyricPlayer) player.updateTranslations(translatedLines);
+  }, [translatedLines]);
 
   // AMLL's alignment setters do not recalculate layout. Run after the child
   // applies its new anchor so a paused line also moves when orientation changes.

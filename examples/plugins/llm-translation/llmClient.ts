@@ -1,7 +1,13 @@
 import type { PluginContext } from '@lyrics-adapter/plugin-sdk';
 import type { TranslatorSettings } from './settings';
 
-export interface ChatRequest { system: string; user: string; signal: AbortSignal }
+export interface ChatRequest {
+  system: string;
+  user: string;
+  signal: AbortSignal;
+  /** The configured timeout, shortened to fit what is left of the host's deadline. */
+  timeoutMs: number;
+}
 
 /** Claude models that accept the server-side refusal fallback (`fallbacks: "default"`). */
 const FALLBACK_MODELS = new Set(['claude-fable-5-1', 'claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5']);
@@ -26,7 +32,7 @@ async function openAiChat(context: PluginContext, settings: TranslatorSettings, 
     headers: { 'content-type': 'application/json', ...(settings.apiKey ? { authorization: `Bearer ${settings.apiKey}` } : {}) },
     body: JSON.stringify(body),
     signal: request.signal,
-    timeoutMs: settings.timeoutMs,
+    timeoutMs: request.timeoutMs,
   }), 'OpenAI-compatible API');
   const choice = (reply['choices'] as { message?: { content?: unknown }; finish_reason?: unknown }[] | undefined)?.[0];
   if (choice?.finish_reason === 'length') throw new Error('Model output was cut off (finish_reason: length)');
@@ -55,7 +61,7 @@ async function anthropicChat(context: PluginContext, settings: TranslatorSetting
     },
     body: JSON.stringify(body),
     signal: request.signal,
-    timeoutMs: settings.timeoutMs,
+    timeoutMs: request.timeoutMs,
   }), 'Anthropic API');
   if (reply['stop_reason'] === 'refusal') throw new Error('Model declined to translate these lyrics');
   if (reply['stop_reason'] === 'max_tokens') throw new Error('Model output was cut off (stop_reason: max_tokens)');

@@ -3,6 +3,28 @@ import type { LyricDocument, LyricLine, LyricTrackMetadata, TranslationResult, P
 import { validateTranslationResult } from '../shared/pluginValidation';
 import { getDesktopAPI } from './desktopAdapter';
 
+/** Offered when a provider does not declare its target languages (lyrics.translation 1.2). */
+export const DEFAULT_TRANSLATION_LANGUAGES: readonly string[] = ['zh', 'en', 'ja', 'ko'];
+export const translationLanguages = (provider: PluginProviderInfo | null | undefined): readonly string[] =>
+  provider?.languages?.length ? provider.languages : DEFAULT_TRANSLATION_LANGUAGES;
+/**
+ * The preferred language when the provider supports it, else one with the same primary
+ * subtag (zh → zh-Hans), else the provider's first language. The stored preference is left
+ * as it is, so returning to a provider that supports it restores it.
+ */
+export function effectiveTranslationLanguage(provider: PluginProviderInfo | null | undefined, preferred: string): string {
+  const languages = translationLanguages(provider);
+  const wanted = preferred.toLowerCase();
+  const primary = wanted.split('-')[0];
+  return languages.find(tag => tag.toLowerCase() === wanted)
+    ?? languages.find(tag => tag.toLowerCase().split('-')[0] === primary)
+    ?? languages[0]!;
+}
+/** A language tag named in its own language, such as 日本語 for `ja`. */
+export function languageDisplayName(tag: string): string {
+  try { return new Intl.DisplayNames([tag], { type: 'language' }).of(tag) ?? tag; } catch { return tag; }
+}
+
 export async function lyricDocumentForTrack(track: Track): Promise<LyricDocument> {
   const lines: LyricLine[] = track.syncedLyrics?.length
     ? track.syncedLyrics.flatMap((line, index) => Number.isFinite(line.time) && line.text.trim() ? [{
@@ -19,6 +41,27 @@ export async function lyricDocumentForTrack(track: Track): Promise<LyricDocument
     .flatMap(([key, value]) => value?.trim() ? [[key, value.trim().slice(0, 1024)]] : [])) as LyricTrackMetadata;
   return { id: `lyrics-${trackId}`, trackId, revision: await hash(JSON.stringify({ parser: 1, lines })),
     ...(Object.keys(metadata).length ? { metadata } : {}), lines };
+}
+
+/**
+ * Translations the listener asked for in this session, by track, provider and target
+ * language. Focus Mode translates only on request; remembering it keeps the result shown
+ * when Focus Mode reopens or the track comes back. Never persisted.
+ */
+const requested = new Set<string>();
+const requestListeners = new Set<() => void>();
+export const translationRequestKey = (trackId: string, providerKey: string, targetLanguage: string) =>
+  JSON.stringify([trackId, providerKey, targetLanguage]);
+export const isTranslationRequested = (key: string) => requested.has(key);
+export function subscribeTranslationRequests(listener: () => void): () => void {
+  requestListeners.add(listener);
+  return () => { requestListeners.delete(listener); };
+}
+export function setTranslationRequested(key: string, value: boolean): void {
+  if (requested.has(key) === value) return;
+  if (value) { requested.add(key); while (requested.size > 256) requested.delete(requested.values().next().value!); }
+  else requested.delete(key);
+  requestListeners.forEach(listener => listener());
 }
 
 const cache = new Map<string, TranslationResult>();

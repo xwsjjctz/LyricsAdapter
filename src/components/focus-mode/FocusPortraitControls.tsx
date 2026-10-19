@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, Ref } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PlaybackIcon, usePlaybackSymbols } from '../PlaybackIcon';
 import { getDesktopAPI } from '../../services/desktopAdapter';
@@ -21,6 +21,8 @@ interface Props {
   onTogglePlaybackMode: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
+  /** Optional control placed before the volume icon, e.g. the plugin translate toggle. */
+  volumeLeading?: ReactNode;
 }
 
 const formatTime = (seconds: number) => {
@@ -73,6 +75,7 @@ export default function FocusPortraitControls(props: Props) {
           <PlaybackIcon symbols={symbols} name="fast_forward" className="material-symbols-rounded" aria-hidden="true" /></button>
       </div>
       <div className="focus-portrait-volume">
+        {props.volumeLeading}
         <button type="button" disabled={!props.shown} aria-label={t(props.volume === 0 ? 'controls.unmute' : 'controls.mute')} onClick={props.onToggleMute}>
           <PlaybackIcon symbols={symbols} name={props.volume === 0 ? 'volume_off' : 'volume_down'} className="material-symbols-rounded" aria-hidden="true" /></button>
         <div className="player-slider" style={{ '--slider-progress': `${props.volume * 100}%` } as CSSProperties}>

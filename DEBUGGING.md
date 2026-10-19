@@ -23,6 +23,8 @@ npm run check            # 应用/E2E 类型检查 + 单元测试 + 生产构建
 
 Vite 仅监听本机 `127.0.0.1`，端口固定为 3000。该端口被占用时启动会直接失败，避免 Vite 自动切到 3001、Electron 却仍连接 3000 的隐蔽错误。
 
+开发版使用 Electron 应用数据目录下独立的 Chromium 配置 `lyrics-adapter-dev`（Windows 为 `%APPDATA%\lyrics-adapter-dev`），进程锁与安装版分开，安装版可以同时运行；设置、曲库和凭据仍与安装版共享 `~/.la`。Windows 上 safeStorage 的密钥保存在配置目录的 `Local State` 中，开发版启动时会沿用安装版配置（`%APPDATA%\lyrics-adapter`）的密钥，两者都能读取对方保存的凭据。本机从未运行过安装版时开发版使用自己的密钥，它保存的凭据之后安装的正式版无法读取。
+
 ## 使用 CDP + MCP + Agent
 
 1. 在项目根目录启动专用调试模式：

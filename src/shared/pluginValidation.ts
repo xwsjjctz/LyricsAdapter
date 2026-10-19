@@ -4,7 +4,9 @@ import type { TranslationRequest, TranslationResult } from './plugin';
 const text = z.string().max(16_384);
 const id = z.string().min(1).max(128);
 const time = z.number().finite().nonnegative();
-const language = z.string().regex(/^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/).max(64);
+/** Language tag syntax accepted in requests, results and provider declarations. */
+export const LANGUAGE_TAG = /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/;
+const language = z.string().regex(LANGUAGE_TAG).max(64);
 const tag = z.string().max(1024).optional();
 const documentSchema = z.object({
   id, revision: id, trackId: id, sourceLanguage: language.optional(),

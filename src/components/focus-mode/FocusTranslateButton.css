@@ -1,0 +1,81 @@
+/* Icon-only translate toggle, in Focus Mode's fixed dark palette. */
+.focus-translate {
+  --focus-translate-scale: 1;
+  display: flex;
+  justify-content: center;
+  margin-top: calc(16px * var(--focus-translate-scale));
+}
+
+.focus-translate-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+/* Under the track title: a round chip matching the former pill. */
+.focus-translate-button--meta {
+  width: calc(32px * var(--focus-translate-scale));
+  height: calc(32px * var(--focus-translate-scale));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.focus-translate-button--meta .material-symbols-rounded {
+  font-size: calc(18px * var(--focus-translate-scale));
+}
+
+.focus-translate-button--meta:is(:hover, :focus-visible):not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.focus-translate-button--meta:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.8);
+  outline-offset: 2px;
+}
+
+/* Translated: a filled chip. Pressing it again shows only the original lyrics. */
+.focus-translate-button--meta[aria-pressed='true'],
+.focus-translate-button--meta[aria-pressed='true']:is(:hover, :focus-visible) {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.focus-translate-button--meta[aria-pressed='true']:is(:hover, :focus-visible) {
+  background: #fff;
+}
+
+/* Portrait volume row: a plain icon like its neighbours; translated turns the icon blue. */
+.focus-portrait-controls .focus-translate-button--inline {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* The translate glyph fills its em box, so it needs a smaller size to match the speaker icons. */
+.focus-portrait-volume .focus-translate-button--inline .material-symbols-rounded {
+  font-size: 18px;
+}
+
+.focus-portrait-controls .focus-translate-button--inline[aria-pressed='true'] {
+  /* macOS system blue (dark appearance). */
+  color: #0a84ff;
+}
+
+.focus-portrait-controls .focus-translate-button--inline:disabled {
+  opacity: 1;
+}
+
+.focus-translate-button:disabled {
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-translate-button {
+    transition: none;
+  }
+}

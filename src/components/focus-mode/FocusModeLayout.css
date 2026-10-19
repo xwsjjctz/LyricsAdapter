@@ -75,6 +75,14 @@
 .focus-portrait-volume { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .focus-portrait-volume .player-slider { flex: 1; min-width: 0; height: 44px; }
 .focus-portrait-volume > .material-symbols-rounded { font-size: 24px; }
+/* With the plugin translate button on the left, the bare volume_up glyph takes a
+   button-sized box so both sides of the slider are equally wide. */
+.focus-portrait-volume:has(.focus-translate-button--inline) > .material-symbols-rounded {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 44px;
+}
 .focus-portrait-volume button .material-symbols-rounded { font-size: 22px; }
 .focus-portrait-controls button:disabled { opacity: .3; }
 .focus-portrait-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 8px; }
@@ -108,7 +116,7 @@
   .focus-track-meta { margin: 0; text-align: left; min-width: 0; max-width: none; }
   .focus-track-meta h1 { font-size: 20px; line-height: 1.2; margin-bottom: 4px; }
   .focus-track-meta h1 + p { font-size: 14px; line-height: 1.4; }
-  .focus-track-meta p:last-child { font-size: 12px; line-height: 1.4; }
+  .focus-track-meta > p:last-of-type { font-size: 12px; line-height: 1.4; }
   .focus-mode-content .focus-lyrics-viewport {
     --focus-lyrics-controls-cutaway: calc(var(--focus-controls-height) + var(--focus-controls-bottom));
     --focus-lyrics-controls-alpha: 1;
