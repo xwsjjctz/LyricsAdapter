@@ -12,7 +12,8 @@ interface ShortcutsSettingsProps {
 
 const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-column' }) => {
   const { t } = useTranslation();
-  const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, ShortcutConfig>>({} as Record<ShortcutAction, ShortcutConfig>);
+  // Read on the first render, so the list does not appear a moment later and move the settings list.
+  const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, ShortcutConfig>>(() => shortcutManager.getAllShortcuts());
   const [editingAction, setEditingAction] = useState<ShortcutAction | null>(null);
   // The recorded key and the action that already uses it, waiting for Replace or a second press.
   const [conflict, setConflict] = useState<{ action: ShortcutAction; key: string } | null>(null);
@@ -32,10 +33,6 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
   }, []);
 
   const colors = currentTheme.colors;
-
-  useEffect(() => {
-    setShortcuts(shortcutManager.getAllShortcuts());
-  }, []);
 
   useEffect(() => {
     if (editingAction && inputRef.current) {
