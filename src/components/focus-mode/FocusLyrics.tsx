@@ -9,7 +9,7 @@ const NO_TRANSLATIONS: Readonly<Record<string, string>> = {};
 
 export interface FocusLyricsProps {
   track: Track | null;
-  /** Plugin translations by lyric line ID. Renderers rebuild whenever this object changes. */
+  /** Plugin translations by lyric line ID. Renderers add or remove them without resetting the scroll. */
   translations?: Readonly<Record<string, string>>;
   currentTime: number;
   currentTimeRef: MutableRefObject<number>;

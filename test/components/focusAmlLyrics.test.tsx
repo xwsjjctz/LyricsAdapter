@@ -15,6 +15,8 @@ const playerMocks = vi.hoisted(() => ({
   calcLayout: vi.fn().mockResolvedValue(undefined),
 }));
 
+const renderedLyricLines = vi.hoisted(() => [] as unknown[]);
+
 const coreCleanupMocks = vi.hoisted(() => ({
   resetScroll: vi.fn(),
   disconnect: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('@applemusic-like-lyrics/react', async () => {
       ref: React.ForwardedRef<unknown>,
     ) {
       const wrapperRef = React.useRef<HTMLDivElement>(null);
+      renderedLyricLines.push((props as { lyricLines?: unknown }).lyricLines);
       React.useImperativeHandle(ref, () => ({
         wrapperEl: wrapperRef.current,
         lyricPlayer: playerMocks,
@@ -78,10 +81,45 @@ describe('FocusAmlLyrics', () => {
     coreCleanupMocks.resetScroll.mockClear();
     coreCleanupMocks.disconnect.mockClear();
     coreCleanupMocks.dispose.mockClear();
+    renderedLyricLines.length = 0;
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('keeps the AMLL line array when only the translations change', () => {
+    const props = {
+      track, currentTime: 2, isPlaying: true, isVisible: true,
+      fontSize: 30, lineSpacing: 24, inactiveBlur: 2, onSeek: vi.fn(),
+    };
+    const { rerender } = render(<FocusAmlLyrics {...props} />);
+    rerender(<FocusAmlLyrics {...props} translations={{ 'line-0': 'Translated' }} />);
+
+    expect(renderedLyricLines.length).toBeGreaterThan(1);
+    expect(renderedLyricLines.at(-1)).toBe(renderedLyricLines[0]);
+  });
+
+  it('writes translations into the lines already on screen', () => {
+    const makeLine = (translatedLyric = '') => ({
+      words: [], translatedLyric, romanLyric: '', startTime: 0, endTime: 1, isBG: false, isDuet: false,
+    });
+    const processed = makeLine();
+    const element = document.createElement('div');
+    element.append(document.createElement('div'), document.createElement('div'), document.createElement('div'));
+    const player = new FocusDomLyricPlayer();
+    Object.assign(player, {
+      currentLyricLines: [makeLine()],
+      processedLines: [processed],
+      currentLyricGroups: [{ mainLine: { getElement: () => element, getLine: () => processed } }],
+    });
+
+    player.updateTranslations([makeLine('Translated')]);
+    expect(element.children[1]).toHaveTextContent('Translated');
+    expect(processed.translatedLyric).toBe('Translated');
+
+    player.updateTranslations([makeLine()]);
+    expect(element.children[1]).toBeEmptyDOMElement();
   });
 
   it('uses configured pixel typography instead of viewport-relative sizing', () => {
