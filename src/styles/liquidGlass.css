@@ -127,6 +127,18 @@
 .windows-focus-glass .focus-glass-play { left: 33.1429%; top: 43.75%; width: 12.5714%; height: 45.8333%; }
 .windows-focus-glass .focus-glass-next { left: 48%; top: 47.9167%; width: 10.2857%; height: 37.5%; }
 .windows-focus-glass .focus-glass-mute { left: 64%; top: 47.9167%; width: 9.1429%; height: 37.5%; }
+/* With translation, the row matches focusGlass.mm: translate leads, the transport moves right
+   and the volume slider shortens. */
+.windows-focus-glass .focus-glass-translate { left: 5.1429%; top: 47.9167%; width: 8%; height: 37.5%; color: var(--focus-glass-muted); }
+.windows-focus-glass[data-translation="true"] .focus-glass-mode { left: 17.7143%; width: 8%; }
+.windows-focus-glass[data-translation="true"] .focus-glass-previous { left: 29.1429%; }
+.windows-focus-glass[data-translation="true"] .focus-glass-play { left: 40.8571%; }
+.windows-focus-glass[data-translation="true"] .focus-glass-next { left: 54.8571%; }
+.windows-focus-glass[data-translation="true"] .focus-glass-mute { left: 68%; }
+.windows-focus-glass[data-translation="true"] .focus-glass-volume { left: 80%; width: 14.2857%; }
+.windows-focus-glass .focus-glass-translate .material-symbols-rounded { font-size: 20px; }
+.windows-focus-glass .focus-glass-translate[aria-busy="true"] { opacity: 1; }
+.windows-focus-glass .focus-glass-translate[aria-pressed="true"] { color: var(--theme-primary); }
 .windows-focus-glass .focus-glass-volume { position: absolute; left: 76%; top: 56.25%; width: 19.4286%; height: 20.8333%; }
 .windows-focus-glass, .windows-glass-player { --theme-progress-height: 4px; --theme-progress-radius: 999px; }
 

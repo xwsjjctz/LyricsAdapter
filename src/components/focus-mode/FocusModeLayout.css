@@ -84,6 +84,10 @@
   min-width: 44px;
 }
 .focus-portrait-volume button .material-symbols-rounded { font-size: 22px; }
+/* SF Symbols are drawn with optical padding inside their box, so the macOS row sizes the
+   whole set up together: translate, the two speakers and the playback mode. */
+.focus-portrait-controls[data-macos-controls="true"] .focus-portrait-volume button [data-system-symbol] { font-size: 26px; }
+.focus-portrait-controls[data-macos-controls="true"] .focus-portrait-volume > [data-system-symbol] { font-size: 28px; }
 .focus-portrait-controls button:disabled { opacity: .3; }
 .focus-portrait-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 8px; }
 

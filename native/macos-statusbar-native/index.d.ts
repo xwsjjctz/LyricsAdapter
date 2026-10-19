@@ -22,7 +22,7 @@ export function stopStatusItem(): void;
 /** Main-thread-only FocusMode surface. Returns false before macOS 26. */
 export function startFocusGlass(
   windowHandle: Buffer,
-  onAction: (action: { type: 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume' | 'hover'; value: number }) => void,
+  onAction: (action: { type: 'toggle-play' | 'previous' | 'next' | 'mode' | 'mute' | 'seek' | 'volume' | 'hover' | 'translate'; value: number }) => void,
 ): boolean;
 export function updateFocusGlass(state: {
   visible: boolean;
@@ -33,8 +33,9 @@ export function updateFocusGlass(state: {
   duration: number;
   volume: number;
   playbackMode: 'order' | 'shuffle' | 'repeat-one';
+  translation: 'unavailable' | 'idle' | 'translating' | 'translated' | 'error';
   scale: number;
-  labels: { playPause: string; previous: string; next: string; seek: string; volume: string; mute: string; mode: string };
+  labels: { playPause: string; previous: string; next: string; seek: string; volume: string; mute: string; mode: string; translate: string };
 }): void;
 export function stopFocusGlass(): void;
 /** PNG alpha masks rendered from the installed SF Symbols. */
