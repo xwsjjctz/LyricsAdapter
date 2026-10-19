@@ -123,6 +123,7 @@ export interface IpcInvokeContract {
   'ipc:settingsPanel:ready': [[payload: number | { height: number; darkMode: boolean }], IpcResult<void>];
   'ipc:settingsPanel:previewOpacity': [[value: number], IpcResult<void>];
   'ipc:settingsPanel:shortcut': [[payload: { key: string; modifiers: number }], IpcResult<void>];
+  'ipc:settingsPanel:previewWelcome': [[], IpcResult<void>];
   'ipc:contextMenu:popup': [[request: NativeContextMenuRequest], IpcResult<string | null>];
   'ipc:playerControlbar:start': [[], IpcResult<boolean>];
   'ipc:playerControlbar:update': [[state: PlayerControlbarState], IpcResult<void>];
@@ -232,6 +233,7 @@ export interface IpcEventContract {
   'settings-panel-shortcut': [key: string, modifiers: number];
   'settings-panel-preview-opacity': [value: number];
   'settings-panel-closed': [];
+  'settings-panel-preview-welcome': [];
   'settings-changed': [entries: Record<string, string | null>, replaced: boolean];
   'application-menu-action': [action: ApplicationMenuAction];
   'player-controlbar-action': [action: PlayerControlbarAction];

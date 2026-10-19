@@ -7,6 +7,7 @@ import FocusModeSection from './sections/FocusModeSection';
 import GeneralSection from './sections/GeneralSection';
 import MusicPluginManager from './sections/MusicPluginManager';
 import WebdavSection from './sections/WebdavSection';
+import WelcomePreviewSetting from './sections/WelcomePreviewSetting';
 import { useCurrentTheme, useSettingsTheme } from './shared';
 
 import type { SettingsSectionId } from '../../types/settingsPanel';
@@ -27,6 +28,8 @@ interface SettingsViewProps {
   initialSection?: SettingsSectionId | undefined;
   onClose: () => void;
   usePaletteMaterial?: boolean;
+  /** Shows the first-launch welcome page; absent where there is no player to show it in. */
+  onPreviewWelcome?: (() => void) | undefined;
 }
 
 /**
@@ -34,7 +37,7 @@ interface SettingsViewProps {
  * list of fixed height, with a bar that jumps to a section and follows the one being read.
  * Esc, the close button or a click outside returns to the wall.
  */
-export default function SettingsView({ initialSection = 'general', onClose, usePaletteMaterial = false }: SettingsViewProps) {
+export default function SettingsView({ initialSection = 'general', onClose, usePaletteMaterial = false, onPreviewWelcome }: SettingsViewProps) {
   const { t } = useTranslation();
   const themeUtils = useSettingsTheme(useCurrentTheme());
   const webdav = useWebdavSettings();
@@ -73,7 +76,12 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
         onSave={webdav.handleSave}
       />
     ),
-    focus: <FocusModeSection theme={themeUtils} />,
+    focus: (
+      <div className="space-y-5">
+        <FocusModeSection theme={themeUtils} />
+        {onPreviewWelcome && <WelcomePreviewSetting theme={themeUtils} onPreview={onPreviewWelcome} />}
+      </div>
+    ),
     shortcuts: <ShortcutsSettings layout="single" />,
   };
 

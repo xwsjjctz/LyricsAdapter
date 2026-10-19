@@ -64,7 +64,10 @@ export interface TypedElectronIPC {
     ready: (height: number, darkMode?: boolean) => Promise<IpcResult<void>>;
     previewOpacity: (value: number) => Promise<IpcResult<void>>;
     forwardShortcut: (key: string, modifiers: number) => Promise<IpcResult<void>>;
+    /** Asks the player window to show the first-launch welcome page. */
+    previewWelcome: () => Promise<IpcResult<void>>;
     onClosed: (callback: () => void) => () => void;
+    onPreviewWelcome: (callback: () => void) => () => void;
     onPreviewOpacity: (callback: (value: number) => void) => () => void;
     onShortcut: (callback: (key: string, modifiers: number) => void) => () => void;
     onSection: (callback: (section: import('./settingsPanel').SettingsSectionId) => void) => () => void;

@@ -72,7 +72,8 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
     await testInfo.attach('settings-native-glass', { path: screenshot, contentType: 'image/png' });
     await settings.getByLabel('Language', { exact: true }).selectOption('zh');
     await expect(settings.getByRole('dialog', { name: '设置', exact: true })).toBeVisible();
-    await expect(page.getByText('还没有导入曲目', { exact: true })).toBeVisible();
+    // The empty library's welcome page follows the language chosen in the child.
+    await expect(page.getByText('从你的音乐开始', { exact: true })).toBeVisible();
     // A preference edited in the child applies to the player immediately.
     await settings.getByRole('link', { name: '实验性', exact: true }).click();
     const slider = settings.getByRole('slider', { name: 'Focus Mode 滚动歌词字号' });

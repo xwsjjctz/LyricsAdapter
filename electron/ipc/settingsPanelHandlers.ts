@@ -186,4 +186,10 @@ export function registerSettingsPanelHandlers(load = loadMacosSettingsGlassBridg
     if (owner) sendIpc(owner, 'settings-panel-shortcut', shortcut.data.key, shortcut.data.modifiers);
     return ok(undefined);
   });
+  // The welcome page shows in the player window; its settings sheet closes in response.
+  handleIpc('ipc:settingsPanel:previewWelcome', event => {
+    if (event.sender !== panel?.webContents || event.senderFrame !== event.sender.mainFrame) return fail('Invalid settings request');
+    if (owner) sendIpc(owner, 'settings-panel-preview-welcome');
+    return ok(undefined);
+  });
 }

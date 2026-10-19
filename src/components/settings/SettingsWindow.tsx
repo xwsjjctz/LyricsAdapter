@@ -47,5 +47,6 @@ export default function SettingsWindow({ section }: { section: SettingsSectionId
     // main process allows (it caps the height) instead of following the content.
     void api.ready(SETTINGS_PANEL_HEIGHT, darkMode).catch(error => logger.warn('[SettingsPanel] Resize failed:', error));
   }, [api, darkMode, request.token]);
-  return <SettingsView key={request.token} initialSection={request.section} onClose={() => { void api?.close(); }} />;
+  return <SettingsView key={request.token} initialSection={request.section} onClose={() => { void api?.close(); }}
+    onPreviewWelcome={() => { void api?.previewWelcome().catch(error => logger.warn('[SettingsPanel] Welcome preview failed:', error)); }} />;
 }

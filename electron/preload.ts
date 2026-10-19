@@ -69,10 +69,12 @@ const typedIpc = {
       darkMode === undefined ? height : { height, darkMode }),
     previewOpacity: invoker('ipc:settingsPanel:previewOpacity'),
     forwardShortcut: async (key: string, modifiers: number) => invoke('ipc:settingsPanel:shortcut', { key, modifiers }),
+    previewWelcome: invoker('ipc:settingsPanel:previewWelcome'),
     onSection: callback => listen('settings-panel-section', callback),
     onShortcut: callback => listen('settings-panel-shortcut', callback),
     onPreviewOpacity: callback => listen('settings-panel-preview-opacity', callback),
     onClosed: callback => listen('settings-panel-closed', callback),
+    onPreviewWelcome: callback => listen('settings-panel-preview-welcome', callback),
   },
   applicationMenu: {
     onAction: callback => listen('application-menu-action', callback),
