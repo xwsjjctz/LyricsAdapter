@@ -26,8 +26,8 @@ export default function TranslationLanguageField({ plugin, theme }: { plugin: Mu
     try { await setTranslationLanguage(value); } catch (reason) { setError(String(reason)); }
   };
   return <div className="space-y-1 text-xs" style={{ color: theme.colors.textPrimary }}>
-    <label className="flex flex-wrap items-center justify-between gap-3">
-      <span>{t('plugins.translationLanguage')}</span>
+    <label className="flex items-center justify-between gap-3">
+      <span className="min-w-0">{t('plugins.translationLanguage')}</span>
       <select aria-label={t('plugins.translationLanguage')} className="settings-field" disabled={!preference.loaded}
         value={language} onChange={event => void change(event.target.value)}>
         {translationLanguages(provider).map(tag => <option key={tag} value={tag}>{languageDisplayName(tag)}</option>)}

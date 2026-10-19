@@ -40,8 +40,8 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
     {/* Already inside the card's settings area, so the source is shown, not folded again. */}
     <div className="space-y-2">
       <p className="font-medium" style={{ color: theme.colors.textPrimary }}>{t('pluginUpdates.source')}</p>
-      <label className="flex flex-wrap items-center justify-between gap-2">
-        <span>{t('pluginUpdates.sourceType')}</span>
+      <label className="flex items-center justify-between gap-3">
+        <span className="min-w-0">{t('pluginUpdates.sourceType')}</span>
         <select aria-label={t('pluginUpdates.sourceType')} className="settings-field" value={kind} disabled={busy} onChange={event => setKind(event.target.value as typeof kind)}>
           <option value="none">{t('pluginUpdates.none')}</option>
           <option value="github">GitHub Releases</option>
@@ -50,13 +50,14 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
         </select>
       </label>
       {(kind === 'github' || kind === 'manifest') && <>
-        <label className="flex flex-wrap items-center justify-between gap-2">
+        {/* Like the plugin's own text settings: label above, input at full width. */}
+        <label className="flex flex-col gap-1.5">
           <span>{t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')}</span>
-          <input aria-label={t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')} className="settings-field flex-1 min-w-48" value={value} disabled={busy}
+          <input aria-label={t(kind === 'github' ? 'pluginUpdates.repository' : 'pluginUpdates.feedUrl')} className="settings-field w-full" value={value} disabled={busy}
             placeholder={kind === 'github' ? 'owner/repository' : 'https://example.com/plugins.update.json'} onChange={event => setValue(event.target.value)} />
         </label>
-        <label className="flex flex-wrap items-center justify-between gap-2">
-          <span>{t('pluginUpdates.channel')}</span>
+        <label className="flex items-center justify-between gap-3">
+          <span className="min-w-0">{t('pluginUpdates.channel')}</span>
           <select aria-label={t('pluginUpdates.channel')} className="settings-field" value={channel} disabled={busy} onChange={event => setChannel(event.target.value as PluginUpdateChannel)}>
             <option value="stable">{t('pluginUpdates.stable')}</option><option value="prerelease">{t('pluginUpdates.prerelease')}</option>
           </select>

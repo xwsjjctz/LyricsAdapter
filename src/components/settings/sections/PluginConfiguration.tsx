@@ -51,7 +51,7 @@ function TextField({ field, value, onCommit }: FieldProps) {
   };
   useEffect(() => () => flush.current(), []);
 
-  return <input className={INPUT_CLASS} type={field.type === 'number' ? 'number' : field.format === 'endpoint' ? 'url' : 'text'}
+  return <input className={`${INPUT_CLASS} w-full`} type={field.type === 'number' ? 'number' : field.format === 'endpoint' ? 'url' : 'text'}
     aria-label={field.title} value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit}
     onKeyDown={event => { if (event.key === 'Enter') commit(); }} />;
 }
@@ -68,15 +68,16 @@ function SecretField({ field, configured, busy, onCommit }: SecretFieldProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState('');
   const save = async () => { if (draft && await onCommit(draft)) setDraft(''); };
-  return <>
-    <input className={INPUT_CLASS} type="password" autoComplete="off" aria-label={field.title} value={draft}
+  // One line at any width: the input takes the room, the buttons keep theirs.
+  return <div className="flex items-center gap-2">
+    <input className={`${INPUT_CLASS} min-w-0 flex-1`} type="password" autoComplete="off" aria-label={field.title} value={draft}
       placeholder={t(configured ? 'plugins.secretConfigured' : 'plugins.secretEmpty')}
       onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void save(); }} />
-    <Button size="sm" disabled={busy || !draft} aria-label={t('plugins.saveSecretLabel', { name: field.title })}
+    <Button size="sm" className="flex-shrink-0" disabled={busy || !draft} aria-label={t('plugins.saveSecretLabel', { name: field.title })}
       onClick={() => void save()}>{t('settingsDialog.save')}</Button>
-    {configured && <Button size="sm" disabled={busy} aria-label={t('plugins.clearSecretLabel', { name: field.title })}
+    {configured && <Button size="sm" className="flex-shrink-0" disabled={busy} aria-label={t('plugins.clearSecretLabel', { name: field.title })}
       onClick={() => void onCommit('')}>{t('plugins.clearSecret')}</Button>}
-  </>;
+  </div>;
 }
 
 interface ConfigurationInputProps {
@@ -99,6 +100,12 @@ function ConfigurationInput({ field, value, onCommit }: ConfigurationInputProps)
   // A rejected text value stays in the field to be corrected.
   return <TextField field={field} value={value} onCommit={next => onCommit(next, false)} />;
 }
+
+/**
+ * Text, URL, number and secret fields stack (label above, input at full width) so long values
+ * stay readable in a narrow sheet; choices and switches keep the label-left, control-right row.
+ */
+const isStacked = (field: ConfigurationField) => field.format === 'secret' || (!field.enum && field.type !== 'boolean');
 
 /** Plugin settings apply as they change; only secrets have a Save step. */
 export default function PluginConfiguration({ plugin, theme }: { plugin: MusicPluginInfo; theme: SettingsTheme }) {
@@ -148,20 +155,19 @@ export default function PluginConfiguration({ plugin, theme }: { plugin: MusicPl
     } catch (error) { setError(String(error)); } finally { setBusy(false); }
   };
   return <div className="w-full space-y-2 text-xs" style={{ color: theme.colors.textPrimary }}>
-    {fields.map(([key, field]) => <div key={key} className="space-y-1">
-      {/* Label left, control right, like the other settings rows. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-        <span>{field.title}</span>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {field.format === 'secret'
-            ? <SecretField field={field} busy={busy} configured={info.configuredSecrets.includes(key)}
-              onCommit={value => write(key, value, false)} />
-            : <ConfigurationInput field={field} value={values[key] ?? field.default}
-              onCommit={(value, optimistic) => write(key, value, optimistic)} />}
-        </div>
-      </div>
-      {field.description && <p style={{ color: theme.colors.textSecondary }}>{field.description}</p>}
-    </div>)}
+    {fields.map(([key, field]) => {
+      const control = field.format === 'secret'
+        ? <SecretField field={field} busy={busy} configured={info.configuredSecrets.includes(key)}
+          onCommit={value => write(key, value, false)} />
+        : <ConfigurationInput field={field} value={values[key] ?? field.default}
+          onCommit={(value, optimistic) => write(key, value, optimistic)} />;
+      return <div key={key} className="space-y-1.5">
+        {isStacked(field)
+          ? <><p>{field.title}</p>{control}</>
+          : <div className="flex items-center justify-between gap-3"><span className="min-w-0">{field.title}</span>{control}</div>}
+        {field.description && <p style={{ color: theme.colors.textMuted }}>{field.description}</p>}
+      </div>;
+    })}
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" disabled={busy || !info.cacheEntries} onClick={() => void clearCache()}>{t('plugins.clearCache')}</Button>
       <span style={{ color: theme.colors.textSecondary }}>{t('plugins.cacheSummary', { count: info.cacheEntries, size: formatBytes(info.cacheBytes) })}</span>
