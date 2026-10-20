@@ -2,9 +2,10 @@
 import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ settings: {} as Record<string, string>, build: vi.fn(), install: vi.fn(), preset: vi.fn() }));
+const mocks = vi.hoisted(() => ({ settings: {} as Record<string, string>, build: vi.fn(), install: vi.fn(), preset: vi.fn(), focused: vi.fn() }));
 vi.mock('electron', () => ({
   app: { name: 'LyricsAdapter', isPackaged: true },
+  BrowserWindow: { getFocusedWindow: mocks.focused },
   Menu: { buildFromTemplate: mocks.build, setApplicationMenu: mocks.install },
 }));
 vi.mock('../../electron/services/settingsStore', () => ({ settingsStore: { get: (key: string) => mocks.settings[key] } }));
@@ -30,7 +31,34 @@ describe('localized macOS application menu', () => {
     expect(items().filter(item => item.type !== 'separator').every(item => item.label && !item.label.startsWith('menu.'))).toBe(true);
     expect(items().map(item => item.role)).toEqual(expect.arrayContaining(['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll', 'minimize']));
     // Application shortcuts remain renderer-owned: native accelerators must not swallow modifier release.
-    expect(items().filter(item => item.id?.startsWith('menu-')).every(item => !item.accelerator)).toBe(true);
+    // Only ⌘` is claimed, because macOS would otherwise spend it on window cycling.
+    expect(items().filter(item => item.id?.startsWith('menu-') && item.accelerator).map(item => [item.id, item.accelerator]))
+      .toEqual([['menu-cyclePlaylists', 'Cmd+`'], ['menu-cyclePlaylistsReverse', 'Cmd+Shift+`']]);
+  });
+  it('replays claimed ⌘` chords into the focused window and falls back to the menu action', () => {
+    const replay = vi.fn(); const send = vi.fn();
+    mocks.focused.mockReturnValue({ isDestroyed: () => false, webContents: { sendInputEvent: replay } });
+    registerApplicationMenu(() => ({ isDestroyed: () => false, webContents: { send } }) as unknown as BrowserWindow, 'darwin');
+    const choose = (id: string, triggeredByAccelerator: boolean) =>
+      items().find(item => item.id === id)!.click!({} as never, undefined, { triggeredByAccelerator } as never);
+    expect(items().find(item => item.id === 'menu-cyclePlaylistsReverse')!.visible).toBe(false);
+    choose('menu-cyclePlaylists', true);
+    choose('menu-cyclePlaylistsReverse', true);
+    expect(replay.mock.calls.map(([input]) => [input.type, input.keyCode, input.modifiers])).toEqual([
+      ['keyDown', '`', ['meta']], ['keyUp', '`', ['meta']],
+      ['keyDown', '`', ['meta', 'shift']], ['keyUp', '`', ['meta', 'shift']],
+    ]);
+    expect(send).not.toHaveBeenCalled();
+    choose('menu-cyclePlaylists', false);
+    mocks.focused.mockReturnValue(null); choose('menu-cyclePlaylists', true);
+    expect(send.mock.calls).toEqual([['application-menu-action', 'cyclePlaylists'], ['application-menu-action', 'cyclePlaylists']]);
+    expect(replay).toHaveBeenCalledTimes(4);
+  });
+  it('leaves customized playlist cycling to the renderer', () => {
+    mocks.settings['app-shortcuts'] = JSON.stringify({ cyclePlaylists: { currentKey: 'Ctrl+Backquote' } });
+    registerApplicationMenu(() => null, 'darwin');
+    expect(items().some(item => item.accelerator)).toBe(false);
+    expect(items().find(item => item.id === 'menu-cyclePlaylists')!.label).toContain('⌃`');
   });
   it('uses customized and cleared hints, with defaults for damaged settings', () => {
     mocks.settings['app-shortcuts'] = JSON.stringify({ toggleFocusMode: { currentKey: 'Ctrl+Shift+L' }, importMusic: { currentKey: '' } });

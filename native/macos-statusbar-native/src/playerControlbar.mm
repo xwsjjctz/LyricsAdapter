@@ -184,7 +184,83 @@ constexpr CGFloat kVolumeTrackWidth = 24;
 constexpr CGFloat kVolumeTrackHeight = 108;
 // Equal side and bottom insets around the track, plus the percentage row.
 constexpr CGFloat kVolumePanelHeight = kVolumeTrackHeight + (kVolumePanelWidth - kVolumeTrackWidth) + 21;
+// Same pacing as the renderer's OverflowMarquee.
+constexpr CGFloat kMarqueeGap = 32;
+constexpr CGFloat kMarqueePixelsPerSecond = 28;
+constexpr CGFloat kMarqueeMinTravelSeconds = 5;
+constexpr CGFloat kMarqueePauseSeconds = 2;
+NSString* const kMarqueeAnimationKey = @"marquee";
 }
+
+// One line that scrolls only when wider than its frame. A trailing copy makes the
+// wrap point seamless; each pass starts after resting there, so the beginning of
+// the text is readable first. Short text and Reduce Motion keep tail truncation.
+API_AVAILABLE(macos(26.0))
+@interface LAMarqueeLabel : NSView
+@property(nonatomic, copy) NSString* stringValue;
+@property(nonatomic, strong) NSColor* textColor;
+@end
+
+@implementation LAMarqueeLabel {
+  NSTextField* _lead;
+  NSTextField* _trail;
+  CGFloat _animatedDistance;
+}
+- (NSTextField*)copyLabel:(NSFont*)font {
+  NSTextField* label = [NSTextField labelWithString:@""]; label.font = font; label.maximumNumberOfLines = 1;
+  label.lineBreakMode = NSLineBreakByTruncatingTail; label.accessibilityElement = NO; [self addSubview:label]; return label;
+}
+- (instancetype)initWithFont:(NSFont*)font color:(NSColor*)color {
+  self = [super initWithFrame:NSZeroRect]; if (!self) return nil;
+  _stringValue = @""; self.wantsLayer = YES; self.clipsToBounds = YES;
+  self.accessibilityElement = YES; self.accessibilityRole = NSAccessibilityStaticTextRole; self.accessibilityLabel = @"";
+  _lead = [self copyLabel:font]; _trail = [self copyLabel:font]; _trail.hidden = YES;
+  self.textColor = color;
+  [NSWorkspace.sharedWorkspace.notificationCenter addObserver:self selector:@selector(restart) name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
+  return self;
+}
+- (void)dealloc { [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self]; }
+- (void)setStringValue:(NSString*)stringValue {
+  if ([_stringValue isEqualToString:stringValue]) return;
+  _stringValue = [stringValue copy]; _lead.stringValue = _stringValue; _trail.stringValue = _stringValue;
+  self.accessibilityLabel = _stringValue; [self restart];
+}
+- (void)setTextColor:(NSColor*)textColor { _textColor = textColor; _lead.textColor = textColor; _trail.textColor = textColor; }
+- (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; [self setNeedsLayout:YES]; }
+- (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self restart]; }
+- (void)stop {
+  for (NSTextField* label in @[_lead, _trail]) [label.layer removeAnimationForKey:kMarqueeAnimationKey];
+  _animatedDistance = 0;
+}
+- (void)restart { [self stop]; [self setNeedsLayout:YES]; }
+- (void)layout {
+  [super layout]; NSSize size = self.bounds.size;
+  // A truncating label under-reports its intrinsic width; measure the whole line.
+  CGFloat textWidth = std::ceil([_lead.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)].width);
+  BOOL scroll = textWidth > size.width + 1 && !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
+  _trail.hidden = !scroll;
+  _lead.lineBreakMode = scroll ? NSLineBreakByClipping : NSLineBreakByTruncatingTail; _trail.lineBreakMode = _lead.lineBreakMode;
+  if (!scroll) { [self stop]; _lead.frame = self.bounds; return; }
+  // Both copies keep their frame inside the clip and only their layers move:
+  // AppKit never draws a subview whose frame lies entirely outside the clip.
+  _lead.frame = NSMakeRect(0, 0, textWidth, size.height); _trail.frame = _lead.frame;
+  CGFloat distance = textWidth + kMarqueeGap;
+  // Layout runs on every playback tick; only a new distance restarts the pass.
+  if (_animatedDistance == distance && [_trail.layer animationForKey:kMarqueeAnimationKey]) return;
+  [self stop]; _animatedDistance = distance;
+  CFTimeInterval travel = std::max<CGFloat>(kMarqueeMinTravelSeconds, distance / kMarqueePixelsPerSecond);
+  CFTimeInterval duration = kMarqueePauseSeconds + travel;
+  [CATransaction begin];  // One transaction gives both copies the same begin time.
+  for (NSTextField* label in @[_lead, _trail]) {
+    CGFloat from = label == _lead ? 0 : distance;
+    CAKeyframeAnimation* animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
+    animation.values = @[@(from), @(from), @(from - distance)]; animation.keyTimes = @[@0, @(kMarqueePauseSeconds / duration), @1];
+    animation.duration = duration; animation.repeatCount = HUGE_VALF; animation.removedOnCompletion = NO;
+    [label.layer addAnimation:animation forKey:kMarqueeAnimationKey];
+  }
+  [CATransaction commit];
+}
+@end
 
 API_AVAILABLE(macos(26.0))
 @interface LAPlayerControlbarHost : NSView <LAVolumeDisclosureDelegate>
@@ -198,8 +274,8 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) id volumeEventMonitor;
 @property(nonatomic, strong) LAGlassHighlightView* highlight;
 @property(nonatomic, strong) NSButton* artwork;
-@property(nonatomic, strong) NSTextField* title;
-@property(nonatomic, strong) NSTextField* artist;
+@property(nonatomic, strong) LAMarqueeLabel* title;
+@property(nonatomic, strong) LAMarqueeLabel* artist;
 @property(nonatomic, strong) NSButton* previous;
 @property(nonatomic, strong) NSButton* play;
 @property(nonatomic, strong) NSButton* next;
@@ -254,8 +330,9 @@ API_AVAILABLE(macos(26.0))
   _highlight.accessibilityIdentifier = @"player-controlbar-highlight"; [content addSubview:_highlight];
   _artwork = [self button:@"music.note" name:@"player-controlbar-focus" size:22 action:@selector(focus:) parent:content];
   _artwork.imageScaling = NSImageScaleProportionallyUpOrDown; _artwork.wantsLayer = YES; _artwork.layer.cornerRadius = 12; _artwork.layer.masksToBounds = YES;
-  _title = [self label:12.5 weight:NSFontWeightSemibold color:NSColor.labelColor parent:content];
-  _artist = [self label:10.5 weight:NSFontWeightRegular color:NSColor.secondaryLabelColor parent:content];
+  _title = [[LAMarqueeLabel alloc] initWithFont:[NSFont systemFontOfSize:12.5 weight:NSFontWeightSemibold] color:NSColor.labelColor];
+  _artist = [[LAMarqueeLabel alloc] initWithFont:[NSFont systemFontOfSize:10.5 weight:NSFontWeightRegular] color:NSColor.secondaryLabelColor];
+  [content addSubview:_title]; [content addSubview:_artist];
   _title.accessibilityIdentifier = @"player-controlbar-title";
   _artist.accessibilityIdentifier = @"player-controlbar-artist";
   _previous = [self button:@"backward.end.fill" name:@"player-controlbar-previous" size:16 action:@selector(previous:) parent:content];
@@ -322,10 +399,10 @@ API_AVAILABLE(macos(26.0))
     self.bar.appearance = appearance; self.volumeDisclosure.appearance = appearance;
   }
   self.bar.tintColor = [NSColor colorWithWhite:darkMode ? 0 : 1 alpha:0.3]; self.volumeGlass.tintColor = self.bar.tintColor;
-  self.title.textColor = NSColor.labelColor;
+  self.title.textColor = NSColor.labelColor; self.artist.textColor = NSColor.secondaryLabelColor;
   self.volumeValue.textColor = NSColor.secondaryLabelColor; [self.volume setNeedsDisplay:YES];
   for (NSButton* button in @[self.artwork, self.previous, self.play, self.next, self.volumeButton]) button.contentTintColor = NSColor.labelColor;
-  for (NSTextField* label in @[self.artist, self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
+  for (NSTextField* label in @[self.elapsed, self.total]) label.textColor = NSColor.secondaryLabelColor;
 }
 - (void)refreshAccessibility:(NSNotification*)notification {
   (void)notification; BOOL opaque = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
