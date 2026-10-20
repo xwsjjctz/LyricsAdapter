@@ -24,6 +24,8 @@
   "library.title": "ライブラリ",
   "library.trackCount": "曲",
   "library.playlistSongCount": "{{count}} 曲",
+  "library.totalMinutes": "{{count}} 分",
+  "library.totalHours": "{{hours}} 時間 {{minutes}} 分",
   "library.playAll": "すべて再生",
   "wall.tileLabel": "{{title}}、{{artist}}",
   "library.switchSource": "{{source}}、音楽ソースを切り替え",

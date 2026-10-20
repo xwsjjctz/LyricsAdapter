@@ -24,6 +24,8 @@
   "library.title": "音乐库",
   "library.trackCount": "首曲目",
   "library.playlistSongCount": "{{count}} 首歌曲",
+  "library.totalMinutes": "{{count}} 分钟",
+  "library.totalHours": "{{hours}} 小时 {{minutes}} 分钟",
   "library.playAll": "播放全部",
   "wall.tileLabel": "{{title}}，{{artist}}",
   "library.switchSource": "{{source}}，切换音乐来源",

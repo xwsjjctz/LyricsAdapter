@@ -848,6 +848,55 @@ textarea:focus-visible {
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* Apple Music's playlist header: artwork, name and a short count above the
+   songs, scrolling away with them. Sizes follow the list's width. */
+.library-collection-header {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(16px, 4cqw, 32px);
+  padding: 20px 16px 24px;
+}
+.library-collection-header__art {
+  flex-shrink: 0;
+  width: clamp(112px, 26cqw, 220px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--theme-media-radius);
+  background: var(--library-hover);
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.3);
+}
+.library-collection-header__art img,
+.library-collection-header__art > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.library-collection-header__mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.library-collection-header__text {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.library-collection-header__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--library-text);
+  font-size: clamp(20px, 4.2cqw, 30px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.library-collection-header__details {
+  margin-top: 6px;
+  color: var(--library-text-secondary);
+  font-size: 13px;
+}
+
 /* The current song's cover carries bars, moving while it plays. */
 .library-track-row__art {
   position: relative;

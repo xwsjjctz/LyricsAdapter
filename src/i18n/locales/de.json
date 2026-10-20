@@ -24,6 +24,8 @@
   "library.title": "Bibliothek",
   "library.trackCount": "Titel in Ihrer Sammlung",
   "library.playlistSongCount": "{{count}} Songs",
+  "library.totalMinutes": "{{count}} Min.",
+  "library.totalHours": "{{hours}} Std. {{minutes}} Min.",
   "library.playAll": "Alle abspielen",
   "wall.tileLabel": "{{title}}, {{artist}}",
   "library.switchSource": "{{source}}, Musikquelle wechseln",

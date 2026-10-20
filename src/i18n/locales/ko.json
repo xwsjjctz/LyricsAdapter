@@ -24,6 +24,8 @@
   "library.title": "라이브러리",
   "library.trackCount": "곡",
   "library.playlistSongCount": "{{count}}곡",
+  "library.totalMinutes": "{{count}}분",
+  "library.totalHours": "{{hours}}시간 {{minutes}}분",
   "library.playAll": "전체 재생",
   "wall.tileLabel": "{{title}}, {{artist}}",
   "library.switchSource": "{{source}}, 음악 소스 전환",

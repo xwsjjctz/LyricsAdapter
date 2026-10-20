@@ -8,6 +8,7 @@ import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
+import LibraryCollectionHeader, { type LibraryCollection } from './LibraryCollectionHeader';
 import TrackMenu from './TrackMenu';
 import type { TrackDownloadQuality } from '../domain/trackMenuItems';
 import LibrarySelectionBar from './LibrarySelectionBar';
@@ -28,6 +29,8 @@ interface LibraryViewProps {
   currentTrackId?: string;
   /** The current track is playing and visible, so its row's bars move. */
   nowPlayingAnimated?: boolean;
+  /** Shown above the songs, like Apple Music's playlist header. */
+  collection?: LibraryCollection | undefined;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void | Promise<void>;
   onRemoveMultipleTracks?: (trackIds: string[]) => void | Promise<void>;
@@ -82,6 +85,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
   currentTrackId,
   nowPlayingAnimated = false,
+  collection,
   onTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
@@ -283,6 +287,21 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   // The header no longer overlays the track list, so no top inset is needed.
   // bottomInset still lets the final rows clear the optional glass ControlBar.
   const topInset = 0;
+  // The collection header and column labels scroll with the songs: rows start
+  // below them. Unlike topInset, this content does not cover the viewport.
+  const listHeaderRef = useRef<HTMLDivElement>(null);
+  const [contentOffset, setContentOffset] = useState(0);
+  const hasListHeader = filterType === 'default' && filteredTracks.length > 0;
+  // Measured before paint, so rows never draw under the header for a frame.
+  useLayoutEffect(() => {
+    const header = listHeaderRef.current;
+    if (!hasListHeader || !header) { setContentOffset(0); return; }
+    const measure = () => setContentOffset(Math.round(header.getBoundingClientRect().height));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [hasListHeader]);
   const bottomInset = ['darwin', 'win32'].includes(desktopAPI?.platform ?? '')
     ? FLOATING_PLAYER_BOTTOM_INSET : 0;
 
@@ -301,7 +320,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     scrollContainerRef,
     listRef,
     isEditMode: isSelecting,
-    topInset,
+    topInset: topInset + contentOffset,
   });
 
   const shouldVirtualize = endIndex > startIndex || startIndex > 0;
@@ -309,10 +328,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   // Absolute content-y of a row. Keep the inset term shared with the virtual-scroll
   // math even though the in-flow library header currently makes it zero.
-  const rowTop = (idx: number) => idx * rowStride + topInset;
+  const rowTop = (idx: number) => idx * rowStride + topInset + contentOffset;
   // Max scrollTop: list height (rows + top inset) plus bottom inset, minus viewport.
   const maxScrollTop = (clientHeight: number) =>
-    Math.max(0, totalHeight + topInset + bottomInset - clientHeight);
+    Math.max(0, totalHeight + topInset + contentOffset + bottomInset - clientHeight);
 
   // Animation is disabled for better performance
   const shouldShowAnimation = false;
@@ -344,7 +363,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, topInset, pendingLocateSlot, dataSource]);
+  }, [currentTrackIndex, tracks.length, rowStride, baseRowHeight, totalHeight, topInset, contentOffset, pendingLocateSlot, dataSource]);
 
   // Restore scroll position when switching between local/cloud
   useEffect(() => {
@@ -414,7 +433,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       if (restoreTransitionFrame !== undefined) cancelAnimationFrame(restoreTransitionFrame);
       if (enterFrame !== undefined) cancelAnimationFrame(enterFrame);
     };
-  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
+  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, contentOffset, onPendingLocatePrepared, onSlotContentReady]);
 
   // Auto-locate only when a track-switch action occurs.
   useEffect(() => {
@@ -461,7 +480,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode, topInset, bottomInset]);
+  }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode, topInset, contentOffset, bottomInset]);
 
   // Check if current track is visible in viewport
   // Account for the overlaid ControlBar: a track underneath it must count as
@@ -474,7 +493,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     const viewportTop = scrollTop + topInset;
     const viewportBottom = scrollTop + container.clientHeight - bottomInset;
     return itemBottom >= viewportTop && itemTop <= viewportBottom;
-  }, [currentTrackInFilteredIndex, rowStride, baseRowHeight, scrollTop, topInset, bottomInset]);
+  }, [currentTrackInFilteredIndex, rowStride, baseRowHeight, scrollTop, topInset, contentOffset, bottomInset]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const newScrollTop = e.currentTarget.scrollTop;
@@ -509,7 +528,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       setShowLocateButton(false);
     }
-  }, [onScrollPositionChange, onLoadMorePlaylist, playlistHasMore, playlistLoading, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
+  }, [onScrollPositionChange, onLoadMorePlaylist, playlistHasMore, playlistLoading, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, contentOffset, bottomInset]);
 
   const handleScrollToTop = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -533,7 +552,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     } else {
       setShowLocateButton(false);
     }
-  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, bottomInset]);
+  }, [onScrollPositionChange, currentTrackInFilteredIndex, filteredTracks.length, categoryFilteredTracks.length, rowStride, baseRowHeight, filterType, dataSource, activeSlotId, currentTrackId, topInset, contentOffset, bottomInset]);
 
   const { isDragging, handleDragOver, handleDragLeave, handleDrop } = useLibraryFileDrop({
     importDisabled,
@@ -603,7 +622,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     });
     setShowLocateButton(false);
     logger.debug(`[LibraryView] Located to current track ${currentTrackIndex + 1} (filtered index: ${currentTrackInFilteredIndex})`);
-  }, [dataSource, activeSlotId, onSwitchSlot, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight, topInset]);
+  }, [dataSource, activeSlotId, onSwitchSlot, currentTrackInFilteredIndex, currentTrackIndex, rowStride, baseRowHeight, totalHeight, topInset, contentOffset]);
 
   // The palette's "locate now playing" runs the same action as the locate button.
   useEffect(() => {
@@ -648,17 +667,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
         onToggleAll={toggleSelectAll} onRemove={trackActions.requestBatchDelete} onDone={finishSelection} />}
 
-      {filterType === 'default' && (
-        <div className="flex-shrink-0">
-          <div
-            className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
-            onDoubleClick={handleScrollToTop}
-          >
-            <span>{t('library.titleCol')}</span>
-            <span className="text-right">{t('library.timeCol')}</span>
-          </div>
-        </div>
-      )}
       </div>
 
       {/* 可滚动的歌曲列表 */}
@@ -688,6 +696,15 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                 className="grid relative"
                 style={{ paddingTop, paddingBottom: paddingBottom + bottomInset, gap: 'var(--theme-list-item-gap)', paddingRight: playingIndicator === 'inline' ? 6 : undefined }}
               >
+                {/* Rows start below this block: contentOffset tracks its height. */}
+                <div ref={listHeaderRef} className="library-list-header absolute inset-x-0 top-0">
+                  {collection && <LibraryCollectionHeader collection={collection} tracks={tracks} onDoubleClick={handleScrollToTop} />}
+                  <div className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
+                    onDoubleClick={handleScrollToTop}>
+                    <span>{t('library.titleCol')}</span>
+                    <span className="text-right">{t('library.timeCol')}</span>
+                  </div>
+                </div>
                 {insertPosition !== null && (
                   <div
                     className="absolute left-0 right-0 h-0.5 rounded-full shadow-lg z-20 transition-all duration-150"
