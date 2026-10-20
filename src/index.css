@@ -677,33 +677,48 @@ textarea.no-scrollbar::-webkit-scrollbar {
   animation-play-state: paused !important;
 }
 
-/* The native gutter stays hidden; a visual thumb overlays the list so header
-   and row columns retain identical usable width on every desktop platform. */
+/* The native scrollbar stays hidden. The list and its column labels stop short
+   of a right gutter on every platform, and our own scrollbar lives there:
+   beside the rows rather than over them, so it can be grabbed and dragged. */
+.library-view { --library-scroll-gutter: 14px; }
 .library-track-scroll {
   scrollbar-width: none;
+}
+.library-track-scroll,
+.library-track-header {
+  margin-right: var(--library-scroll-gutter);
 }
 
 .library-overlay-scrollbar {
   position: absolute;
   z-index: 35;
   top: 0;
-  /* List shells extend 24px beyond the rows. Keep the thumb in that outer
-     gutter so highlighted rows and the scroll indicator remain distinct. */
-  right: 12px;
+  /* The gutter starts where the shell's bleed padding ends. */
+  right: var(--library-bleed, 0px);
   bottom: 0;
-  width: 5px;
-  pointer-events: none;
+  width: var(--library-scroll-gutter);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   opacity: 0;
   transition: opacity 180ms ease;
 }
 
 .library-track-scroll-shell:hover > .library-overlay-scrollbar,
-.library-overlay-scrollbar.is-scrolling {
+.library-overlay-scrollbar.is-scrolling,
+.library-overlay-scrollbar.is-dragging {
   opacity: 1;
 }
 
+.library-overlay-scrollbar:hover .library-overlay-scrollbar__thumb,
+.library-overlay-scrollbar.is-dragging .library-overlay-scrollbar__thumb {
+  width: 9px;
+}
+
 .library-overlay-scrollbar__thumb {
-  width: 100%;
+  flex-shrink: 0;
+  width: 6px;
+  transition: width 120ms ease;
   border-radius: 999px;
   background: color-mix(in srgb, var(--theme-text-muted, rgba(255, 255, 255, 0.42)) 58%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-background-dark, #0b0d14) 30%, transparent);
@@ -817,7 +832,7 @@ textarea:focus-visible {
   content: '';
   position: absolute;
   left: calc(1rem + 2.5rem + 0.75rem);
-  right: var(--library-end-gutter);
+  right: 1rem;
   bottom: 0;
   height: 1px;
   background: var(--library-divider);
@@ -839,13 +854,9 @@ textarea:focus-visible {
    runs square to the list's edges like the hover band. */
 .library-view[data-row-style='floating'] {
   --library-row-radius: 0px;
-  /* No shadowed band spills past the rows any more, so the list keeps to the
-     window and its scroll indicator stays on screen, in a right gutter that
-     the durations stop short of. */
+  /* No shadowed band spills past the rows any more, so the list keeps to the window. */
   --library-bleed: 0px;
-  --library-end-gutter: 32px;
 }
-.library-view[data-row-style='floating'] .library-track-grid { padding-right: var(--library-end-gutter); }
 .library-view[data-row-style='floating'] .library-track-row[data-current],
 .library-view[data-row-style='floating'] .library-track-row[data-current]:hover {
   background-color: var(--library-accent);
@@ -856,8 +867,39 @@ textarea:focus-visible {
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* Apple Music's playlist header: artwork, name and a short count above the
-   songs, scrolling away with them. Sizes follow the list's width. */
+/* The list body: the collection above the songs, or in a column beside them
+   once the list is wide. Only the songs scroll. */
+.library-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.library-body__songs {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+@container library-view (min-width: 900px) {
+  .library-body { flex-direction: row; }
+  .library-body > .library-collection-header {
+    flex: 0 0 clamp(260px, 28cqw, 340px);
+    flex-direction: column;
+    align-items: stretch;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+  }
+  .library-body > .library-collection-header .library-collection-header__art { width: 100%; }
+  .library-body > .library-collection-header .library-collection-header__title {
+    font-size: 26px;
+    -webkit-line-clamp: 3;
+  }
+}
+
+/* Apple Music's playlist header: artwork, name and a short count. Sizes
+   follow the list's width. */
 .library-collection-header {
   display: flex;
   align-items: flex-end;

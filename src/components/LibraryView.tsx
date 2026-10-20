@@ -652,21 +652,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
         onToggleAll={toggleSelectAll} onRemove={trackActions.requestBatchDelete} onDone={finishSelection} />}
 
-      {/* The collection and the column labels stay put; only the songs scroll. */}
-      {filterType === 'default' && (
-        <div className="flex-shrink-0">
-          {collection && tracks.length > 0 && <LibraryCollectionHeader collection={collection} tracks={tracks} onDoubleClick={handleScrollToTop} />}
-          <div className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
-            onDoubleClick={handleScrollToTop}>
-            <span>{t('library.titleCol')}</span>
-            <span className="text-right">{t('library.timeCol')}</span>
-          </div>
-        </div>
-      )}
       </div>
 
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
+        // The collection and the column labels stay put; only the songs scroll.
+        // Wide lists put the collection in a column beside the songs.
+        <div className="library-body">
+        {collection && tracks.length > 0 && <LibraryCollectionHeader collection={collection} tracks={tracks} onDoubleClick={handleScrollToTop} />}
+        <div className="library-body__songs">
+        <div className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none flex-shrink-0"
+          onDoubleClick={handleScrollToTop}>
+          <span>{t('library.titleCol')}</span>
+          <span className="text-right">{t('library.timeCol')}</span>
+        </div>
         <div
           className="library-track-scroll-shell library-bleed flex-1 relative min-h-0 overflow-hidden"
         >
@@ -802,6 +801,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             contentHeight={totalHeight + bottomInset}
             bottomInset={bottomInset}
           />
+        </div>
+        </div>
         </div>
       ) : (
         <div className="library-bleed flex-1 flex gap-4 overflow-hidden">
