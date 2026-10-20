@@ -1,10 +1,14 @@
 // @vitest-environment node
 import { EventEmitter } from 'node:events';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerPlayerControlbarHandlers } from '../../../electron/ipc/playerControlbarHandlers';
 import type { PlayerControlbarAction } from '../../../src/types/playerControlbar';
-const mocks = vi.hoisted(() => ({ handle: vi.fn(), fromWebContents: vi.fn(), netFetch: vi.fn(), createFromBuffer: vi.fn() }));
+const mocks = vi.hoisted(() => ({ handle: vi.fn(), fromWebContents: vi.fn(), netFetch: vi.fn(), createFromBuffer: vi.fn(), getPath: vi.fn() }));
 vi.mock('electron', () => ({
+  app: { getPath: mocks.getPath },
   ipcMain: { handle: mocks.handle },
   BrowserWindow: { fromWebContents: mocks.fromWebContents },
   net: { fetch: mocks.netFetch },
@@ -27,7 +31,14 @@ function setup(platform: NodeJS.Platform = 'darwin') {
   const invoke = (name: string, value?: unknown, source = event) => mocks.handle.mock.calls.find(call => call[0] === `ipc:playerControlbar:${name}`)![1](source, value);
   return { bridge, load, owner, event, invoke };
 }
-beforeEach(() => { vi.clearAllMocks(); mocks.fromWebContents.mockReturnValue({ getNativeWindowHandle: () => Buffer.alloc(8) }); });
+// Online artwork is kept on disk under userData; each run starts with an empty cache.
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'la-controlbar-artwork-'));
+afterAll(() => fs.rmSync(userData, { recursive: true, force: true }));
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getPath.mockReturnValue(userData);
+  mocks.fromWebContents.mockReturnValue({ getNativeWindowHandle: () => Buffer.alloc(8) });
+});
 describe('native player control bar', () => {
   it('never loads AppKit on Windows', () => {
     const { load, invoke } = setup('win32'); expect(invoke('start')).toEqual({ ok: true, data: false }); expect(load).not.toHaveBeenCalled();
@@ -88,5 +99,18 @@ describe('native player control bar', () => {
     expect(mocks.netFetch.mock.calls[0]![0]).toBe(url);
     expect(init.cache).toBe('no-store');
     expect(new Headers(init.headers).get('accept')).not.toMatch(/webp|avif/);
+  });
+  it('keeps online artwork on disk, so it is not downloaded again', async () => {
+    const { invoke } = setup(); invoke('start');
+    const png = Buffer.from([4, 5, 6]);
+    mocks.netFetch.mockResolvedValue({ ok: true, headers: new Headers(), arrayBuffer: async () => png });
+    mocks.createFromBuffer.mockReturnValue({ isEmpty: () => false, resize: () => ({ toPNG: () => png }) });
+    const kept = () => fs.readdirSync(path.join(userData, 'remote-covers')).filter(name => name.endsWith('.img')).length;
+    const url = 'https://p1.music.126.net/cover.jpg?param=96y96';
+    await invoke('artwork', url);
+    const before = kept();
+    await invoke('artwork', url);
+    expect(mocks.netFetch).toHaveBeenCalledTimes(1);
+    expect(kept()).toBe(before);
   });
 });
