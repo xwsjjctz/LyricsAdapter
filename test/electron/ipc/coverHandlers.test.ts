@@ -90,4 +90,17 @@ describe('cover IPC cache invalidation', () => {
     expect(result).toEqual({ success: true, deleted: false });
     expect(fs.existsSync(thumbnail)).toBe(false);
   });
+
+  it('reports and clears the online cover cache under userData', async () => {
+    const remote = path.join(userDataDirectory, 'remote-covers');
+    fs.mkdirSync(remote);
+    fs.writeFileSync(path.join(remote, 'a.img'), Buffer.alloc(10));
+    fs.writeFileSync(path.join(remote, 'b.img'), Buffer.alloc(20));
+
+    expect(await registeredHandler('cover-cache:info')({})).toEqual({ entries: 2, bytes: 30 });
+    expect(await registeredHandler('cover-cache:clear')({})).toEqual({ entries: 0, bytes: 0 });
+    expect(fs.existsSync(remote)).toBe(false);
+    // Local covers are not part of it.
+    expect(fs.existsSync(coverDirectory)).toBe(true);
+  });
 });

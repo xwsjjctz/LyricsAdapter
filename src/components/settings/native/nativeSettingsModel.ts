@@ -88,6 +88,7 @@ export interface GeneralModel {
   downloadPath: string;
   downloadRevision: number;
   appVersion: string;
+  coverCache: { visible: boolean; size: string; empty: boolean; busy: boolean; error: string };
   updater: { visible: boolean; status: string; error: string; downloaded: boolean; busy: boolean };
 }
 
@@ -107,6 +108,15 @@ export function generalBlocks(model: GeneralModel, t: TFunction): NativeSettings
         button('general:choose-folder', '', { symbol: 'folder', label: t('settingsDialog.chooseDownloadFolder') }),
       ],
     }),
+    ...(model.coverCache.visible ? [row('general:cover-cache', 'inline', {
+      title: t('settings.coverCache'),
+      detail: model.coverCache.error || t('settings.coverCacheDesc'),
+      detailTone: model.coverCache.error ? 'error' : 'secondary',
+      controls: [
+        { type: 'label', text: model.coverCache.size, tone: 'muted' } as NativeSettingsControl,
+        button('general:clear-cover-cache', t('settings.coverCacheClear'), { enabled: !model.coverCache.busy && !model.coverCache.empty }),
+      ],
+    })] : []),
     row('general:about', 'inline', {
       title: t('settings.about'),
       controls: [{ type: 'label', text: `LyricsAdapter v${model.appVersion || '…'}`, tone: 'muted' }],

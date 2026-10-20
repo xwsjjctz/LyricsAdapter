@@ -9,7 +9,7 @@ import type { NativeSettingsAction, NativeSettingsControl, NativeSettingsState }
 const mocks = vi.hoisted(() => {
   const api = { start: vi.fn(), update: vi.fn(), stop: vi.fn(), onAction: vi.fn() };
   // One stable bridge object, like the real desktop adapter.
-  const desktop = { platform: 'darwin', osRelease: '25.1.0', ipc: { nativeSettings: api } };
+  const desktop = { platform: 'darwin', osRelease: '25.1.0', ipc: { nativeSettings: api }, coverCacheInfo: vi.fn(), clearCoverCache: vi.fn() };
   return { api, desktop, unsubscribe: vi.fn() };
 });
 vi.mock('@/services/desktopAdapter', async importOriginal => ({
@@ -38,6 +38,8 @@ beforeEach(() => {
   mocks.api.update.mockResolvedValue({ ok: true });
   mocks.api.stop.mockResolvedValue({ ok: true });
   mocks.api.onAction.mockReturnValue(mocks.unsubscribe);
+  mocks.desktop.coverCacheInfo.mockResolvedValue({ entries: 0, bytes: 0 });
+  mocks.desktop.clearCoverCache.mockResolvedValue({ entries: 0, bytes: 0 });
   musicPluginStore.setState({ plugins: [], loaded: true, error: '' });
   shortcutManager.resetAllToDefaults();
 });
@@ -84,6 +86,35 @@ describe('settings on macOS 26 native glass', () => {
     emit({ type: 'record-key', id: 'shortcut:toggleFocusMode', text: 'L', code: 'KeyL', value: 1 | 8 });
     expect(shortcutManager.getShortcut('toggleFocusMode').currentKey).toBe('CmdOrCtrl+Shift+L');
     await waitFor(() => expect(findControl(lastState(), 'shortcut:toggleFocusMode')).toMatchObject({ recording: false, state: 'custom' }));
+  });
+
+  it('shows the cover cache size and clears it from AppKit', async () => {
+    mocks.desktop.coverCacheInfo.mockResolvedValue({ entries: 3, bytes: 2048 });
+    await open();
+    const coverRow = () => lastState().sections.flatMap(section => section.blocks).flatMap(block => block.rows)
+      .find(entry => entry.id === 'general:cover-cache')!;
+    await waitFor(() => expect(coverRow().controls[0]).toMatchObject({ type: 'label', text: '2.0 KiB' }));
+    expect(findControl(lastState(), 'general:clear-cover-cache')).toMatchObject({ enabled: true });
+    emit({ type: 'button', id: 'general:clear-cover-cache' });
+    expect(mocks.desktop.clearCoverCache).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(coverRow().controls[0]).toMatchObject({ text: '0 B' }));
+    // Nothing left to clear.
+    expect(findControl(lastState(), 'general:clear-cover-cache')).toMatchObject({ enabled: false });
+  });
+
+  it('reports a failed cover cache clear in the row', async () => {
+    mocks.desktop.coverCacheInfo.mockResolvedValue({ entries: 1, bytes: 10 });
+    mocks.desktop.clearCoverCache.mockRejectedValue(new Error('EACCES'));
+    await open();
+    await waitFor(() => expect(findControl(lastState(), 'general:clear-cover-cache')).toMatchObject({ enabled: true }));
+    emit({ type: 'button', id: 'general:clear-cover-cache' });
+    const coverRow = () => lastState().sections.flatMap(section => section.blocks).flatMap(block => block.rows)
+      .find(entry => entry.id === 'general:cover-cache')!;
+    // The row's description gives way to the failure, in the error tone.
+    const description = coverRow().detail;
+    await waitFor(() => expect(coverRow().detailTone).toBe('error'));
+    expect(coverRow().detail).not.toBe(description);
+    expect(findControl(lastState(), 'general:clear-cover-cache')).toMatchObject({ enabled: true });
   });
 
   it('asks before resetting every shortcut', async () => {

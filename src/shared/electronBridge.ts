@@ -87,6 +87,8 @@ export interface ElectronBridge {
   getUpdaterState: IpcInvoker<'updater:state'>;
   quitAndInstall: IpcInvoker<'updater:quit-and-install'>;
   getAppVersion: IpcInvoker<'app:get-version'>;
+  coverCacheInfo: IpcInvoker<'cover-cache:info'>;
+  clearCoverCache: IpcInvoker<'cover-cache:clear'>;
   showNotification(title: string, body: string, options?: AppNotificationOptions): Promise<IpcInvokeResult<'notification:show'>>;
   onUpdaterEvent(callback: (state: UpdaterState) => void): void;
   offUpdaterEvent(callback: (state: UpdaterState) => void): void;

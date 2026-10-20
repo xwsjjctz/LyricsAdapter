@@ -28,6 +28,7 @@ import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../types/pla
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../types/focusGlass';
 import type { SystemLyricsAction, SystemLyricsState } from '../types/systemLyrics';
 import type { ApplicationMenuAction } from '../types/applicationMenu';
+import type { CoverCacheInfo } from '../types/coverCache';
 import type { AppNotificationPayload } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 import type { MusicPluginCatalogEntry, MusicPluginInfo } from './musicPlugin';
@@ -187,6 +188,9 @@ export interface IpcInvokeContract {
   'updater:check': [[], { ok: boolean; reason?: string }];
   'updater:quit-and-install': [[], { ok: boolean }];
   'app:get-version': [[], string];
+  'cover-cache:info': [[], CoverCacheInfo];
+  /** Empties the cache and reports what is left. */
+  'cover-cache:clear': [[], CoverCacheInfo];
 
   // ---- Plugin host ----
   'plugin-host-info': [[], PluginHostInfo];

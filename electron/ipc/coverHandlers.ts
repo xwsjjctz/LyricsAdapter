@@ -10,7 +10,14 @@ import {
   writeFileAtomically,
 } from "../protocols/coverProtocol";
 import { handleIpc } from './ipcMainTyped';
+import { remoteCoverCache } from '../services/artwork';
 export function registerCoverHandlers(): void {
+  handleIpc('cover-cache:info', () => remoteCoverCache().info());
+  handleIpc('cover-cache:clear', async () => {
+    await remoteCoverCache().clear();
+    return remoteCoverCache().info();
+  });
+
   handleIpc('save-cover-thumbnail', async (_event, payload: { id: string; data: string; mime: string }) => {
     try {
       if (!payload?.id || !payload?.data) {

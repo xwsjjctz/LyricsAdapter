@@ -234,6 +234,8 @@ const bridge = {
   getUpdaterState: invoker('updater:state'),
   quitAndInstall: invoker('updater:quit-and-install'),
   getAppVersion: invoker('app:get-version'),
+  coverCacheInfo: invoker('cover-cache:info'),
+  clearCoverCache: invoker('cover-cache:clear'),
   showNotification: async (title, body, options) => invoke('notification:show', {
     title,
     body,

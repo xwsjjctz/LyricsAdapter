@@ -49,6 +49,23 @@ export class RemoteCoverCache {
     return request;
   }
 
+  /** How many covers are kept and the space they take. */
+  async info(): Promise<{ entries: number; bytes: number }> {
+    await this.writes;
+    const entries = await this.scan();
+    return { entries: entries.length, bytes: entries.reduce((sum, entry) => sum + entry.size, 0) };
+  }
+
+  /** Removes every kept cover after pending writes; covers download again when next shown. */
+  clear(): Promise<void> {
+    const cleared = this.writes.then(async () => {
+      await fs.rm(this.directory, { recursive: true, force: true });
+      this.usage = Promise.resolve(0);
+    });
+    this.writes = cleared.catch(() => undefined);
+    return cleared;
+  }
+
   private file(url: string): string {
     return path.join(this.directory, `${createHash('sha256').update(url).digest('hex')}${SUFFIX}`);
   }

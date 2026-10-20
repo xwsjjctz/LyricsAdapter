@@ -4,8 +4,10 @@ import type { Language } from '../../../i18n';
 import { getDesktopAPI, type UpdaterState } from '../../../services/desktopAdapter';
 import { logger } from '../../../services/logger';
 import { settingsManager } from '../../../services/settingsManager';
+import type { CoverCacheInfo } from '../../../types/coverCache';
 import { LANGUAGE_OPTIONS, type SettingsTheme } from '../shared';
 import Button from '../../ui/Button';
+import { formatBytes } from './PluginConfiguration';
 
 interface GeneralSectionProps {
   theme: SettingsTheme;
@@ -77,6 +79,61 @@ function DownloadPathRow({ theme }: { theme: SettingsTheme }) {
   );
 }
 
+/** Online covers kept on disk by the main process; null where nothing uses them. Shared by both sheets. */
+export function useCoverCache() {
+  const { t } = useTranslation();
+  const [info, setInfo] = useState<CoverCacheInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const api = getDesktopAPI();
+    // Only macOS's native surfaces (AppKit draws their covers) fill this cache today.
+    if (api?.platform !== 'darwin' || !api.coverCacheInfo) return;
+    let live = true;
+    api.coverCacheInfo()
+      .then(next => { if (live) setInfo(next); })
+      .catch(cause => logger.warn('[Settings] coverCacheInfo failed:', cause));
+    return () => { live = false; };
+  }, []);
+  const clear = async () => {
+    const api = getDesktopAPI();
+    if (!api?.clearCoverCache) return;
+    setBusy(true); setError('');
+    try {
+      setInfo(await api.clearCoverCache());
+    } catch (cause) {
+      logger.error('[Settings] clearCoverCache failed:', cause);
+      setError(t('settings.coverCacheClearFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { info, size: info ? formatBytes(info.bytes) : '', busy, error, clear };
+}
+
+function CoverCacheRow({ theme }: { theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const { colors } = theme;
+  const descriptionId = useId();
+  const { info, size, busy, error, clear } = useCoverCache();
+  if (!info) return null;
+  return (
+    <div className="settings-row" style={{ borderColor: colors.borderLight }}>
+      <div className="min-w-0">
+        <div className="settings-row__label" style={{ color: colors.textPrimary }}>{t('settings.coverCache')}</div>
+        <div id={descriptionId} className="mt-0.5 text-xs" style={{ color: colors.textMuted }}>{t('settings.coverCacheDesc')}</div>
+        {error && <div role="alert" className="mt-0.5 text-xs" style={{ color: colors.error }}>{error}</div>}
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-3">
+        <span className="text-sm tabular-nums" style={{ color: colors.textMuted }} data-testid="cover-cache-size">{size}</span>
+        <Button size="sm" disabled={busy || !info.entries} aria-describedby={descriptionId} onClick={() => void clear()}>
+          {t('settings.coverCacheClear')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Version information and installed-app updates, shared by the web and native sheets. */
 export function useGeneralSettings() {
   const { t } = useTranslation();
@@ -114,7 +171,7 @@ export function useGeneralSettings() {
   return { appVersion, updater, canUpdate, updateBusy, updateStatus, checkForUpdates, restartToUpdate };
 }
 
-/** Language, download folder, version information and installed-app updates. */
+/** Language, download folder, cover cache, version information and installed-app updates. */
 export default function GeneralSection({ theme }: GeneralSectionProps) {
   const { t, i18n } = useTranslation();
   const { colors } = theme;
@@ -140,6 +197,7 @@ export default function GeneralSection({ theme }: GeneralSectionProps) {
         </select>
       </div>
       <DownloadPathRow theme={theme} />
+      <CoverCacheRow theme={theme} />
       <div className="settings-row" style={{ borderColor: colors.borderLight }}>
         <span className="settings-row__label" style={{ color: colors.textPrimary }}>{t('settings.about')}</span>
         <span className="text-sm tabular-nums" style={{ color: colors.textMuted }}>LyricsAdapter v{appVersion || '…'}</span>
