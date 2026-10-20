@@ -17,6 +17,8 @@ napi_env env = nullptr;
 napi_ref callback = nullptr;
 constexpr int kMaxDepth = 16;
 constexpr CGFloat kHeaderHeight = 50;
+/** The close button is a glass circle; the same width is kept free on the other side. */
+constexpr CGFloat kCloseSize = 28;
 /** A section counts as current once its heading is this close to the top. */
 constexpr CGFloat kActiveOffset = 48;
 /** Space kept above a section heading when the list scrolls to it. */
@@ -92,6 +94,24 @@ NSImage* Symbol(NSString* name, CGFloat size, NSFontWeight weight) {
     ?: [NSImage imageWithSystemSymbolName:@"circle.dashed" accessibilityDescription:nil];
   image = [image imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:size weight:weight]];
   [image setTemplate:YES]; return image;
+}
+/** `base` with a dot in its top corner (or the dot alone), tinted like the label it sits by. */
+NSImage* Badged(NSImage* base, NSString* description) {
+  constexpr CGFloat dot = 6, gap = 1.5;
+  NSSize size = base ? base.size : NSMakeSize(dot, dot);
+  NSImage* image = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {
+    NSRect mark = NSMakeRect(NSMaxX(rect) - dot, NSMaxY(rect) - dot, dot, dot);
+    if (base) {
+      [base drawInRect:rect];
+      // Clear a ring around the dot so it reads as a badge, not part of the symbol.
+      [NSGraphicsContext.currentContext setCompositingOperation:NSCompositingOperationClear];
+      [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(mark, -gap, -gap)] fill];
+      [NSGraphicsContext.currentContext setCompositingOperation:NSCompositingOperationSourceOver];
+    }
+    [NSColor.blackColor setFill]; [[NSBezierPath bezierPathWithOvalInRect:mark] fill];
+    return YES;
+  }];
+  image.accessibilityDescription = description; [image setTemplate:YES]; return image;
 }
 BOOL ReduceMotion() { return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion; }
 
@@ -451,7 +471,8 @@ API_AVAILABLE(macos(26.0))
   self = [super initWithFrame:frame]; if (!self) return nil;
   self.translatesAutoresizingMaskIntoConstraints = NO;
   _stack = Stack(NSUserInterfaceLayoutOrientationVertical, 10); [self addSubview:_stack]; Pin(_stack, self, NSEdgeInsetsZero);
-  _title = Label(15, NSFontWeightSemibold, YES);
+  // Smaller than a title: the switcher above already names the section, the heading only groups the list.
+  _title = Label(13, NSFontWeightBold, YES);
   return self;
 }
 @end
@@ -470,58 +491,6 @@ API_AVAILABLE(macos(26.0))
 @end
 @implementation LASettingsScrollView
 - (void)scrollWheel:(NSEvent*)event { if (self.onUserScroll) self.onUserScroll(); [super scrollWheel:event]; }
-@end
-
-API_AVAILABLE(macos(26.0))
-@interface LASettingsNavButton : NSButton
-@property(nonatomic, copy) NSString* sectionId;
-@property(nonatomic, copy) NSString* label;
-@property(nonatomic, copy) NSString* symbolName;
-@property(nonatomic) BOOL active;
-@property(nonatomic) BOOL unsaved;
-@property(nonatomic, strong) NSView* dot;
-@end
-@implementation LASettingsNavButton
-- (void)setupIfNeeded {
-  if (self.dot) return;
-  self.bordered = NO; self.imagePosition = NSImageLeading; self.imageHugsTitle = YES; self.refusesFirstResponder = YES;
-  self.translatesAutoresizingMaskIntoConstraints = NO; self.wantsLayer = YES; self.layer.cornerRadius = 8;
-  self.layer.cornerCurve = kCACornerCurveContinuous;
-  [self setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
-  ((NSButtonCell*)self.cell).lineBreakMode = NSLineBreakByTruncatingTail;
-  [self.heightAnchor constraintEqualToConstant:26].active = YES;
-  _dot = [[NSView alloc] initWithFrame:NSZeroRect]; _dot.translatesAutoresizingMaskIntoConstraints = NO; _dot.wantsLayer = YES;
-  _dot.layer.cornerRadius = 3; _dot.hidden = YES; [self addSubview:_dot];
-  [NSLayoutConstraint activateConstraints:@[
-    [_dot.widthAnchor constraintEqualToConstant:6], [_dot.heightAnchor constraintEqualToConstant:6],
-    [_dot.topAnchor constraintEqualToAnchor:self.topAnchor constant:3], [_dot.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-2],
-  ]];
-}
-- (void)applyTitle:(NSString*)title symbol:(NSString*)symbol compact:(BOOL)compact unsavedLabel:(NSString*)unsavedLabel {
-  [self setupIfNeeded];
-  self.label = title; self.symbolName = symbol;
-  self.image = compact ? nil : NativeSettings::Symbol(symbol, 12, NSFontWeightMedium);
-  self.imagePosition = compact ? NSNoImage : NSImageLeading;
-  self.dot.hidden = !self.unsaved;
-  self.accessibilityLabel = self.unsaved && unsavedLabel.length ? [NSString stringWithFormat:@"%@, %@", title, unsavedLabel] : title;
-  [self refreshColors];
-}
-- (void)refreshColors {
-  [self.effectiveAppearance performAsCurrentDrawingAppearance:^{
-    NSColor* color = self.active ? NSColor.labelColor : NSColor.secondaryLabelColor;
-    NSMutableParagraphStyle* style = [NSMutableParagraphStyle new]; style.lineBreakMode = NSLineBreakByTruncatingTail;
-    self.attributedTitle = [[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@" %@ ", self.label ?: @""] attributes:@{
-      NSFontAttributeName: [NSFont systemFontOfSize:12 weight:self.active ? NSFontWeightSemibold : NSFontWeightMedium],
-      NSForegroundColorAttributeName: color, NSParagraphStyleAttributeName: style,
-    }];
-    self.contentTintColor = color;
-    self.layer.backgroundColor = self.active ? [NSColor.labelColor colorWithAlphaComponent:0.1].CGColor : NSColor.clearColor.CGColor;
-    self.dot.layer.backgroundColor = NSColor.systemOrangeColor.CGColor;
-  }];
-  self.accessibilitySelected = self.active;
-}
-- (void)setActive:(BOOL)active { if (_active == active) return; _active = active; [self refreshColors]; }
-- (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self refreshColors]; }
 @end
 
 /** A confirmation over the sheet; clicks outside its card do nothing. */
@@ -576,9 +545,8 @@ API_AVAILABLE(macos(26.0))
 @interface LANativeSettingsHost : NSView <NSTextFieldDelegate, LASettingsControlSource>
 @property(nonatomic, strong) NSGlassEffectView* panel;
 @property(nonatomic, strong) NSView* content;
-@property(nonatomic, strong) LASettingsLabel* titleLabel;
-@property(nonatomic, strong) NSStackView* nav;
-@property(nonatomic, strong) NSMutableDictionary<NSString*, LASettingsNavButton*>* navButtons;
+@property(nonatomic, strong) NSSegmentedControl* nav;
+@property(nonatomic, copy) NSArray<NSDictionary*>* navSections;
 @property(nonatomic, strong) NSButton* closeButton;
 @property(nonatomic, strong) NSView* headerSeparator;
 @property(nonatomic, strong) LASettingsScrollView* scroll;
@@ -619,33 +587,52 @@ API_AVAILABLE(macos(26.0))
   using namespace NativeSettings;
   self = [super initWithFrame:frame]; if (!self) return nil;
   self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; self.accessibilityIdentifier = @"native-settings-host";
-  _navButtons = [NSMutableDictionary dictionary]; _sectionViews = [NSMutableDictionary dictionary]; _blockViews = [NSMutableDictionary dictionary];
+  _sectionViews = [NSMutableDictionary dictionary]; _blockViews = [NSMutableDictionary dictionary];
   _controlViews = [NSMutableDictionary dictionary]; _controlKinds = [NSMutableDictionary dictionary];
   _fieldRevisions = [NSMutableDictionary dictionary]; _fieldPending = [NSMutableDictionary dictionary]; _linkURLs = [NSMutableDictionary dictionary];
-  _reportedVisible = [NSMutableSet set]; _revealToken = -1; _sectionIds = @[]; _unsavedLabel = @"";
+  _reportedVisible = [NSMutableSet set]; _revealToken = -1; _sectionIds = @[]; _navSections = @[]; _unsavedLabel = @"";
 
   _panel = [[NSGlassEffectView alloc] initWithFrame:NSZeroRect]; _panel.style = NSGlassEffectViewStyleRegular;
   _panel.cornerRadius = 22; _panel.hidden = YES; _panel.accessibilityIdentifier = @"native-settings-glass";
   _content = [[NSView alloc] initWithFrame:NSZeroRect]; _panel.contentView = _content; [self addSubview:_panel];
 
-  _titleLabel = Label(15, NSFontWeightSemibold, NO);
-  [_titleLabel setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
-  _nav = Stack(NSUserInterfaceLayoutOrientationHorizontal, 2);
+  // The header is a macOS 26 sheet's: a glass close circle on the leading side and the
+  // section switcher centred on the sheet, with no title beside it.
   _closeButton = [NSButton buttonWithImage:Symbol(@"xmark", 12, NSFontWeightSemibold) target:self action:@selector(closeClicked:)];
-  _closeButton.bezelStyle = NSBezelStyleGlass; _closeButton.refusesFirstResponder = YES; _closeButton.accessibilityIdentifier = @"native-settings-close";
+  _closeButton.bezelStyle = NSBezelStyleGlass; _closeButton.borderShape = NSControlBorderShapeCircle;
+  _closeButton.refusesFirstResponder = YES; _closeButton.accessibilityIdentifier = @"native-settings-close";
   _closeButton.title = @""; _closeButton.imagePosition = NSImageOnly;
   _closeButton.translatesAutoresizingMaskIntoConstraints = NO;
-  [_closeButton setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
-  NSStackView* header = Stack(NSUserInterfaceLayoutOrientationHorizontal, 10); header.edgeInsets = NSEdgeInsetsMake(0, 18, 0, 12);
-  Arrange(header, @[_titleLabel, Spacer(), _nav, _closeButton], NO);
+  // The system segmented control, so selection gets the Liquid Glass lens when pressed or dragged.
+  _nav = [NSSegmentedControl segmentedControlWithLabels:@[] trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(navClicked:)];
+  _nav.segmentStyle = NSSegmentStyleAutomatic; _nav.borderShape = NSControlBorderShapeCapsule; _nav.controlSize = NSControlSizeLarge;
+  _nav.segmentDistribution = NSSegmentDistributionFit; _nav.refusesFirstResponder = YES;
+  // As tabs the segments are drawn without dividers between them (macOS 27; macOS 26 keeps them).
+  if (@available(macOS 27.0, *)) _nav.role = NSSegmentedControlRoleTabs;
+  _nav.translatesAutoresizingMaskIntoConstraints = NO; _nav.accessibilityIdentifier = @"native-settings-nav";
+  [_nav setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+  NSView* header = [[NSView alloc] initWithFrame:NSZeroRect]; header.translatesAutoresizingMaskIntoConstraints = NO;
+  [header addSubview:_closeButton]; [header addSubview:_nav];
+  NSLayoutConstraint* centred = [_nav.centerXAnchor constraintEqualToAnchor:header.centerXAnchor];
+  centred.priority = NSLayoutPriorityDefaultHigh;
+  [NSLayoutConstraint activateConstraints:@[
+    [_closeButton.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:12],
+    [_closeButton.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
+    [_closeButton.widthAnchor constraintEqualToConstant:kCloseSize], [_closeButton.heightAnchor constraintEqualToConstant:kCloseSize],
+    // Centred when it fits; a narrow sheet slides it off centre before it overlaps the close button.
+    centred, [_nav.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
+    [_nav.leadingAnchor constraintGreaterThanOrEqualToAnchor:_closeButton.trailingAnchor constant:10],
+    [_nav.trailingAnchor constraintLessThanOrEqualToAnchor:header.trailingAnchor constant:-12],
+  ]];
   _headerSeparator = [[NSView alloc] initWithFrame:NSZeroRect]; _headerSeparator.translatesAutoresizingMaskIntoConstraints = NO; _headerSeparator.wantsLayer = YES;
+  _headerSeparator.hidden = YES;
 
   _scroll = [[LASettingsScrollView alloc] initWithFrame:NSZeroRect]; _scroll.translatesAutoresizingMaskIntoConstraints = NO;
   _scroll.drawsBackground = NO; _scroll.hasVerticalScroller = YES; _scroll.autohidesScrollers = YES;
   _scroll.scrollerStyle = NSScrollerStyleOverlay; _scroll.automaticallyAdjustsContentInsets = NO;
   _document = [[LASettingsDocumentView alloc] initWithFrame:NSZeroRect]; _document.translatesAutoresizingMaskIntoConstraints = NO;
   _scroll.documentView = _document;
-  _sectionsStack = Stack(NSUserInterfaceLayoutOrientationVertical, 26); _sectionsStack.edgeInsets = NSEdgeInsetsMake(14, 18, 22, 18);
+  _sectionsStack = Stack(NSUserInterfaceLayoutOrientationVertical, 26); _sectionsStack.edgeInsets = NSEdgeInsetsMake(8, 18, 22, 18);
   [_document addSubview:_sectionsStack]; Pin(_sectionsStack, _document, NSEdgeInsetsZero);
   NSClipView* clip = _scroll.contentView;
   _dialog = [[LASettingsDialogView alloc] initWithTarget:self];
@@ -694,15 +681,11 @@ API_AVAILABLE(macos(26.0))
   CGFloat top = std::floor(bounds.height * 0.14);
   self.panel.frame = NSMakeRect(std::floor((bounds.width - width) / 2), bounds.height - top - height, width, height);
   self.content.frame = self.panel.bounds;
-  // A narrow sheet keeps the navigation to its labels and leaves the title to the window.
+  // A narrow sheet keeps the navigation to its labels.
   BOOL compact = width < 520;
   if (compact != self.compact) {
     self.compact = compact;
-    self.titleLabel.hidden = compact;
-    for (NSString* identifier in self.navButtons) {
-      LASettingsNavButton* button = self.navButtons[identifier];
-      [button applyTitle:button.label symbol:button.symbolName compact:compact unsavedLabel:self.unsavedLabel];
-    }
+    [self refreshNav];
   }
 }
 
@@ -712,9 +695,9 @@ API_AVAILABLE(macos(26.0))
   using namespace NativeSettings;
   BOOL dark = Flag(state, @"darkMode");
   NSAppearance* appearance = [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
-  if (![self.panel.appearance.name isEqualToString:appearance.name]) self.panel.appearance = appearance;
+  if (![self.panel.appearance.name isEqualToString:appearance.name]) { self.panel.appearance = appearance; [self refreshAccessibility:nil]; }
   self.panel.tintColor = [NSColor colorWithWhite:dark ? 0 : 1 alpha:dark ? 0.36 : 0.42];
-  SetText(self.titleLabel, Str(state, @"title"));
+  self.panel.accessibilityLabel = Str(state, @"title");
   self.closeButton.accessibilityLabel = Str(state, @"closeLabel");
   self.unsavedLabel = Str(state, @"unsavedLabel");
   [self layoutSubtreeIfNeeded];
@@ -779,24 +762,31 @@ API_AVAILABLE(macos(26.0))
 - (void)applyNav:(NSArray*)sections {
   using namespace NativeSettings;
   NSMutableArray<NSString*>* ids = [NSMutableArray array];
-  NSMutableArray<NSView*>* buttons = [NSMutableArray array];
+  NSMutableArray<NSDictionary*>* unique = [NSMutableArray array];
   for (NSDictionary* section in sections) {
     NSString* identifier = Str(section, @"id");
     if ([ids containsObject:identifier]) continue;
-    [ids addObject:identifier];
-    LASettingsNavButton* button = self.navButtons[identifier];
-    if (!button) {
-      button = [LASettingsNavButton buttonWithTitle:@"" target:self action:@selector(navClicked:)];
-      button.sectionId = identifier; button.accessibilityIdentifier = [@"native-settings-nav-" stringByAppendingString:identifier];
-      self.navButtons[identifier] = button;
-    }
-    button.unsaved = Flag(section, @"unsaved");
-    [button applyTitle:Str(section, @"navTitle") symbol:Str(section, @"symbol") compact:self.compact unsavedLabel:self.unsavedLabel];
-    [buttons addObject:button];
+    [ids addObject:identifier]; [unique addObject:section];
   }
-  for (NSString* identifier in self.navButtons.allKeys) if (![ids containsObject:identifier]) [self.navButtons removeObjectForKey:identifier];
-  self.sectionIds = ids;
-  Arrange(self.nav, buttons, NO);
+  self.sectionIds = ids; self.navSections = unique;
+  [self refreshNav];
+}
+/** One segment per section; a narrow sheet drops the symbols, an unsaved section carries a dot. */
+- (void)refreshNav {
+  using namespace NativeSettings;
+  NSSegmentedControl* nav = self.nav;
+  NSInteger selected = nav.selectedSegment;
+  nav.segmentCount = (NSInteger)self.navSections.count;
+  [self.navSections enumerateObjectsUsingBlock:^(NSDictionary* section, NSUInteger index, BOOL* stop) {
+    (void)stop; NSInteger segment = (NSInteger)index;
+    BOOL unsaved = Flag(section, @"unsaved");
+    NSImage* symbol = self.compact ? nil : Symbol(Str(section, @"symbol"), 13, NSFontWeightMedium);
+    [nav setLabel:Str(section, @"navTitle") forSegment:segment];
+    [nav setImage:unsaved ? Badged(symbol, self.unsavedLabel) : symbol forSegment:segment];
+    [nav setImageScaling:NSImageScaleNone forSegment:segment];
+    [nav setToolTip:unsaved && self.unsavedLabel.length ? self.unsavedLabel : nil forSegment:segment];
+  }];
+  if (selected >= 0 && selected < nav.segmentCount) nav.selectedSegment = selected;
 }
 
 - (void)applyDialog:(NSDictionary*)dialog {
@@ -1113,7 +1103,9 @@ API_AVAILABLE(macos(26.0))
   }
   [clip scrollToPoint:NSMakePoint(0, y)]; [self.scroll reflectScrolledClipView:clip];
 }
-- (void)scrolled:(NSNotification*)notification { (void)notification; [self updateActiveSection]; }
+- (void)scrolled:(NSNotification*)notification { (void)notification; [self updateHeaderSeparator]; [self updateActiveSection]; }
+/** Like a toolbar, the header is only divided from the list once content scrolls beneath it. */
+- (void)updateHeaderSeparator { self.headerSeparator.hidden = NSMinY(self.scroll.contentView.bounds) < 1; }
 - (void)updateActiveSection {
   NSRect visible = self.scroll.contentView.bounds;
   NSString* active = self.sectionIds.firstObject;
@@ -1132,7 +1124,8 @@ API_AVAILABLE(macos(26.0))
   [self setActiveSection:active];
 }
 - (void)setActiveSection:(NSString*)identifier {
-  for (NSString* key in self.navButtons) self.navButtons[key].active = [key isEqualToString:identifier];
+  NSInteger index = identifier ? (NSInteger)[self.sectionIds indexOfObject:identifier] : NSNotFound;
+  if (index != NSNotFound && self.nav.selectedSegment != index) self.nav.selectedSegment = index;
 }
 
 // MARK: open / close and keyboard ownership
@@ -1222,7 +1215,12 @@ API_AVAILABLE(macos(26.0))
   NativeSettings::Emit(@"record-key", identifier, NativeSettings::Modifiers(event), NativeSettings::DomKey(event), NativeSettings::DomCode(event.keyCode));
 }
 - (void)closeClicked:(id)sender { (void)sender; NativeSettings::Emit(@"close"); }
-- (void)navClicked:(LASettingsNavButton*)sender { self.pinnedSection = sender.sectionId; [self scrollToSection:sender.sectionId animated:YES]; }
+- (void)navClicked:(NSSegmentedControl*)sender {
+  NSInteger index = sender.selectedSegment;
+  if (index < 0 || index >= (NSInteger)self.sectionIds.count) return;
+  NSString* identifier = self.sectionIds[(NSUInteger)index];
+  self.pinnedSection = identifier; [self scrollToSection:identifier animated:YES];
+}
 - (void)dialogConfirmed:(id)sender { (void)sender; NativeSettings::Emit(@"dialog", @"", 0, @"confirm"); }
 - (void)dialogCancelled:(id)sender { (void)sender; NativeSettings::Emit(@"dialog", @"", 0, @"cancel"); }
 - (void)buttonClicked:(NSButton*)sender {

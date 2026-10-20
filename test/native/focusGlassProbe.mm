@@ -41,6 +41,8 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  if(argc>2 && [view isKindOfClass:NSSlider.class]) {double value=0;napi_get_value_double(env,args[2],&value);((NSSlider*)view).doubleValue=value;}
  // A value picks that item of a pop-up menu before its action is sent.
  if(argc>2 && [view isKindOfClass:NSPopUpButton.class]) {double value=0;napi_get_value_double(env,args[2],&value);[(NSPopUpButton*)view selectItemAtIndex:(NSInteger)value];}
+ // A value picks that segment of a segmented control, as a click on it would.
+ if(argc>2 && [view isKindOfClass:NSSegmentedControl.class]) {double value=0;napi_get_value_double(env,args[2],&value);((NSSegmentedControl*)view).selectedSegment=(NSInteger)value;}
  if(click&&view) {
    NSPoint point=[view convertPoint:NSMakePoint(NSMidX(view.bounds),NSMidY(view.bounds)) toView:nil];
    PostMouse(content.window,NSEventTypeLeftMouseDown,point); PostMouse(content.window,NSEventTypeLeftMouseUp,point);
@@ -75,7 +77,11 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  NSString* appearance=[v.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]];
  id material=[v respondsToSelector:NSSelectorFromString(@"style")]?[v valueForKey:@"style"]:NSNull.null;
  id radius=[v respondsToSelector:NSSelectorFromString(@"cornerRadius")]?[v valueForKey:@"cornerRadius"]:NSNull.null;
- [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"focused":@(v.window.firstResponder==v),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@"",@"material":material,@"radius":radius,@"selected":@(v.isAccessibilitySelected)}];}
+ NSMutableDictionary* item=[NSMutableDictionary dictionaryWithDictionary:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"focused":@(v.window.firstResponder==v),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@"",@"material":material,@"radius":radius,@"selected":@(v.isAccessibilitySelected)}];
+ // A segmented control reports its segments' labels and the selected index.
+ if([v isKindOfClass:NSSegmentedControl.class]){NSSegmentedControl* c=(NSSegmentedControl*)v;NSMutableArray* labels=[NSMutableArray array];
+   for(NSInteger i=0;i<c.segmentCount;i++)[labels addObject:[c labelForSegment:i]?:@""];item[@"segments"]=labels;item[@"segment"]=@(c.selectedSegment);}
+ [items addObject:item];}
  NSDictionary* result=@{@"windowNumber":@(content.window.windowNumber),@"items":items};
  NSData* data=[NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
  napi_value value;napi_create_string_utf8(env,(const char*)data.bytes,data.length,&value);return value;

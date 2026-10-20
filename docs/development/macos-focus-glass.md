@@ -58,6 +58,11 @@ keep the web `SettingsView`.
   intents only (button, switch, popup, slider, field, shortcut recording, dialog,
   close, visible section) on `native-settings-action`. Keys outside text fields and
   Cmd chords that no menu item takes are forwarded to the player's shortcuts.
+- The header follows macOS 26 sheets: a circular glass close button on the leading
+  side and a system `NSSegmentedControl` (one segment per section, so selection gets
+  the Liquid Glass lens) centred on the sheet. A sheet under 520 pt drops the segment
+  symbols; an unsaved section's segment carries a template dot. The header divider
+  only appears once the list scrolls beneath it.
 - Closing hides the sheet and keeps its views; a reload or a destroyed window removes
   them. About four seconds after startup `NativeSettingsPrewarm` builds the hidden
   sheet once (a few MB in the main process, no second renderer), so opening settings

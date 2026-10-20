@@ -14,7 +14,10 @@ const require = createRequire(import.meta.url);
 interface NativeItem {
   id: string; class: string; hidden: boolean; x: number; y: number; width: number; height: number;
   label: string; appearance: string; material: number | null; radius: number | null; selected: boolean;
+  segments?: string[]; segment?: number;
 }
+/** The sheet's sections in switcher order. */
+const SECTIONS = ['general', 'plugins', 'cloud', 'focus', 'shortcuts'];
 
 test('macOS settings are an AppKit sheet on the palette Liquid Glass that edits settings, follows the window and dismisses', async ({}, testInfo) => {
   test.skip(process.platform !== 'darwin' || Number(os.release().split('.')[0]) < 25, 'Requires macOS 26');
@@ -56,7 +59,7 @@ test('macOS settings are an AppKit sheet on the palette Liquid Glass that edits 
       }, { file: probePath, id, value }));
     const item = async (id: string) => (await probe()).items.find(entry => entry.id === id);
     const sheetVisible = async () => (await item('native-settings-glass'))?.hidden === false;
-    const selected = async (section: string) => (await item(`native-settings-nav-${section}`))?.selected;
+    const selected = async (section: string) => (await item('native-settings-nav'))?.segment === SECTIONS.indexOf(section);
     const windowCount = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length);
     const setting = (key: string) => page.evaluate(async name => {
       const result = await (window as unknown as { electron: { ipc: { settings: { getAll: () => Promise<{ ok: boolean; data?: Record<string, string> }> } } } }).electron.ipc.settings.getAll();
@@ -89,11 +92,11 @@ test('macOS settings are an AppKit sheet on the palette Liquid Glass that edits 
 
     // The first language in the menu is 中文; the sheet and the welcome page follow it.
     await probe('native-settings-general:language', 0);
-    await expect.poll(async () => (await item('native-settings-nav-general'))?.label).toBe('通用');
+    await expect.poll(async () => (await item('native-settings-nav'))?.segments?.[0]).toBe('通用');
     await expect.poll(async () => (await item('native-settings-close'))?.label).toBe('关闭');
     await expect(page.getByText('从你的音乐开始', { exact: true })).toBeVisible();
     // A preference edited in the sheet applies to the player immediately.
-    await probe('native-settings-nav-focus');
+    await probe('native-settings-nav', SECTIONS.indexOf('focus'));
     await expect.poll(() => selected('focus')).toBe(true);
     await probe('native-settings-focus:font-size', 36);
     await expect.poll(() => setting('la_focus_lyrics_font_size')).toBe('36');
