@@ -777,15 +777,14 @@ textarea:focus-visible {
   --library-text-muted: var(--theme-text-muted);
   --library-divider: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
   --library-hover: var(--theme-background-card-hover);
-  --library-current-band: color-mix(in srgb, var(--theme-control-current-track-band-tint) 10%, transparent);
   --library-accent: var(--theme-primary);
   --library-selected: color-mix(in srgb, var(--theme-primary) 12.5%, transparent);
   background: var(--library-surface);
 }
 .library-view[data-row-style='inline'] { --library-title-weight: var(--theme-text-heading-weight); }
 
-/* Apple Music: a plain surface, neutral greys, the system blue, and the playing
-   row set apart by a grey band rather than a tint, whatever the theme's hue. */
+/* Apple Music: a plain surface, neutral greys, and the playing row filled with
+   the system blue in white type, whatever the theme's hue. */
 .theme-light .library-view[data-row-style='floating'] {
   --library-surface: #ffffff;
   --library-text: #1d1d1f;
@@ -793,7 +792,6 @@ textarea:focus-visible {
   --library-text-muted: rgba(0, 0, 0, 0.42);
   --library-divider: rgba(0, 0, 0, 0.08);
   --library-hover: rgba(0, 0, 0, 0.04);
-  --library-current-band: rgba(0, 0, 0, 0.065);
   --library-accent: #007aff;
   --library-selected: rgba(0, 122, 255, 0.12);
 }
@@ -804,7 +802,6 @@ textarea:focus-visible {
   --library-text-muted: rgba(255, 255, 255, 0.42);
   --library-divider: rgba(255, 255, 255, 0.08);
   --library-hover: rgba(255, 255, 255, 0.05);
-  --library-current-band: rgba(255, 255, 255, 0.09);
   --library-accent: #0a84ff;
   --library-selected: rgba(10, 132, 255, 0.2);
 }
@@ -836,6 +833,17 @@ textarea:focus-visible {
 /* A grey hover, like Apple Music; the card-hover colour is white in light themes. */
 .library-view[data-row-style='floating'] .library-track-row:hover {
   background-color: var(--library-hover);
+}
+
+/* The playing row is filled in place, so it scrolls with the list exactly. */
+.library-view[data-row-style='floating'] .library-track-row[data-current],
+.library-view[data-row-style='floating'] .library-track-row[data-current]:hover {
+  background-color: var(--library-accent);
+}
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__title { color: #fff; }
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__subtitle,
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__time {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* The current song's cover carries bars, moving while it plays. */
