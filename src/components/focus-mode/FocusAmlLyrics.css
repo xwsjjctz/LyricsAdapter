@@ -64,6 +64,13 @@
   line-height: 1.2;
 }
 
+/* Lines whose translation changed off screen. AMLL skips off-screen line content
+   (content-visibility: auto), so they would report their untranslated height until shown
+   on screen. FocusDomLyricPlayer clears this after a frame records the new height. */
+.focus-amll-lyrics [data-focus-amll-remeasure] [class*="_lyricLine"] {
+  content-visibility: visible;
+}
+
 /* Only uniform, inactive words lose their per-word effects. Keep the line's
    layout/blur/spring layers and all glyph/spacing/ruby DOM intact. */
 .focus-amll-lyrics [data-focus-amll-static] > [class*="_lyricMainLine"] {

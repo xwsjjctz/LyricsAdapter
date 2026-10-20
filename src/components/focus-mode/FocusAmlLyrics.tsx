@@ -28,13 +28,31 @@ const AMLL_OPTIMIZE_OPTIONS: OptimizeLyricOptions = {
   normalizeSpaces: false,
   resetLineTimestamps: false,
 };
+// AMLL 0.5.2 lays out a group it has not measured at a fifth of the player height.
+const UNMEASURED_LINE_HEIGHT_RATIO = 1 / 5;
+const REMEASURE_ATTRIBUTE = 'data-focus-amll-remeasure';
+
+type LyricGroup = DomLyricPlayer['currentLyricGroups'][number];
 
 export class FocusDomLyricPlayer extends DomLyricPlayer {
   private readonly animationBudget = new FocusAmlAnimationBudget();
+  // Groups carrying REMEASURE_ATTRIBUTE that were in the document after the last update.
+  private readonly renderedStaleGroups: LyricGroup[] = [];
 
   override update(delta?: number): void {
+    // A frame has rendered these since, so the browser remembers their translated height.
+    for (const group of this.renderedStaleGroups ?? []) {
+      if (group.element.isConnected) group.element.removeAttribute(REMEASURE_ATTRIBUTE);
+    }
     super.update(delta);
     this.animationBudget?.update(this.currentLyricGroups, this.getCurrentTime());
+    if (!this.renderedStaleGroups) return;
+    this.renderedStaleGroups.length = 0;
+    for (const group of this.currentLyricGroups) {
+      if (group.element.isConnected && group.element.hasAttribute(REMEASURE_ATTRIBUTE)) {
+        this.renderedStaleGroups.push(group);
+      }
+    }
   }
 
   /**
@@ -42,6 +60,10 @@ export class FocusDomLyricPlayer extends DomLyricPlayer {
    * every line and springs them in from the top; here AMLL's own ResizeObserver measures the
    * taller lines and springs the following ones down. `lines` must come from the same track:
    * AMLL's optimizer keeps one processed line per input line.
+   *
+   * Off-screen lines keep their old height: AMLL neither observes them nor drops its cached
+   * size, and content-visibility reports the browser's remembered size. Changed groups get
+   * REMEASURE_ATTRIBUTE, which renders their content until a frame has shown them.
    */
   updateTranslations(lines: readonly LyricLine[]): void {
     if (lines.length !== this.processedLines.length) return;
@@ -52,13 +74,66 @@ export class FocusDomLyricPlayer extends DomLyricPlayer {
       }
     });
     for (const group of this.currentLyricGroups) {
+      let changed = false;
       for (const lineEl of [group.mainLine, group.bgLine]) {
         // AMLL 0.5.2 renders [main, translation, romanisation] as the line's children.
         const subLine = lineEl?.getElement().children[1];
         const text = lineEl?.getLine().translatedLyric ?? '';
-        if (subLine && subLine.textContent !== text) subLine.textContent = text;
+        if (subLine && subLine.textContent !== text) {
+          subLine.textContent = text;
+          changed = true;
+        }
       }
+      if (changed) group.element.setAttribute(REMEASURE_ATTRIBUTE, '');
     }
+  }
+
+  /**
+   * Measure the stale groups that returning to the current line will bring into view. Call
+   * before that layout: a group resizing on entry makes AMLL relayout synchronously, which
+   * drops the per-line delays and moves every line at once.
+   */
+  measureStaleGroupsOnReturn(): void {
+    if (this.currentLyricGroups.length === 0) return;
+    const [first, last] = this.returnRange();
+    const stale = this.currentLyricGroups.slice(first, last + 1)
+      .filter(group => group.element.hasAttribute(REMEASURE_ATTRIBUTE) && !group.element.isConnected);
+    for (const group of stale) group.show();
+    // Read only after every insertion so the batch costs one layout.
+    const measured = stale.map(group => ({
+      group,
+      size: [group.element.clientWidth, group.element.clientHeight] as [number, number],
+    }));
+    for (const { group, size } of measured) {
+      this.lyricGroupSize.set(group, size);
+      group.onLineSizeChange(size);
+      // The next frame would hide it anyway. On entry AMLL observes the size cached here.
+      if (!group.isInSight) group.hide();
+    }
+  }
+
+  /** Indices from the scrolled view to the lines shown around the current one. */
+  private returnRange(): [number, number] {
+    const groups = this.currentLyricGroups;
+    const target = Math.min(Math.max(this.timelineState.scrollToIndex, 0), groups.length - 1);
+    // Cached heights are what is stale, so walk one overscan further each way.
+    const reach = this.getOverscanPx() * 2;
+    const above = this.size[1] * this.layoutState.alignPosition + reach;
+    const below = this.size[1] * (1 - this.layoutState.alignPosition) + reach;
+    const heightOf = (group: LyricGroup | undefined) => (group && this.lyricGroupSize.get(group)?.[1])
+      ?? this.size[1] * UNMEASURED_LINE_HEIGHT_RATIO;
+
+    let first = target;
+    for (let height = 0; first > 0 && height < above;) height += heightOf(groups[--first]);
+    let last = target;
+    for (let height = 0; last < groups.length - 1 && height < below;) height += heightOf(groups[++last]);
+    // The lines between the scrolled view and the target pass through the view on the way.
+    groups.forEach((group, index) => {
+      if (!group.element.isConnected) return;
+      first = Math.min(first, index);
+      last = Math.max(last, index);
+    });
+    return [first, last];
   }
 
   override dispose(): void {
@@ -154,6 +229,7 @@ export default function FocusAmlLyrics({
       const player = playerRef.current?.lyricPlayer;
       if (!player) return;
       player.resetScroll();
+      if (player instanceof FocusDomLyricPlayer) player.measureStaleGroupsOnReturn();
       void player.calcLayout(false, false);
     };
 
