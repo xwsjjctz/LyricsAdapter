@@ -114,6 +114,27 @@ describe('PlaylistSwitcher on native macOS glass', () => {
     expect(view.container.querySelector('.playlist-switcher-backdrop')).toBeNull();
   });
 
+  it('blurs the page only beneath the frame AppKit reports for the panel', async () => {
+    await setup();
+    cycle();
+    await waitFor(() => expect(lastState().open).toBe(true));
+    expect(screen.queryByTestId('playlist-switcher-blur')).toBeNull();
+    emit({ type: 'frame', x: 455, y: 244, width: 290, height: 220 });
+    const blur = screen.getByTestId('playlist-switcher-blur');
+    expect(blur).toHaveStyle({ left: '455px', top: '244px', width: '290px', height: '220px' });
+    expect(blur).toHaveAttribute('aria-hidden', 'true');
+    // A frame is never a card: it does not move the selection.
+    expect(lastState().selected).toBe(1);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(lastState().open).toBe(false));
+    release();
+    // The next session waits for its own frame instead of reusing the last one.
+    cycle();
+    await waitFor(() => expect(lastState().open).toBe(true));
+    expect(screen.queryByTestId('playlist-switcher-blur')).toBeNull();
+    release();
+  });
+
   it('falls back to the web panel when AppKit rejects an update', async () => {
     mocks.update.mockResolvedValue({ ok: false, error: 'surface lost' });
     render(<PlaylistSwitcher items={makeItems(3)} activeId="list-0" />);

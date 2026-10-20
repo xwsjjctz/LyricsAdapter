@@ -65,9 +65,10 @@ export function updateNativePalette(state: {
 export function setNativePaletteCover(url: string, data: Buffer): void;
 export function stopNativePalette(): void;
 /** Main-thread-only macOS 26 playlist switcher surface. */
-export function startPlaylistSwitcher(handle: Buffer, onAction: (action: {
-  type: 'hover' | 'activate'; value: number;
-}) => void): boolean;
+export function startPlaylistSwitcher(handle: Buffer, onAction: (action:
+  | { type: 'hover' | 'activate'; value: number }
+  | { type: 'frame'; x: number; y: number; width: number; height: number }
+) => void): boolean;
 export function updatePlaylistSwitcher(state: {
   open: boolean; darkMode: boolean; label: string; hint: string; selected: number;
   cards: Array<{ name: string; detail: string; symbol: string; cover: string | null }>;
