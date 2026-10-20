@@ -20,10 +20,10 @@ import type {
   PersistenceCloseCommitResult,
   UserDataSnapshot,
 } from '../types/typedIpc';
-import type { SettingsSectionId } from '../types/settingsPanel';
 import type { NativeContextMenuRequest } from '../types/nativeContextMenu';
 import type { PlayerControlbarAction, PlayerControlbarState } from '../types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../types/nativePalette';
+import type { NativeSettingsAction, NativeSettingsState } from '../types/nativeSettings';
 import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../types/playlistSwitcher';
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../types/focusGlass';
 import type { SystemLyricsAction, SystemLyricsState } from '../types/systemLyrics';
@@ -117,13 +117,9 @@ interface OperationResult { success: boolean; error?: string }
 
 export interface IpcInvokeContract {
   // ---- Typed envelope channels (payload validated with zod in main) ----
-  'ipc:settingsPanel:open': [[section: SettingsSectionId], IpcResult<boolean>];
-  'ipc:settingsPanel:close': [[], IpcResult<void>];
-  'ipc:settingsPanel:prewarm': [[], IpcResult<boolean>];
-  'ipc:settingsPanel:ready': [[payload: number | { height: number; darkMode: boolean }], IpcResult<void>];
-  'ipc:settingsPanel:previewOpacity': [[value: number], IpcResult<void>];
-  'ipc:settingsPanel:shortcut': [[payload: { key: string; modifiers: number }], IpcResult<void>];
-  'ipc:settingsPanel:previewWelcome': [[], IpcResult<void>];
+  'ipc:nativeSettings:start': [[], IpcResult<boolean>];
+  'ipc:nativeSettings:update': [[state: NativeSettingsState], IpcResult<void>];
+  'ipc:nativeSettings:stop': [[], IpcResult<void>];
   'ipc:contextMenu:popup': [[request: NativeContextMenuRequest], IpcResult<string | null>];
   'ipc:playerControlbar:start': [[], IpcResult<boolean>];
   'ipc:playerControlbar:update': [[state: PlayerControlbarState], IpcResult<void>];
@@ -229,15 +225,11 @@ export interface IpcSendContract {
 }
 
 export interface IpcEventContract {
-  'settings-panel-section': [section: SettingsSectionId];
-  'settings-panel-shortcut': [key: string, modifiers: number];
-  'settings-panel-preview-opacity': [value: number];
-  'settings-panel-closed': [];
-  'settings-panel-preview-welcome': [];
   'settings-changed': [entries: Record<string, string | null>, replaced: boolean];
   'application-menu-action': [action: ApplicationMenuAction];
   'player-controlbar-action': [action: PlayerControlbarAction];
   'native-palette-action': [action: NativePaletteAction];
+  'native-settings-action': [action: NativeSettingsAction];
   'playlist-switcher-action': [action: PlaylistSwitcherAction];
   'focus-glass-action': [action: FocusGlassAction];
   'focus-glass-backdrop': [payload: { luminance: number | null }];

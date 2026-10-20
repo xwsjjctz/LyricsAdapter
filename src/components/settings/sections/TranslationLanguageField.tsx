@@ -15,8 +15,7 @@ export function translationProviderOf(plugin: MusicPluginInfo) {
  * Target language for a translation plugin, shown with its other settings. The choice is
  * stored by the host, not the plugin, and applies as it changes.
  */
-export default function TranslationLanguageField({ plugin, theme }: { plugin: MusicPluginInfo; theme: SettingsTheme }) {
-  const { t } = useTranslation();
+export function useTranslationLanguage(plugin: MusicPluginInfo) {
   const preference = useTranslationPreference();
   const [error, setError] = useState('');
   const provider = translationProviderOf(plugin);
@@ -25,6 +24,12 @@ export default function TranslationLanguageField({ plugin, theme }: { plugin: Mu
     setError('');
     try { await setTranslationLanguage(value); } catch (reason) { setError(String(reason)); }
   };
+  return { preference, provider, language, error, change };
+}
+
+export default function TranslationLanguageField({ plugin, theme }: { plugin: MusicPluginInfo; theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const { preference, provider, language, error, change } = useTranslationLanguage(plugin);
   return <div className="space-y-1 text-xs" style={{ color: theme.colors.textPrimary }}>
     <label className="flex items-center justify-between gap-3">
       <span className="min-w-0">{t('plugins.translationLanguage')}</span>

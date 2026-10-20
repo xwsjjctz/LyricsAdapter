@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useId, useRef, type CSSProperties } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNativeSurface } from '../../hooks/useNativeSurface';
 import { useDocumentDarkMode } from '../../hooks/useNativePalette';
 import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
 import { getDesktopAPI } from '../../services/desktopAdapter';
-import type { PlaylistSwitcherAction } from '../../types/playlistSwitcher';
+import type { PlaylistSwitcherAction, PlaylistSwitcherFrameAction } from '../../types/playlistSwitcher';
 import { toNativeSwitcherState } from './nativeSwitcherState';
 import { usePlaylistSwitcher } from './usePlaylistSwitcher';
 import type { PlaylistSwitchItem } from './types';
@@ -23,10 +23,13 @@ export default function PlaylistSwitcher({ items, activeId }: { items: readonly 
   }) : '';
 
   // macOS 26+ draws the panel on native Liquid Glass. The session, selection
-  // and keyboard gesture stay here; AppKit only reports pointer intents.
+  // and keyboard gesture stay here; AppKit reports pointer intents and where the panel sits.
   const latest = useRef({ session, select, activate });
   latest.current = { session, select, activate };
+  const [panelFrame, setPanelFrame] = useState<PlaylistSwitcherFrameAction | null>(null);
+  useEffect(() => { if (!open) setPanelFrame(null); }, [open]);
   const handleNativeAction = useCallback((action: PlaylistSwitcherAction) => {
+    if (action.type === 'frame') { setPanelFrame(action); return; }
     const current = latest.current;
     const item = current.session?.items[action.value];
     if (!item) return;
@@ -54,11 +57,15 @@ export default function PlaylistSwitcher({ items, activeId }: { items: readonly 
   }, [open, native, selected]);
   if (!session) return null;
 
-  // The native glass panel draws above the page; the web layer only dims it
-  // and cancels on an outside click.
+  // The native glass panel draws above the page; the web layer dims the page and
+  // cancels on an outside click. Clear glass does not blur, so the page blurs the
+  // wall beneath the panel's reported box and nothing beyond it.
   if (native) {
     return <div ref={focusRef} className="playlist-switcher-backdrop" tabIndex={-1}
-      data-controlbar-passthrough data-native-switcher="true" onMouseDown={cancel} />;
+      data-controlbar-passthrough data-native-switcher="true" onMouseDown={cancel}>
+      {panelFrame && <div className="playlist-switcher-blur" data-testid="playlist-switcher-blur" aria-hidden="true"
+        style={{ left: panelFrame.x, top: panelFrame.y, width: panelFrame.width, height: panelFrame.height }} />}
+    </div>;
   }
 
   return <div className="playlist-switcher-backdrop" data-controlbar-passthrough onMouseDown={cancel}>

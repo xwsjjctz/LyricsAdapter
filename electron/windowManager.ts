@@ -30,10 +30,9 @@ export interface ResolveWindowsWindowIconPathOptions {
 export function resolveWindowsWindowIconPath(
   options: ResolveWindowsWindowIconPathOptions,
 ): string {
-  const iconRoot = options.isPackaged
-    ? options.resourcesPath
-    : options.appPath;
-  return path.join(iconRoot, 'app-icon-win.ico');
+  return options.isPackaged
+    ? path.join(options.resourcesPath, 'app-icon-win.ico')
+    : path.join(options.appPath, 'assets', 'app-icon', 'icon-win.ico');
 }
 
 export function resolveWindowsAppUserModelId(isPackaged: boolean): string {

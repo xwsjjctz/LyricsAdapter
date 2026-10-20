@@ -25,10 +25,13 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  NSString* actionName=[NSString stringWithUTF8String:name];BOOL hover=[actionName hasSuffix:@":hover"];
  BOOL click=[actionName hasSuffix:@":click"]; BOOL drag=[actionName hasSuffix:@":drag-outside"]; BOOL exit=[actionName hasSuffix:@":exit"];
  if ([actionName hasPrefix:@"@key:"]) {
-   unsigned short key=(unsigned short)[[actionName substringFromIndex:5] intValue];
-   unichar character=key==53?0x1b:key==126?NSUpArrowFunctionKey:key==125?NSDownArrowFunctionKey:0;
+   // @key:<keyCode>[:<modifier bits, 1 = Command>]
+   NSArray<NSString*>* parts=[[actionName substringFromIndex:5] componentsSeparatedByString:@":"];
+   unsigned short key=(unsigned short)[parts[0] intValue];
+   NSEventModifierFlags flags=parts.count>1 && ([parts[1] intValue]&1) ? NSEventModifierFlagCommand : 0;
+   unichar character=key==53?0x1b:key==126?NSUpArrowFunctionKey:key==125?NSDownArrowFunctionKey:key==40?'k':0;
    NSString* characters=[NSString stringWithCharacters:&character length:1];
-   [NSApp postEvent:[NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:content.window.windowNumber context:nil characters:characters charactersIgnoringModifiers:characters isARepeat:NO keyCode:key] atStart:NO];
+   [NSApp postEvent:[NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:flags timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:content.window.windowNumber context:nil characters:characters charactersIgnoringModifiers:characters isARepeat:NO keyCode:key] atStart:NO];
  }
  if(hover)actionName=[actionName substringToIndex:actionName.length-6];
  if(click)actionName=[actionName substringToIndex:actionName.length-6];
@@ -36,6 +39,10 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  if(drag)actionName=[actionName substringToIndex:actionName.length-13];
  NSView* view=Find(content,actionName);
  if(argc>2 && [view isKindOfClass:NSSlider.class]) {double value=0;napi_get_value_double(env,args[2],&value);((NSSlider*)view).doubleValue=value;}
+ // A value picks that item of a pop-up menu before its action is sent.
+ if(argc>2 && [view isKindOfClass:NSPopUpButton.class]) {double value=0;napi_get_value_double(env,args[2],&value);[(NSPopUpButton*)view selectItemAtIndex:(NSInteger)value];}
+ // A value picks that segment of a segmented control, as a click on it would.
+ if(argc>2 && [view isKindOfClass:NSSegmentedControl.class]) {double value=0;napi_get_value_double(env,args[2],&value);((NSSegmentedControl*)view).selectedSegment=(NSInteger)value;}
  if(click&&view) {
    NSPoint point=[view convertPoint:NSMakePoint(NSMidX(view.bounds),NSMidY(view.bounds)) toView:nil];
    PostMouse(content.window,NSEventTypeLeftMouseDown,point); PostMouse(content.window,NSEventTypeLeftMouseUp,point);
@@ -61,15 +68,20 @@ napi_value Probe(napi_env env,napi_callback_info info) {
  }
  NSMutableArray* items=[NSMutableArray array];
  NSArray* names=@[@"focus-glass-host",@"focus-glass-bar",@"focus-glass-highlight",@"focus-glass-frost",@"focus-glass-volume",@"focus-glass-play",@"focus-glass-seek",@"focus-glass-volume-slider",@"player-controlbar-host",@"player-controlbar-glass",@"player-controlbar-highlight",@"player-controlbar-slider-glass",@"player-controlbar-volume-disclosure",@"player-controlbar-volume-button",@"player-controlbar-volume-value",@"player-controlbar-title",@"player-controlbar-artist",@"player-controlbar-focus",@"player-controlbar-previous",@"player-controlbar-play",@"player-controlbar-next",@"player-controlbar-seek",@"player-controlbar-mode",@"player-controlbar-volume",@"player-controlbar-mute"];
- names=[names arrayByAddingObjectsFromArray:@[@"native-palette-glass",@"settings-sheet-glass",@"playlist-switcher-host",@"playlist-switcher-glass",@"playlist-switcher-list",@"playlist-switcher-hint"]];
+ names=[names arrayByAddingObjectsFromArray:@[@"native-palette-glass",@"playlist-switcher-host",@"playlist-switcher-glass",@"playlist-switcher-list",@"playlist-switcher-hint"]];
  NSMutableArray<NSString*>* cards=[NSMutableArray array];Collect(content,@"playlist-switcher-item-",cards);names=[names arrayByAddingObjectsFromArray:cards];
+ NSMutableArray<NSString*>* settings=[NSMutableArray array];Collect(content,@"native-settings-",settings);names=[names arrayByAddingObjectsFromArray:settings];
  for(NSString* name in names){NSView* v=Find(content,name);if(!v)continue;
  NSRect frame=[v convertRect:v.bounds toView:content];
  NSString* label=[v isKindOfClass:NSTextField.class]?((NSTextField*)v).stringValue:v.accessibilityLabel;
  NSString* appearance=[v.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,NSAppearanceNameDarkAqua]];
  id material=[v respondsToSelector:NSSelectorFromString(@"style")]?[v valueForKey:@"style"]:NSNull.null;
  id radius=[v respondsToSelector:NSSelectorFromString(@"cornerRadius")]?[v valueForKey:@"cornerRadius"]:NSNull.null;
- [items addObject:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"focused":@(v.window.firstResponder==v),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@"",@"material":material,@"radius":radius,@"selected":@(v.isAccessibilitySelected)}];}
+ NSMutableDictionary* item=[NSMutableDictionary dictionaryWithDictionary:@{@"id":name,@"class":NSStringFromClass(v.class),@"hidden":@(v.hidden),@"focused":@(v.window.firstResponder==v),@"alpha":@(v.alphaValue),@"x":@(frame.origin.x),@"y":@(frame.origin.y),@"width":@(frame.size.width),@"height":@(frame.size.height),@"label":label?:@"",@"appearance":appearance?:@"",@"material":material,@"radius":radius,@"selected":@(v.isAccessibilitySelected)}];
+ // A segmented control reports its segments' labels and the selected index.
+ if([v isKindOfClass:NSSegmentedControl.class]){NSSegmentedControl* c=(NSSegmentedControl*)v;NSMutableArray* labels=[NSMutableArray array];
+   for(NSInteger i=0;i<c.segmentCount;i++)[labels addObject:[c labelForSegment:i]?:@""];item[@"segments"]=labels;item[@"segment"]=@(c.selectedSegment);}
+ [items addObject:item];}
  NSDictionary* result=@{@"windowNumber":@(content.window.windowNumber),@"items":items};
  NSData* data=[NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
  napi_value value;napi_create_string_utf8(env,(const char*)data.bytes,data.length,&value);return value;

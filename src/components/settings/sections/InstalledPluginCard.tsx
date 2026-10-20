@@ -35,6 +35,16 @@ function SignInSummary({ source }: { source: string }) {
   return <>{t(signedIn ? 'musicPlugins.signedIn' : 'musicPlugins.signedOut')}</>;
 }
 
+/** What an installed plugin's card offers: only an enabled, working plugin has settings to show. */
+export function pluginCardCapabilities(plugin: MusicPluginInfo) {
+  const usable = plugin.enabled && !plugin.error;
+  const isSource = usable && plugin.capabilities.includes('search');
+  const signsIn = isSource && sourceLogin(plugin.id) !== 'none';
+  const configurable = usable && !!plugin.platform?.contributes.configuration;
+  const translates = usable && !!translationProviderOf(plugin);
+  return { isSource, signsIn, configurable, translates };
+}
+
 /**
  * One installed plugin: name, state and the main actions on one line. Its settings open
  * inside the card: a music source's sign-in, a translator's target language, the plugin's
@@ -46,11 +56,7 @@ export default function InstalledPluginCard({
   const { t } = useTranslation();
   const { colors } = theme;
   const [open, setOpen] = useState(false);
-  const usable = plugin.enabled && !plugin.error;
-  const isSource = usable && plugin.capabilities.includes('search');
-  const signsIn = isSource && sourceLogin(plugin.id) !== 'none';
-  const configurable = usable && !!plugin.platform?.contributes.configuration;
-  const translates = usable && !!translationProviderOf(plugin);
+  const { isSource, signsIn, configurable, translates } = pluginCardCapabilities(plugin);
   const detailsId = `plugin-details-${plugin.id}`;
   // The switch shows whether the plugin is on; the summary adds only what it does not say.
   const summary: ReactNode[] = [];

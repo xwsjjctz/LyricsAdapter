@@ -12,11 +12,16 @@
   outline: none;
   -webkit-app-region: no-drag;
 }
-/* Clear glass has no blur of its own to tune, so the page blurs the wall
-   beneath it, like the web settings sheet's backdrop. */
 .playlist-switcher-backdrop[data-native-switcher='true'] {
   background: rgba(0, 0, 0, .28);
+}
+/* Clear glass has no blur of its own to tune, so the page blurs the wall under
+   the native panel's reported box, and nothing beyond it. */
+.playlist-switcher-blur {
+  position: fixed;
+  border-radius: 28px;
   backdrop-filter: blur(6px);
+  pointer-events: none;
 }
 .playlist-switcher {
   --switcher-item-width: clamp(96px, 16vmin, 144px);

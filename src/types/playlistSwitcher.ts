@@ -18,13 +18,24 @@ export interface PlaylistSwitcherState {
   cards: PlaylistSwitcherCard[];
 }
 
-/** Pointer intents only: the page keeps the keyboard and the gesture. */
-export interface PlaylistSwitcherAction {
+/** Pointer intents: the page keeps the keyboard and the gesture. */
+export interface PlaylistSwitcherPointerAction {
   /** `hover` previews the card under a moving pointer; `activate` commits a click. */
   type: 'hover' | 'activate';
   /** Card index. */
   value: number;
 }
+
+/** Where the open panel sits, in page CSS pixels from the top left, so the page can blur only beneath it. */
+export interface PlaylistSwitcherFrameAction {
+  type: 'frame';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type PlaylistSwitcherAction = PlaylistSwitcherPointerAction | PlaylistSwitcherFrameAction;
 
 /** Sessions with more cards than this stay on the web panel. */
 export const PLAYLIST_SWITCHER_MAX_CARDS = 200;

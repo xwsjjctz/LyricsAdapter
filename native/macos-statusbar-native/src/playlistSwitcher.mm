@@ -6,6 +6,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 // Playlist switcher (Cmd/Ctrl+`) on native Clear Liquid Glass. React owns the
 // session, its frozen order and the selection, and keeps the keyboard so the
@@ -52,6 +53,18 @@ void Emit(const char* type, double value) {
   napi_value fn, global, action, name, number; napi_get_reference_value(env, callback, &fn); napi_get_global(env, &global);
   napi_create_object(env, &action); napi_create_string_utf8(env, type, NAPI_AUTO_LENGTH, &name); napi_create_double(env, value, &number);
   napi_set_named_property(env, action, "type", name); napi_set_named_property(env, action, "value", number);
+  if (napi_call_function(env, global, fn, 1, &action, nullptr) == napi_pending_exception) { napi_value error; napi_get_and_clear_last_exception(env, &error); }
+  napi_close_handle_scope(env, scope);
+}
+/** Reports the panel's box in page coordinates (points from the top left), so the page can blur just the wall beneath it. */
+void EmitFrame(NSRect frame) {
+  if (!env || !callback) return;
+  napi_handle_scope scope; if (napi_open_handle_scope(env, &scope) != napi_ok) return;
+  napi_value fn, global, action, name; napi_get_reference_value(env, callback, &fn); napi_get_global(env, &global);
+  napi_create_object(env, &action); napi_create_string_utf8(env, "frame", NAPI_AUTO_LENGTH, &name);
+  napi_set_named_property(env, action, "type", name);
+  const std::pair<const char*, CGFloat> fields[] = {{"x", NSMinX(frame)}, {"y", NSMinY(frame)}, {"width", NSWidth(frame)}, {"height", NSHeight(frame)}};
+  for (const auto& [key, value] : fields) { napi_value number; napi_create_double(env, value, &number); napi_set_named_property(env, action, key, number); }
   if (napi_call_function(env, global, fn, 1, &action, nullptr) == napi_pending_exception) { napi_value error; napi_get_and_clear_last_exception(env, &error); }
   napi_close_handle_scope(env, scope);
 }
@@ -189,6 +202,8 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSImage*>* covers;
 @property(nonatomic) NSInteger selected;
 @property(nonatomic) BOOL open;
+/** Last box reported to the page, in page coordinates. */
+@property(nonatomic) NSRect reportedFrame;
 - (void)apply:(napi_value)state;
 - (void)setCover:(NSData*)data forURL:(NSString*)url;
 @end
@@ -274,6 +289,16 @@ API_AVAILABLE(macos(26.0))
   }
   // Keep the selection in view through window resizes as well as updates.
   [self revealSelection];
+  [self reportFrame];
+}
+- (void)reportFrame {
+  if (!self.open) return;
+  NSRect panel = self.panel.frame;
+  NSRect frame = NSMakeRect(NSMinX(panel), NSHeight(self.bounds) - NSMaxY(panel), NSWidth(panel), NSHeight(panel));
+  if (NSEqualRects(frame, self.reportedFrame)) return;
+  self.reportedFrame = frame;
+  // After this layout pass: an update from the page lays out inside its own call.
+  dispatch_async(dispatch_get_main_queue(), ^{ PlaylistSwitcher::EmitFrame(frame); });
 }
 
 - (void)apply:(napi_value)state {
@@ -322,7 +347,8 @@ API_AVAILABLE(macos(26.0))
 - (void)setOpen:(BOOL)open {
   if (_open == open) return;
   _open = open;
-  if (!open) { self.panel.hidden = YES; self.panel.alphaValue = 0; return; }
+  if (!open) { self.panel.hidden = YES; self.panel.alphaValue = 0; self.reportedFrame = NSZeroRect; return; }
+  [self reportFrame];
   // Stay topmost if another native surface was added after this one.
   NSView* parent = self.superview;
   if (parent && parent.subviews.lastObject != self) [parent addSubview:self positioned:NSWindowAbove relativeTo:nil];

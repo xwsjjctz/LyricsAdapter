@@ -20,7 +20,7 @@ const activeNotifications = new Set<Notification>();
 function getAppIcon(): NativeImage | null {
   const candidates = app.isPackaged
     ? [path.join(process.resourcesPath, 'app-icon.png')]
-    : [path.join(app.getAppPath(), 'app-icon.png'), path.resolve('app-icon.png')];
+    : [path.join(app.getAppPath(), 'assets', 'app-icon', 'icon.png'), path.resolve('assets', 'app-icon', 'icon.png')];
   for (const candidate of candidates) {
     if (!fs.existsSync(candidate)) continue;
     const image = nativeImage.createFromPath(candidate);

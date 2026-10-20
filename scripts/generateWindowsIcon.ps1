@@ -1,6 +1,6 @@
 param(
-  [string]$InputPath = (Join-Path $PSScriptRoot '..\app-icon.png'),
-  [string]$OutputPath = (Join-Path $PSScriptRoot '..\app-icon-win.ico'),
+  [string]$InputPath = (Join-Path $PSScriptRoot '..\assets\app-icon\icon.png'),
+  [string]$OutputPath = (Join-Path $PSScriptRoot '..\assets\app-icon\icon-win.ico'),
   [double]$ContentRatio = 0.96
 )
 

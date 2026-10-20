@@ -362,7 +362,7 @@ test.describe('cross-platform Electron memory benchmark', () => {
     const coversDirectory = path.join(dirs.userData, 'covers');
     await mkdir(coversDirectory, { recursive: true });
     await Promise.all([
-      copyFile(path.join(repoRoot, 'app-icon.png'), path.join(coversDirectory, `${trackId}.png`)),
+      copyFile(path.join(repoRoot, 'assets', 'app-icon', 'icon.png'), path.join(coversDirectory, `${trackId}.png`)),
       writeFile(path.join(dirs.userData, 'library-index.json'), JSON.stringify({
         songs: [{
           id: trackId,

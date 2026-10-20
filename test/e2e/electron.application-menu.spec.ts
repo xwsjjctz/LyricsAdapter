@@ -55,12 +55,12 @@ test('macOS menus import music, perform app actions and follow live language and
     await expect(page.getByRole('option', { selected: true })).toHaveAccessibleName('在线播放记录');
     await page.keyboard.press('Escape'); await expect(page.getByTestId('playlist-switcher')).toHaveCount(0);
     // Native menu hints must not intercept the held MRU gesture.
-    await page.keyboard.down('Control'); await page.keyboard.press('Backquote');
+    await page.keyboard.down('Meta'); await page.keyboard.press('Backquote');
     await expect(page.getByTestId('playlist-switcher')).toBeVisible();
-    await page.keyboard.up('Control'); await expect(page.getByTestId('playlist-switcher')).toHaveCount(0);
-    await page.keyboard.down('Control'); await page.keyboard.press('Backquote');
+    await page.keyboard.up('Meta'); await expect(page.getByTestId('playlist-switcher')).toHaveCount(0);
+    await page.keyboard.down('Meta'); await page.keyboard.press('Backquote');
     await expect(page.getByRole('option', { selected: true })).toHaveAccessibleName('本地');
-    await page.keyboard.up('Control');
+    await page.keyboard.up('Meta');
     await choose('menu-showShortcuts');
     const settings = page.getByRole('dialog', { name: '设置', exact: true });
     await expect(settings.getByRole('link', { name: '快捷键', exact: true })).toHaveAttribute('aria-current', 'location');

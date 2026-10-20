@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app-icon.png" width="120" height="120" alt="LyricsAdapter logo">
+<img src="assets/app-icon/icon.png" width="120" height="120" alt="LyricsAdapter logo">
 
 # LyricsAdapter
 
@@ -188,8 +188,8 @@ npm ci
 npm run electron:dev
 ```
 
-`npm run check` lints, tests, and builds the main app. See [music source plugins](docs/music-source-plugins.md) for plugin development and standalone validation, and [DEBUGGING.md](DEBUGGING.md) for debugging and isolated test data.
+`npm run check` lints, tests, and builds the main app. See [music source plugins](docs/music-source-plugins.md) for plugin development and standalone validation, and [DEBUGGING.md](docs/DEBUGGING.md) for debugging and isolated test data.
 
 ## License and credits
 
-The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](app-icon-LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.
+The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](assets/app-icon/LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.

@@ -9,7 +9,7 @@ import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
 import DownloadStatusPill from './wall/DownloadStatusPill';
 import WelcomePreview from './wall/WelcomePreview';
-import SettingsSurface, { usePrewarmSettingsPanel } from './settings/SettingsSurface';
+import SettingsSurface, { NativeSettingsPrewarm } from './settings/SettingsSurface';
 import CommandPalette from './palette/CommandPalette';
 import PlaylistSwitcher from './playlist-switcher/PlaylistSwitcher';
 import type { PlaylistSwitchItem } from './playlist-switcher/types';
@@ -93,7 +93,6 @@ const AppShell: React.FC<AppShellProps> = ({
   onPlayLibraryPlaylistTrack,
 }) => {
   const { t } = useTranslation();
-  usePrewarmSettingsPanel();
   const slots = useLibraryState(state => state.slots);
   const viewSlot = useLibraryState(state => state.viewSlot);
   const activeTracks = useLibraryState(state => state.slots[state.activeSlotId].tracks);
@@ -361,7 +360,9 @@ const AppShell: React.FC<AppShellProps> = ({
             floating={floatingPanel}
           />
         </main>
-        {settingsSection && <SettingsSurface initialSection={settingsSection} onClose={closeSettings} onPreviewWelcome={() => setWelcomePreview(true)} />}
+        {settingsSection
+          ? <SettingsSurface initialSection={settingsSection} onClose={closeSettings} onPreviewWelcome={() => setWelcomePreview(true)} />
+          : <NativeSettingsPrewarm />}
         {welcomePreview && <WelcomePreview onClose={() => setWelcomePreview(false)} onImport={importVm.importClick} />}
         <FocusMode
           track={player.currentTrack}

@@ -27,7 +27,7 @@ import { registerFocusGlassHandlers } from './ipc/focusGlassHandlers';
 import { registerPlayerControlbarHandlers } from './ipc/playerControlbarHandlers';
 import { registerNativePaletteHandlers } from './ipc/nativePaletteHandlers';
 import { registerPlaylistSwitcherHandlers } from './ipc/playlistSwitcherHandlers';
-import { registerSettingsPanelHandlers } from './ipc/settingsPanelHandlers';
+import { registerNativeSettingsHandlers } from './ipc/nativeSettingsHandlers';
 import { settingsStore } from './services/settingsStore';
 import { registerContextMenuHandlers } from './ipc/contextMenuHandlers';
 import { initUpdater, scheduleStartupCheck, registerVersionIpc } from './updater';
@@ -156,7 +156,7 @@ app.whenReady().then(async () => {
   registerPlayerControlbarHandlers();
   registerNativePaletteHandlers();
   registerPlaylistSwitcherHandlers();
-  registerSettingsPanelHandlers();
+  registerNativeSettingsHandlers();
   registerContextMenuHandlers();
 
   await createWindow();

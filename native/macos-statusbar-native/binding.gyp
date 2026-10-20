@@ -7,7 +7,7 @@
         "src/focusGlass.mm",
         "src/playerControlbar.mm",
         "src/nativePalette.mm",
-        "src/settingsGlass.mm",
+        "src/nativeSettings.mm",
         "src/playlistSwitcher.mm"
       ],
       "defines": [

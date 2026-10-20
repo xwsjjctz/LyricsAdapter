@@ -13,7 +13,7 @@ type Value = string | boolean | number;
 const EMPTY_INFO: PluginDataInfo = { configuredSecrets: [], cacheEntries: 0, cacheBytes: 0 };
 const INPUT_CLASS = 'settings-field';
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
@@ -107,9 +107,8 @@ function ConfigurationInput({ field, value, onCommit }: ConfigurationInputProps)
  */
 const isStacked = (field: ConfigurationField) => field.format === 'secret' || (!field.enum && field.type !== 'boolean');
 
-/** Plugin settings apply as they change; only secrets have a Save step. */
-export default function PluginConfiguration({ plugin, theme }: { plugin: MusicPluginInfo; theme: SettingsTheme }) {
-  const { t } = useTranslation();
+/** Plugin settings apply as they change; only secrets have a Save step. Shared by both sheets. */
+export function usePluginConfiguration(plugin: MusicPluginInfo) {
   const [values, setValues] = useState<Record<string, Value>>({});
   const [info, setInfo] = useState<PluginDataInfo>(EMPTY_INFO);
   const [error, setError] = useState('');
@@ -154,6 +153,12 @@ export default function PluginConfiguration({ plugin, theme }: { plugin: MusicPl
       if (api.musicPluginList) updateMusicPlugins(await api.musicPluginList());
     } catch (error) { setError(String(error)); } finally { setBusy(false); }
   };
+  return { fields, values, info, error, busy, write, clearCache };
+}
+
+export default function PluginConfiguration({ plugin, theme }: { plugin: MusicPluginInfo; theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const { fields, values, info, error, busy, write, clearCache } = usePluginConfiguration(plugin);
   return <div className="w-full space-y-2 text-xs" style={{ color: theme.colors.textPrimary }}>
     {fields.map(([key, field]) => {
       const control = field.format === 'secret'

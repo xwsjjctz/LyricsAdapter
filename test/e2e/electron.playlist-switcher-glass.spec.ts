@@ -130,6 +130,17 @@ test('macOS playlist switcher draws on Clear Liquid Glass while the page keeps t
       return apart && panel.x >= 0 && panel.x + panel.width <= window.width && panel.y >= 0 && panel.y + panel.height <= window.height;
     };
     await expect.poll(clearOfControlbar).toBe(true);
+    // The page blurs exactly the wall beneath the glass, not the whole window.
+    const blurMatchesPanel = async () => {
+      const current = await probe();
+      const panel = find(current, 'playlist-switcher-glass'); const host = find(current, 'playlist-switcher-host');
+      const blur = await page.getByTestId('playlist-switcher-blur').boundingBox();
+      if (!panel || !host || !blur) return false;
+      return blur.x === panel.x - host.x && blur.y === host.y + host.height - panel.y - panel.height
+        && blur.width === panel.width && blur.height === panel.height;
+    };
+    await expect.poll(blurMatchesPanel).toBe(true);
+    expect(await backdrop.evaluate(node => getComputedStyle(node).backdropFilter)).toBe('none');
 
     await page.keyboard.press('Backquote'); await expect.poll(selectedName).toBe('Local');
     await page.keyboard.press('Shift+Backquote'); await expect.poll(selectedName).toBe('Online History');

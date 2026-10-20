@@ -65,14 +65,22 @@ export function updateNativePalette(state: {
 export function setNativePaletteCover(url: string, data: Buffer): void;
 export function stopNativePalette(): void;
 /** Main-thread-only macOS 26 playlist switcher surface. */
-export function startPlaylistSwitcher(handle: Buffer, onAction: (action: {
-  type: 'hover' | 'activate'; value: number;
-}) => void): boolean;
+export function startPlaylistSwitcher(handle: Buffer, onAction: (action:
+  | { type: 'hover' | 'activate'; value: number }
+  | { type: 'frame'; x: number; y: number; width: number; height: number }
+) => void): boolean;
 export function updatePlaylistSwitcher(state: {
   open: boolean; darkMode: boolean; label: string; hint: string; selected: number;
   cards: Array<{ name: string; detail: string; symbol: string; cover: string | null }>;
 }): void;
 export function setPlaylistSwitcherCover(url: string, data: Buffer): void;
 export function stopPlaylistSwitcher(): void;
-/** Attaches or updates the native settings backing; defaults to dark. */
-export function attachSettingsGlass(handle: Buffer, darkMode?: boolean): boolean;
+/** Main-thread-only macOS 26 settings sheet; the snapshot shape is src/types/nativeSettings.ts. */
+export function startNativeSettings(handle: Buffer, onAction: (action: {
+  type: string; id: string; value: number; text: string; code: string;
+}) => void): boolean;
+export function updateNativeSettings(state: object): void;
+/** Hides the sheet and keeps its views for the next start. */
+export function stopNativeSettings(): void;
+/** Removes the sheet, e.g. when its page reloads. */
+export function destroyNativeSettings(): void;

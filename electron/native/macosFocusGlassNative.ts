@@ -3,14 +3,26 @@ import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../../s
 import type { PlayerControlbarState, PlayerControlbarAction } from '../../src/types/playerControlbar';
 import type { NativePaletteAction, NativePaletteState } from '../../src/types/nativePalette';
 import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../../src/types/playlistSwitcher';
+import type { NativeSettingsAction, NativeSettingsState } from '../../src/types/nativeSettings';
 
 const require = createRequire(import.meta.url);
 
-interface MacosSettingsGlassBridge { attachSettingsGlass(handle: Buffer, darkMode?: boolean): boolean }
-export function loadMacosSettingsGlassBridge(): MacosSettingsGlassBridge | null {
+export interface MacosNativeSettingsBridge {
+  startNativeSettings(handle: Buffer, onAction: (action: NativeSettingsAction) => void): boolean;
+  updateNativeSettings(state: NativeSettingsState): void;
+  /** Hides the sheet and keeps its views, so the next open only updates them. */
+  stopNativeSettings(): void;
+  destroyNativeSettings(): void;
+}
+
+export function loadMacosNativeSettingsBridge(): MacosNativeSettingsBridge | null {
   if (process.platform !== 'darwin') return null;
-  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosSettingsGlassBridge>;
-  return typeof native.attachSettingsGlass === 'function' ? native as MacosSettingsGlassBridge : null;
+  const native = require('@lyrics-adapter/macos-statusbar-native') as Partial<MacosNativeSettingsBridge>;
+  return typeof native.startNativeSettings === 'function'
+    && typeof native.updateNativeSettings === 'function'
+    && typeof native.stopNativeSettings === 'function'
+    && typeof native.destroyNativeSettings === 'function'
+    ? native as MacosNativeSettingsBridge : null;
 }
 
 export interface MacosPlayerControlbarBridge {
