@@ -26,6 +26,8 @@ import { useLibraryState } from '../stores/libraryState';
 interface LibraryViewProps {
   tracks: Track[];
   currentTrackId?: string;
+  /** The current track is playing and visible, so its row's bars move. */
+  nowPlayingAnimated?: boolean;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void | Promise<void>;
   onRemoveMultipleTracks?: (trackIds: string[]) => void | Promise<void>;
@@ -79,6 +81,7 @@ interface LibraryEmptyState {
 const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
   currentTrackId,
+  nowPlayingAnimated = false,
   onTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
@@ -726,6 +729,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   return (
     <div
       className="library-view w-full flex flex-col h-full relative transition-all duration-300"
+      data-row-style={playingIndicator}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -754,11 +758,11 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {filterType === 'default' && (
         <div className="flex-shrink-0">
           <div
-            className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-2 text-xs font-bold uppercase tracking-widest border-b select-none"
-            style={{ color: colors.textSecondary, borderColor: colors.borderLight }}
+            className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
+            style={{ borderColor: colors.borderLight }}
             onDoubleClick={handleScrollToTop}
           >
-            <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
+            <span>{t('library.titleCol')}</span>
             <span className="text-right">{t('library.timeCol')}</span>
           </div>
         </div>
@@ -791,9 +795,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                   opacity: highlightStyle.opacity,
                   left: 'var(--library-bleed)',
                   right: 'var(--library-bleed)',
-                  backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                  boxShadow: 'var(--theme-elevated-shadow)',
+                  backgroundColor: 'var(--library-current-band)',
                   borderRadius: 'var(--library-row-radius)',
                 }}
               />
@@ -840,6 +842,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       shouldShowAnimation={shouldShowAnimation}
                       colors={colors}
                       playingIndicator={playingIndicator}
+                      nowPlayingAnimated={nowPlayingAnimated && isCurrentTrack}
                       measureRef={idx === 0 ? rowMeasureRef : undefined}
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
@@ -997,12 +1000,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              )}
              <div className="library-bleed flex-shrink-0">
                <div
-                 className="library-track-grid grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 select-none"
-                 style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+                 className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
+                 style={{ borderColor: colors.borderLight }}
                  onDoubleClick={handleScrollToTop}
                >
-                 <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
-                <span className="text-right">{t('library.timeCol')}</span>
+                 <span>{t('library.titleCol')}</span>
+                 <span className="text-right">{t('library.timeCol')}</span>
                </div>
              </div>
              <div className="library-track-scroll-shell library-bleed flex-1 relative min-h-0 overflow-hidden">
@@ -1017,9 +1020,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                        opacity: highlightStyle.opacity,
                        left: 'var(--library-bleed)',
                        right: 'var(--library-bleed)',
-                       backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                       border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                       boxShadow: 'var(--theme-elevated-shadow)',
+                       backgroundColor: 'var(--library-current-band)',
                        borderRadius: 'var(--library-row-radius)',
                      }}
                    />
@@ -1043,6 +1044,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           isCurrentTrack={track.id === currentTrackId} isSelecting={isSelecting}
                           isSelected={selectedIds.has(track.id)} isDragged={false} hasMenu={menuItemsFor(track).length > 0} canReorder={false}
                           shouldShowAnimation={shouldShowAnimation} colors={colors} playingIndicator={playingIndicator}
+                          nowPlayingAnimated={nowPlayingAnimated && track.id === currentTrackId}
                           measureRef={idx === 0 ? rowMeasureRef : undefined} onTrackSelect={onTrackSelect}
                           onToggleSelect={toggleSelectOne} onOpenMenu={openTrackMenu}
                           onDragStart={handleTrackDragStart} onDragOver={handleTrackDragOver}

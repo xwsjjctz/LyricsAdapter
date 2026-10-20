@@ -36,8 +36,9 @@ export function resolveThemeAppearance(theme: ThemeConfig): ThemeAppearanceStyle
     buttonLetterSpacing: '0',
     controlTextTransform: 'none',
     listItemBorder: 'transparent',
-    listItemGap: '8px',
-    listItemPaddingY: '12px',
+    // Rows touch, divided by hairlines, at a compact Apple Music-like height.
+    listItemGap: '0px',
+    listItemPaddingY: '6px',
     playingIndicator: 'floating',
   };
 

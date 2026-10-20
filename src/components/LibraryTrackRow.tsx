@@ -3,6 +3,7 @@ import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
 import { ThemeColors } from '../types/theme';
 import TrackCover from './TrackCover';
+import NowPlayingBars from './NowPlayingBars';
 import { formatDuration } from '../shared/formatDuration';
 import { isPlainEnter } from '../shared/keyboard';
 
@@ -20,6 +21,8 @@ interface LibraryTrackRowProps {
   shouldShowAnimation: boolean;
   colors: ThemeColors;
   playingIndicator?: 'floating' | 'inline';
+  /** The current track is playing (and visible), so its bars move. */
+  nowPlayingAnimated?: boolean;
   measureRef?: ((node: HTMLDivElement | null) => void) | undefined;
   onTrackSelect: (index: number) => void;
   onToggleSelect: (id: string) => void;
@@ -36,7 +39,7 @@ interface LibraryTrackRowProps {
 const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
   track, filteredIndex, realTrackIndex, isCurrentTrack, isSelecting, isSelected,
   isDragged, hasMenu, canReorder, shouldShowAnimation, colors,
-  playingIndicator = 'floating', measureRef, onTrackSelect, onToggleSelect,
+  playingIndicator = 'floating', nowPlayingAnimated = false, measureRef, onTrackSelect, onToggleSelect,
   onOpenMenu, onDragStart, onDragOver, onDrop, onDragEnd, progress,
 }) => {
   const { t } = useTranslation();
@@ -76,13 +79,15 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       }}
       style={{
         animation: shouldShowAnimation ? `fadeInUp 0.3s ease-out ${Math.min(filteredIndex, 15) * 0.03}s both` : undefined,
-        backgroundColor: isSelected ? `${colors.primary}20` : inlineCurrent ? colors.primary : isCurrentTrack && !isSelecting ? `${colors.primary}15` : undefined,
+        // The floating band marks the current track in the default themes; inline themes fill the row.
+        backgroundColor: isSelected ? `${colors.primary}20` : inlineCurrent ? colors.primary : undefined,
         border: `var(--theme-control-border-width) solid ${isSelected ? colors.primary : 'var(--theme-list-item-border)'}`,
         borderBottom: 'none', borderRadius: 'var(--library-row-radius)',
         paddingTop: 'var(--theme-list-item-padding-y)', paddingBottom: 'var(--theme-list-item-padding-y)',
         boxShadow: inlineCurrent ? 'var(--theme-elevated-shadow)' : undefined,
         zIndex: inlineCurrent ? 20 : undefined,
       }}
+      data-current={isCurrentTrack && !isSelecting ? 'true' : undefined}
       className={`library-track-grid library-track-row grid gap-4 px-4 transition-colors items-center relative z-10 ${isDragged ? 'opacity-40 cursor-grabbing' : 'cursor-default'}`}
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -94,22 +99,25 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
               className="w-5 h-5 cursor-pointer" style={{ accentColor: colors.primary }} />
           </div>
         ) : (
-          <TrackCover trackId={track.id} filePath={track.filePath} fallbackUrl={track.coverUrl}
-            className="library-track-row__cover size-10 shrink-0 object-cover" style={{ borderRadius: 'var(--library-cover-radius)' }} />
+          <span className="library-track-row__art">
+            <TrackCover trackId={track.id} filePath={track.filePath} fallbackUrl={track.coverUrl}
+              className="library-track-row__cover size-10 shrink-0 object-cover" style={{ borderRadius: 'var(--library-cover-radius)' }} />
+            {isCurrentTrack && <NowPlayingBars animated={nowPlayingAnimated} />}
+          </span>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm truncate" style={{ color: inlineCurrent ? 'var(--theme-control-current-track-fg)' : colors.textPrimary, fontWeight: 'var(--theme-text-heading-weight)' }}>
+          <p className="library-track-row__title text-sm truncate" style={inlineCurrent ? { color: 'var(--theme-control-current-track-fg)' } : undefined}>
             {track.title}
             {isUnavailable && <span className="text-xs ml-2" style={{ color: '#facc15' }}>{t('library.needReimport')}</span>}
           </p>
-          <p className="text-xs truncate" style={{ color: colors.textSecondary }}>
-            {track.artist}
-            {track.album && <span className="library-track-album-inline">{track.artist ? ' · ' : ''}{track.album}</span>}
+          {/* Like Apple Music: the album rides on the artist line instead of taking a column. */}
+          <p className="library-track-row__subtitle text-xs truncate" style={inlineCurrent ? { color: 'var(--theme-control-current-track-fg)' } : undefined}>
+            {[track.artist, track.album].filter(Boolean).join(' — ')}
           </p>
         </div>
       </div>
-      <div className="library-track-album text-sm truncate pl-8" style={{ color: colors.textSecondary }}>{track.album}</div>
-      <div className="text-sm text-right tabular-nums" style={{ color: progress != null ? colors.primary : colors.textSecondary }}>
+      <div className="library-track-row__time text-sm text-right tabular-nums"
+        style={progress != null ? { color: colors.primary } : inlineCurrent ? { color: 'var(--theme-control-current-track-fg)' } : undefined}>
         {progress != null ? `${Math.round(progress)}%` : formatDuration(track.duration)}
       </div>
     </div>

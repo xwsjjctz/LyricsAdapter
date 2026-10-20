@@ -272,6 +272,7 @@ const AppShell: React.FC<AppShellProps> = ({
                   <LibraryView
                     tracks={shownTracks}
                     {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
+                    nowPlayingAnimated={player.isPlaying && !isFocusMode && windowVisible}
                     onTrackSelect={playShownTrack}
                     onRemoveTrack={library.removeTrack}
                     onRemoveMultipleTracks={library.removeTracks}

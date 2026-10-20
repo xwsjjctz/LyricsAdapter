@@ -27,8 +27,8 @@
   --theme-control-border-width: 1px;
   --theme-panel-border-width: 1px;
   --theme-list-item-border: transparent;
-  --theme-list-item-gap: 8px;
-  --theme-list-item-padding-y: 12px;
+  --theme-list-item-gap: 0px;
+  --theme-list-item-padding-y: 6px;
   --theme-surface-shadow: 0 18px 48px -28px rgba(0, 0, 0, 0.3);
   --theme-surface-shadow-hover: 0 22px 54px -30px rgba(0, 0, 0, 0.3);
   --theme-elevated-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.2);
@@ -292,12 +292,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
 }
 
 .library-track-grid {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
-}
-
-/* The album repeated after the artist; shown only once its column is hidden. */
-.library-track-album-inline {
-  display: none;
+  grid-template-columns: minmax(0, 1fr) 72px;
 }
 
 /* Album/artist rail rows: skip painting (and lazy-cover decoding) for rows
@@ -637,19 +632,6 @@ textarea.no-scrollbar::-webkit-scrollbar {
     flex: 1 1 auto;
     width: auto;
   }
-
-  /* Medium: the album column folds into the artist line instead of vanishing. */
-  .library-track-grid {
-    grid-template-columns: minmax(0, 1fr) 72px;
-  }
-
-  .library-track-album {
-    display: none;
-  }
-
-  .library-track-album-inline {
-    display: inline;
-  }
 }
 
 /* Narrow: two columns need no labels, and the spacing tightens. Rows keep
@@ -784,6 +766,83 @@ textarea:focus-visible {
 
 /* Song actions use the same visible menu for mouse and keyboard. */
 .library-track-row:hover { background-color: var(--theme-background-card-hover); }
+
+/* Song list text: titles at body weight (Apple Music style), the artist and
+   album line and the duration quieter. Inline (brutalist) themes keep their
+   heavy titles. */
+.library-view {
+  --library-title-weight: 500;
+  --library-current-band: color-mix(in srgb, var(--theme-control-current-track-band-tint) 10%, transparent);
+  --library-divider: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
+}
+.library-view[data-row-style='inline'] { --library-title-weight: var(--theme-text-heading-weight); }
+.library-track-header { color: var(--theme-text-muted); font-weight: 500; }
+.library-track-row__title { color: var(--theme-text-primary); font-weight: var(--library-title-weight); }
+.library-track-row__subtitle { color: var(--theme-text-secondary); }
+.library-track-row__time { color: var(--theme-text-muted); }
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__title { color: var(--theme-primary); }
+
+/* Default themes separate rows with a hairline from the text to the end, as
+   Apple Music does, instead of gaps; it gives way around the hovered and the
+   current row, whose own backgrounds already set them apart. */
+.library-view[data-row-style='floating'] .library-track-row::after {
+  content: '';
+  position: absolute;
+  left: calc(1rem + 2.5rem + 0.75rem);
+  right: 1rem;
+  bottom: 0;
+  height: 1px;
+  background: var(--library-divider);
+  pointer-events: none;
+}
+.library-view[data-row-style='floating'] .library-track-row:hover::after,
+.library-view[data-row-style='floating'] .library-track-row:has(+ .library-track-row:hover)::after,
+.library-view[data-row-style='floating'] .library-track-row[data-current]::after,
+.library-view[data-row-style='floating'] .library-track-row:has(+ .library-track-row[data-current])::after {
+  opacity: 0;
+}
+
+/* A grey hover, like Apple Music; the card-hover colour is white in light themes. */
+.library-view[data-row-style='floating'] .library-track-row:hover {
+  background-color: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
+}
+
+/* The current song's cover carries bars, moving while it plays. */
+.library-track-row__art {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+}
+.now-playing-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--library-cover-radius);
+  background: rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+}
+.now-playing-bars > span {
+  width: 3px;
+  height: 6px;
+  border-radius: 1px;
+  background: #fff;
+  transform-origin: bottom;
+}
+.now-playing-bars > span:nth-child(2) { height: 12px; }
+.now-playing-bars > span:nth-child(3) { height: 8px; }
+.now-playing-bars--animated > span { animation: now-playing-bar 0.9s ease-in-out infinite alternate; }
+.now-playing-bars--animated > span:nth-child(2) { animation-delay: -0.3s; }
+.now-playing-bars--animated > span:nth-child(3) { animation-delay: -0.6s; }
+@keyframes now-playing-bar {
+  from { transform: scaleY(0.35); }
+  to { transform: scaleY(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .now-playing-bars--animated > span { animation: none; }
+}
 .library-menu-item:hover, .library-menu-item:focus-visible {
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
