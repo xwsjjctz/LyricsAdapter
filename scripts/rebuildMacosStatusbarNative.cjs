@@ -42,7 +42,7 @@ const sourcePaths = [
   path.join(sourceRoot, 'src', 'focusGlass.mm'),
   path.join(sourceRoot, 'src', 'playerControlbar.mm'),
   path.join(sourceRoot, 'src', 'nativePalette.mm'),
-  path.join(sourceRoot, 'src', 'settingsGlass.mm'),
+  path.join(sourceRoot, 'src', 'nativeSettings.mm'),
   path.join(sourceRoot, 'src', 'playlistSwitcher.mm'),
 ];
 const electronVersion = require('electron/package.json').version;

@@ -469,34 +469,6 @@
   font-weight: var(--theme-text-heading-weight, 700);
 }
 
-/* The settings child renderer contributes controls only; AppKit draws its
-   Regular Liquid Glass backing with the command palette's 22px radius. */
-html[data-settings-panel='native'],
-html[data-settings-panel='native'] body,
-html[data-settings-panel='native'] #root {
-  background: transparent;
-}
-html[data-settings-panel='native'] .settings-sheet-backdrop {
-  position: static;
-  height: 100%;
-  padding: 0;
-  background: transparent;
-  backdrop-filter: none;
-  animation: none;
-}
-html[data-settings-panel='native'] .settings-sheet {
-  width: 100%;
-  /* The child window is already sized to the palette's frame. */
-  height: 100%;
-  max-height: 100%;
-  border: 0;
-  border-radius: 22px;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  animation: none;
-}
-
 @keyframes settings-sheet-fade {
   from { opacity: 0; }
   to { opacity: 1; }

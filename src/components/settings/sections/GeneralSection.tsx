@@ -35,10 +35,7 @@ function useAppUpdater(): UpdaterState | null {
 }
 
 /** Where online songs are saved. A preference, not a credential: it applies without a Save step. */
-function DownloadPathRow({ theme }: { theme: SettingsTheme }) {
-  const { t } = useTranslation();
-  const { colors, inputStyle, inputFocus, inputBlur } = theme;
-  const pathId = useId();
+export function useDownloadPath() {
   const [path, setPath] = useState('');
   useEffect(() => {
     let live = true;
@@ -53,6 +50,14 @@ function DownloadPathRow({ theme }: { theme: SettingsTheme }) {
     const result = await getDesktopAPI()?.selectDownloadFolder?.();
     if (result?.success && result.path) { setPath(result.path); store(result.path); }
   };
+  return { path, setPath, store, chooseFolder };
+}
+
+function DownloadPathRow({ theme }: { theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const { colors, inputStyle, inputFocus, inputBlur } = theme;
+  const pathId = useId();
+  const { path, setPath, store, chooseFolder } = useDownloadPath();
   return (
     <div className="settings-row settings-row--stacked" style={{ borderColor: colors.borderLight }}>
       <label htmlFor={pathId} className="settings-row__label" style={{ color: colors.textPrimary }}>{t('settingsDialog.savePath')}</label>
@@ -72,12 +77,10 @@ function DownloadPathRow({ theme }: { theme: SettingsTheme }) {
   );
 }
 
-/** Language, download folder, version information and installed-app updates. */
-export default function GeneralSection({ theme }: GeneralSectionProps) {
-  const { t, i18n } = useTranslation();
-  const { colors } = theme;
+/** Version information and installed-app updates, shared by the web and native sheets. */
+export function useGeneralSettings() {
+  const { t } = useTranslation();
   const [appVersion, setAppVersion] = useState('');
-  const languageId = useId();
   const updater = useAppUpdater();
   const canUpdate = updater !== null && updater.status !== 'unavailable';
   const updateBusy = updater?.status === 'checking' || updater?.status === 'available' || updater?.status === 'downloading';
@@ -107,6 +110,16 @@ export default function GeneralSection({ theme }: GeneralSectionProps) {
       .then(setAppVersion)
       .catch(error => logger.error('[Settings] getAppVersion failed:', error));
   }, []);
+
+  return { appVersion, updater, canUpdate, updateBusy, updateStatus, checkForUpdates, restartToUpdate };
+}
+
+/** Language, download folder, version information and installed-app updates. */
+export default function GeneralSection({ theme }: GeneralSectionProps) {
+  const { t, i18n } = useTranslation();
+  const { colors } = theme;
+  const languageId = useId();
+  const { appVersion, updater, canUpdate, updateBusy, updateStatus, checkForUpdates, restartToUpdate } = useGeneralSettings();
 
   return (
     <div className="settings-card r-card border" style={{ backgroundColor: colors.backgroundCard, borderColor: colors.borderLight }}>

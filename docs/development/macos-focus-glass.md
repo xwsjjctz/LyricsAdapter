@@ -39,6 +39,30 @@ and missing/outdated native bridges retain the existing web controls.
   the current pointer position after playback updates. Spurious tracking exits
   cannot replace controls with lyrics while the pointer remains inside.
 
+## Settings sheet
+
+On macOS 26+ (Darwin 25+) settings open as an AppKit sheet inside the player window,
+on the same Regular `NSGlassEffectView`, 22 pt radius and frame as the native Cmd+K
+palette (640 pt wide, 14% from the top, at most 560 pt or 72% tall). Windows, Linux,
+older macOS, `LYRICS_ADAPTER_DISABLE_NATIVE_GLASS=1` and native start/update failures
+keep the web `SettingsView`.
+
+- `src/components/settings/native/NativeSettings.tsx` reuses the web sheet's hooks
+  (`useGeneralSettings`, `useMusicPluginManager`, `useShortcutEditor`, …), so values,
+  drafts and saving stay in React. `nativeSettingsModel.ts` turns them into a
+  snapshot of sections, blocks, rows and controls; `NativePluginCard.tsx` reports each
+  plugin card's rows. The page keeps only the dimming backdrop.
+- `electron/ipc/nativeSettingsHandlers.ts` validates every snapshot (size limits,
+  `https:` links, PNG data images) and binds the sheet to one main frame.
+  `native/macos-statusbar-native/src/nativeSettings.mm` renders it and returns
+  intents only (button, switch, popup, slider, field, shortcut recording, dialog,
+  close, visible section) on `native-settings-action`. Keys outside text fields and
+  Cmd chords that no menu item takes are forwarded to the player's shortcuts.
+- Closing hides the sheet and keeps its views; a reload or a destroyed window removes
+  them. About four seconds after startup `NativeSettingsPrewarm` builds the hidden
+  sheet once (a few MB in the main process, no second renderer), so opening settings
+  is a snapshot update of about 10 ms.
+
 
 ## Color decisions
 
@@ -86,7 +110,7 @@ References: [Apple Color guidance](https://developer.apple.com/design/human-inte
 ```bash
 npm run native:rebuild:macos-statusbar
 npm run check
-npm run test:e2e:run -- electron.focus-glass.spec.ts electron.focus-memory.spec.ts
+npm run test:e2e:run -- electron.focus-glass.spec.ts electron.focus-memory.spec.ts electron.settings-glass.spec.ts
 ```
 
 The native E2E requires macOS 26 and the native build's Electron headers. It compiles

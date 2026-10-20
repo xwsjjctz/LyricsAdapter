@@ -10,42 +10,62 @@ interface ShortcutsSettingsProps {
   layout?: 'single' | 'two-column';
 }
 
-const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-column' }) => {
-  const { t } = useTranslation();
+/** The parts of a key press that make a binding; a DOM keyboard event or one forwarded by AppKit. */
+export interface RecordedKey {
+  key: string;
+  code: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+}
+
+function formatShortcutKey(event: RecordedKey): string {
+  const parts: string[] = [];
+
+  if (event.ctrlKey || event.metaKey) parts.push('CmdOrCtrl');
+  if (event.altKey) parts.push('Alt');
+  if (event.shiftKey) parts.push('Shift');
+
+  // Handle special keys
+  let key = event.key;
+  if (event.code === 'Backquote') key = 'Backquote';
+  if (key === ' ') key = 'Space';
+  if (key === 'ArrowLeft') key = 'Left';
+  if (key === 'ArrowRight') key = 'Right';
+  if (key === 'ArrowUp') key = 'Up';
+  if (key === 'ArrowDown') key = 'Down';
+  if (key === ',') key = ',';
+
+  // Only add the key if it's not a modifier
+  if (!['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
+    parts.push(key);
+  }
+
+  return parts.join('+');
+}
+
+/**
+ * Shortcut bindings and the recording of a new one, shared by the web and native sheets.
+ * `onFinish` runs when a key ends the recording (not when the recorder merely loses focus).
+ */
+export function useShortcutEditor(onFinish?: (action: ShortcutAction) => void) {
   // Read on the first render, so the list does not appear a moment later and move the settings list.
   const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, ShortcutConfig>>(() => shortcutManager.getAllShortcuts());
   const [editingAction, setEditingAction] = useState<ShortcutAction | null>(null);
   // The recorded key and the action that already uses it, waiting for Replace or a second press.
   const [conflict, setConflict] = useState<{ action: ShortcutAction; key: string } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
-  const inputRef = useRef<HTMLInputElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
-  // Set when the keyboard ends a recording: the recorder unmounts, and without
-  // this focus would drop to the page body, where Escape no longer closes settings.
-  const restoreFocusTo = useRef<ShortcutAction | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = themeManager.subscribe(() => {
-      setCurrentTheme(themeManager.getCurrentTheme());
-    });
-    return unsubscribe;
-  }, []);
-
-  const colors = currentTheme.colors;
-
-  useEffect(() => {
-    if (editingAction && inputRef.current) {
-      inputRef.current.focus();
-      return;
-    }
-    const action = restoreFocusTo.current;
-    restoreFocusTo.current = null;
-    if (action) sectionRef.current?.querySelector<HTMLElement>(`[data-shortcut-edit="${action}"]`)?.focus();
-  }, [editingAction]);
+  const finishRef = useRef(onFinish);
+  finishRef.current = onFinish;
 
   const finishRecording = useCallback((action: ShortcutAction) => {
-    restoreFocusTo.current = action;
+    finishRef.current?.(action);
+    setEditingAction(null);
+    setConflict(null);
+  }, []);
+
+  const cancelRecording = useCallback(() => {
     setEditingAction(null);
     setConflict(null);
   }, []);
@@ -56,35 +76,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
     finishRecording(action);
   }, [finishRecording]);
 
-  const formatKey = useCallback((event: React.KeyboardEvent): string => {
-    const parts: string[] = [];
-
-    if (event.ctrlKey || event.metaKey) parts.push('CmdOrCtrl');
-    if (event.altKey) parts.push('Alt');
-    if (event.shiftKey) parts.push('Shift');
-
-    // Handle special keys
-    let key = event.key;
-    if (event.code === 'Backquote') key = 'Backquote';
-    if (key === ' ') key = 'Space';
-    if (key === 'ArrowLeft') key = 'Left';
-    if (key === 'ArrowRight') key = 'Right';
-    if (key === 'ArrowUp') key = 'Up';
-    if (key === 'ArrowDown') key = 'Down';
-    if (key === ',') key = ',';
-
-    // Only add the key if it's not a modifier
-    if (!['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
-      parts.push(key);
-    }
-
-    return parts.join('+');
-  }, []);
-
-  const handleKeyDown = useCallback((event: React.KeyboardEvent, action: ShortcutAction) => {
-    event.preventDefault();
-    event.stopPropagation();
-
+  const handleKey = useCallback((action: ShortcutAction, event: RecordedKey) => {
     // Escape cancels editing
     if (event.key === 'Escape') {
       finishRecording(action);
@@ -103,7 +95,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
     // Option or Shift is pressed; only the actual key completes the binding.
     if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return;
 
-    const newKey = formatKey(event);
+    const newKey = formatShortcutKey(event);
 
     // Check if it's a valid shortcut (needs at least a key)
     if (!newKey || newKey === 'CmdOrCtrl' || newKey === 'Alt' || newKey === 'Shift') {
@@ -127,7 +119,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
       setShortcuts(shortcutManager.getAllShortcuts());
       finishRecording(action);
     }
-  }, [conflict, finishRecording, formatKey, replace]);
+  }, [conflict, finishRecording, replace]);
 
   const handleReset = useCallback((action: ShortcutAction) => {
     shortcutManager.resetToDefault(action);
@@ -148,6 +140,50 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
     return (Object.entries(shortcuts) as [ShortcutAction, ShortcutConfig][])
       .filter(([action, config]) => config && action !== 'gotoBrowse' && action !== 'gotoMetadata');
   }, [shortcuts]);
+
+  return {
+    shortcuts, allShortcuts, editingAction, setEditingAction, cancelRecording, conflict, replace, handleKey,
+    handleReset, handleResetAll, showResetConfirm, setShowResetConfirm, displayKey,
+  };
+}
+
+const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-column' }) => {
+  const { t } = useTranslation();
+  const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(themeManager.getCurrentTheme());
+  const inputRef = useRef<HTMLInputElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  // Set when the keyboard ends a recording: the recorder unmounts, and without
+  // this focus would drop to the page body, where Escape no longer closes settings.
+  const restoreFocusTo = useRef<ShortcutAction | null>(null);
+  const {
+    shortcuts, allShortcuts, editingAction, setEditingAction, cancelRecording, conflict, replace, handleKey,
+    handleReset, handleResetAll, showResetConfirm, setShowResetConfirm, displayKey,
+  } = useShortcutEditor(action => { restoreFocusTo.current = action; });
+
+  useEffect(() => {
+    const unsubscribe = themeManager.subscribe(() => {
+      setCurrentTheme(themeManager.getCurrentTheme());
+    });
+    return unsubscribe;
+  }, []);
+
+  const colors = currentTheme.colors;
+
+  useEffect(() => {
+    if (editingAction && inputRef.current) {
+      inputRef.current.focus();
+      return;
+    }
+    const action = restoreFocusTo.current;
+    restoreFocusTo.current = null;
+    if (action) sectionRef.current?.querySelector<HTMLElement>(`[data-shortcut-edit="${action}"]`)?.focus();
+  }, [editingAction]);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent, action: ShortcutAction) => {
+    event.preventDefault();
+    event.stopPropagation();
+    handleKey(action, event);
+  }, [handleKey]);
 
   if (Object.keys(shortcuts).length === 0) {
     return null;
@@ -174,10 +210,7 @@ const ShortcutsSettings: React.FC<ShortcutsSettingsProps> = ({ layout = 'two-col
               style={{ backgroundColor: `${colors.primary}20`, border: `1px solid ${colors.primary}50`, color: colors.primary }}
               placeholder={t('settings.shortcuts.pressKey')}
               onKeyDown={(e) => handleKeyDown(e, action)}
-              onBlur={() => {
-                setEditingAction(null);
-                setConflict(null);
-              }}
+              onBlur={cancelRecording}
             />
           </div>
         ) : (

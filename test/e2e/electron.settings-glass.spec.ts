@@ -11,7 +11,12 @@ const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
 
-test('macOS settings use palette Liquid Glass and preserve settings, placement and dismissal', async ({}, testInfo) => {
+interface NativeItem {
+  id: string; class: string; hidden: boolean; x: number; y: number; width: number; height: number;
+  label: string; appearance: string; material: number | null; radius: number | null; selected: boolean;
+}
+
+test('macOS settings are an AppKit sheet on the palette Liquid Glass that edits settings, follows the window and dismisses', async ({}, testInfo) => {
   test.skip(process.platform !== 'darwin' || Number(os.release().split('.')[0]) < 25, 'Requires macOS 26');
   test.setTimeout(90000);
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-settings-glass-')));
@@ -41,80 +46,98 @@ test('macOS settings use palette Liquid Glass and preserve settings, placement a
       const parent = BrowserWindow.getAllWindows().find(win => !win.getParentWindow())!;
       Menu.getApplicationMenu()!.getMenuItemById(action)!.click({}, parent);
     }, id);
-    const probe = async (settings = false): Promise<{ windowNumber: number; items: { id: string; class: string; appearance: string; material: number | null; radius: number | null }[] }> =>
+    // Without an id it reports the views; with one it activates that control (a value sets a slider or picks a menu item).
+    const probe = async (id?: string, value?: number): Promise<{ windowNumber: number; items: NativeItem[] }> =>
       JSON.parse(await app!.evaluate(({ BrowserWindow }, args) => {
         const { createRequire } = process.getBuiltinModule('module');
-        const native = createRequire(args.file)(args.file) as { probe: (handle: Buffer) => string };
-        const win = BrowserWindow.getAllWindows().find(window => Boolean(window.getParentWindow()) === args.settings)!;
-        return native.probe(win.getNativeWindowHandle());
-      }, { file: probePath, settings }));
-    // The panel is prewarmed and reused: closing hides it instead of destroying the window.
-    const panelVisible = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(win => win.getParentWindow() && win.isVisible()));
+        const native = createRequire(args.file)(args.file) as { probe: (handle: Buffer, id?: string, value?: number) => string };
+        const handle = BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.getNativeWindowHandle();
+        return args.id ? (args.value === undefined ? native.probe(handle, args.id) : native.probe(handle, args.id, args.value)) : native.probe(handle);
+      }, { file: probePath, id, value }));
+    const item = async (id: string) => (await probe()).items.find(entry => entry.id === id);
+    const sheetVisible = async () => (await item('native-settings-glass'))?.hidden === false;
+    const selected = async (section: string) => (await item(`native-settings-nav-${section}`))?.selected;
+    const windowCount = () => app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length);
+    const setting = (key: string) => page.evaluate(async name => {
+      const result = await (window as unknown as { electron: { ipc: { settings: { getAll: () => Promise<{ ok: boolean; data?: Record<string, string> }> } } } }).electron.ipc.settings.getAll();
+      return result.data?.[name];
+    }, key);
+
+    // The sheet is built hidden once startup settles, inside the player window: no second renderer.
+    await expect.poll(async () => (await item('native-settings-glass'))?.hidden, { timeout: 15000 }).toBe(true);
+    expect(await windowCount()).toBe(1);
+
     await choose('menu-toggleCommandPalette');
     await expect(page.locator('.command-palette-backdrop')).toBeVisible();
-    await expect.poll(async () => (await probe()).items.find(item => item.id === 'native-palette-glass')?.material).toBe(0);
-    const palette = (await probe()).items.find(item => item.id === 'native-palette-glass')!;
+    await expect.poll(async () => (await item('native-palette-glass'))?.material).toBe(0);
+    const palette = (await item('native-palette-glass'))!;
     await choose('menu-toggleCommandPalette');
     await choose('menu-gotoSettings');
-    await expect.poll(() => app!.windows().some(window => window.url().includes('settings-panel='))).toBe(true);
-    let settings = app.windows().find(window => window.url().includes('settings-panel='))!;
-    settings.on('pageerror', error => errors.push(error.message));
-    await expect(settings.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible();
-    await expect(settings.locator('html')).toHaveAttribute('data-settings-panel', 'native');
+    await expect.poll(sheetVisible).toBe(true);
+    // AppKit draws the sheet; the page only dims the wall behind it.
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.locator('.settings-sheet-backdrop').evaluate(node => getComputedStyle(node).backdropFilter)).toBe('none');
     expect(await page.locator('.settings-sheet-backdrop').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0.18)');
-    const glass = (await probe(true)).items.find(item => item.id === 'settings-sheet-glass')!;
+    const glass = (await item('native-settings-glass'))!;
+    expect(glass.class).toBe('NSGlassEffectView');
     expect(glass.material).toBe(palette.material); expect(glass.radius).toBe(palette.radius);
     expect(glass.appearance).toBe(palette.appearance);
-    expect(await settings.locator('.settings-sheet').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    await expect.poll(() => selected('general')).toBe(true);
     const screenshot = testInfo.outputPath('settings-native-glass.png');
-    await run('screencapture', ['-x', '-l', String((await probe(true)).windowNumber), screenshot]);
+    await run('screencapture', ['-x', '-l', String((await probe()).windowNumber), screenshot]);
     await testInfo.attach('settings-native-glass', { path: screenshot, contentType: 'image/png' });
-    await settings.getByLabel('Language', { exact: true }).selectOption('zh');
-    await expect(settings.getByRole('dialog', { name: '设置', exact: true })).toBeVisible();
-    // The empty library's welcome page follows the language chosen in the child.
+
+    // The first language in the menu is 中文; the sheet and the welcome page follow it.
+    await probe('native-settings-general:language', 0);
+    await expect.poll(async () => (await item('native-settings-nav-general'))?.label).toBe('通用');
+    await expect.poll(async () => (await item('native-settings-close'))?.label).toBe('关闭');
     await expect(page.getByText('从你的音乐开始', { exact: true })).toBeVisible();
-    // A preference edited in the child applies to the player immediately.
-    await settings.getByRole('link', { name: '实验性', exact: true }).click();
-    const slider = settings.getByRole('slider', { name: 'Focus Mode 滚动歌词字号' });
-    await slider.fill('36');
-    await expect.poll(() => page.evaluate(async () => {
-      const result = await (window as unknown as { electron: { ipc: { settings: { getAll: () => Promise<{ ok: boolean; data?: Record<string, string> }> } } } }).electron.ipc.settings.getAll();
-      return result.data?.['la_focus_lyrics_font_size'];
-    })).toBe('36');
-    const bounds = () => app!.evaluate(({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows().find(win => win.getParentWindow())!;
-      return { child: child.getBounds(), parent: child.getParentWindow()!.getContentBounds() };
-    });
+    // A preference edited in the sheet applies to the player immediately.
+    await probe('native-settings-nav-focus');
+    await expect.poll(() => selected('focus')).toBe(true);
+    await probe('native-settings-focus:font-size', 36);
+    await expect.poll(() => setting('la_focus_lyrics_font_size')).toBe('36');
+
+    // Placed like the palette: 640 wide, 14% from the top, at most 560 tall or 72% of the window.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => !win.getParentWindow())!.setSize(900, 650));
-    await expect.poll(async () => { const { child, parent } = await bounds(); return child.x - parent.x; }).toBe(130);
-    const resized = await bounds(); expect(resized.child.y - resized.parent.y).toBe(Math.floor(resized.parent.height * 0.14));
-    expect(resized.child.height).toBeLessThanOrEqual(Math.min(560, Math.floor(resized.parent.height * 0.72)));
-    await settings.keyboard.press('Escape').catch(error => { if (!settings.isClosed()) throw error; });
-    await expect.poll(panelVisible).toBe(false);
+    const frame = async () => {
+      const { items } = await probe();
+      const host = items.find(entry => entry.id === 'native-settings-host')!;
+      const panel = items.find(entry => entry.id === 'native-settings-glass')!;
+      return { host, panel, left: panel.x - host.x, top: host.y + host.height - panel.y - panel.height };
+    };
+    await expect.poll(async () => (await frame()).host.width).toBe(900);
+    const resized = await frame();
+    expect(resized.panel.width).toBe(640); expect(resized.left).toBe(130);
+    expect(resized.top).toBe(Math.floor(resized.host.height * 0.14));
+    expect(resized.panel.height).toBe(Math.min(560, Math.floor(resized.host.height * 0.72)));
+
+    await probe('@key:53');
+    await expect.poll(sheetVisible).toBe(false);
     await expect(page.locator('.settings-sheet-backdrop')).toHaveCount(0);
-    // Reopening starts at the requested tab and can close from either surface.
+    // Reopening starts at the requested section and can close from either surface.
     await choose('menu-showShortcuts');
-    await expect.poll(panelVisible).toBe(true);
-    settings = app.windows().find(window => window.url().includes('settings-panel='))!;
-    await expect(settings.getByRole('link', { name: '快捷键', exact: true })).toHaveAttribute('aria-current', 'location');
-    await settings.getByRole('button', { name: '关闭', exact: true }).click().catch(error => { if (!settings.isClosed()) throw error; });
-    await expect.poll(panelVisible).toBe(false);
+    await expect.poll(sheetVisible).toBe(true);
+    await expect.poll(() => selected('shortcuts')).toBe(true);
+    await probe('native-settings-close');
+    await expect.poll(sheetVisible).toBe(false);
     await choose('menu-gotoSettings');
-    await expect.poll(panelVisible).toBe(true);
+    await expect.poll(sheetVisible).toBe(true);
+    await expect.poll(() => selected('general')).toBe(true);
     await page.locator('.settings-sheet-backdrop').click({ position: { x: 10, y: 10 } });
-    await expect.poll(panelVisible).toBe(false);
+    await expect.poll(sheetVisible).toBe(false);
+    // A section requested while the sheet is open scrolls to it.
     await choose('menu-gotoSettings');
-    await expect.poll(panelVisible).toBe(true);
-    settings = app.windows().find(window => window.url().includes('settings-panel='))!;
-    await expect(settings.getByRole('dialog', { name: '设置', exact: true })).toBeVisible();
+    await expect.poll(sheetVisible).toBe(true);
     await choose('menu-showShortcuts');
-    await expect(settings.getByRole('link', { name: '快捷键', exact: true })).toHaveAttribute('aria-current', 'location');
-    expect(await panelVisible()).toBe(true);
-    await settings.keyboard.press('Meta+K').catch(error => { if (!settings.isClosed()) throw error; });
-    await expect.poll(panelVisible).toBe(false);
+    await expect.poll(() => selected('shortcuts')).toBe(true);
+    expect(await sheetVisible()).toBe(true);
+    // Cmd+K reaches the player from the sheet, which gives way to the palette.
+    await probe('@key:40:1');
+    await expect.poll(sheetVisible).toBe(false);
     await expect(page.locator('.command-palette-backdrop')).toBeVisible();
     await choose('menu-toggleCommandPalette');
+    expect(await windowCount()).toBe(1);
     expect(errors).toEqual([]);
   } finally { await app?.close(); await rm(root, { recursive: true, force: true }); }
 });

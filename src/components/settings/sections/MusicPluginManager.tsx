@@ -17,8 +17,13 @@ interface Failure {
   message: string;
 }
 
-/** One page: installed plugins first, then the official ones still to install. */
-export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) {
+export const PLUGIN_REPOSITORY_URL = 'https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins';
+
+/**
+ * Plugin management shared by the web and native sheets. `seen` says the section has been
+ * scrolled into view: the official catalog is a network request, fetched only from then on.
+ */
+export function useMusicPluginManager(seen: boolean) {
   const { t } = useTranslation();
   const { plugins, error: loadError } = useMusicPlugins();
   const { updates, error: updateError, setUpdates } = usePluginUpdates();
@@ -36,19 +41,6 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
   const describe = (reason: unknown) => /net::ERR_|TimeoutError|fetch failed/.test(String(reason)) ? t('musicPlugins.networkError') : String(reason);
   const errorFor = (...keys: string[]) => failure && keys.includes(failure.key) ? failure.message : undefined;
   const notInstalled = catalog.filter(item => !plugins.some(plugin => plugin.id === item.id));
-  const rootRef = useRef<HTMLDivElement>(null);
-  // Settings is one scrolling list, so this mounts whenever it opens. The official catalog
-  // is a network request: fetch it only once the section has been scrolled into view.
-  const [seen, setSeen] = useState(typeof IntersectionObserver === 'undefined');
-  useEffect(() => {
-    const root = rootRef.current;
-    if (seen || !root) return;
-    const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) setSeen(true);
-    });
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [seen]);
 
   useEffect(() => {
     let mounted = true;
@@ -88,9 +80,37 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
     if (!uninstalling) return;
     if (await change(uninstallKey, () => api!.musicPluginUninstall!(uninstalling.id))) setUninstalling(null);
   };
-  const { colors } = theme;
   const installError = errorFor('install');
   const openDirectoryError = errorFor('directory') ?? directoryError;
+  return {
+    api, plugins, loadError, updates, updateError, setUpdates, notInstalled, directory, busy, setFailure, errorFor,
+    loadingCatalog, catalogError, setReload, uninstalling, setUninstalling, uninstallKey, change, confirmUninstall,
+    installError, openDirectoryError,
+  };
+}
+
+/** One page: installed plugins first, then the official ones still to install. */
+export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Settings is one scrolling list, so this mounts whenever it opens. The official catalog
+  // is a network request: fetch it only once the section has been scrolled into view.
+  const [seen, setSeen] = useState(typeof IntersectionObserver === 'undefined');
+  useEffect(() => {
+    const root = rootRef.current;
+    if (seen || !root) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) setSeen(true);
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [seen]);
+  const {
+    api, plugins, loadError, updates, updateError, setUpdates, notInstalled, directory, busy, setFailure, errorFor,
+    loadingCatalog, catalogError, setReload, uninstalling, setUninstalling, uninstallKey, change, confirmUninstall,
+    installError, openDirectoryError,
+  } = useMusicPluginManager(seen);
+  const { colors } = theme;
   return (
     <div ref={rootRef} className="space-y-6" data-testid="music-plugin-manager">
       <div className="space-y-2">
@@ -120,7 +140,7 @@ export default function MusicPluginManager({ theme }: { theme: SettingsTheme }) 
         <p className="break-all select-text" data-testid="plugin-directory">{directory || t('musicPlugins.desktopOnly')}</p>
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" disabled={!!busy || !directory} onClick={() => void change('directory', () => api!.musicPluginOpenDirectory!())}>{t('musicPlugins.openDirectory')}</Button>
-          <a href="https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins" target="_blank" rel="noreferrer" className="underline" style={{ color: colors.primary }}>{t('musicPlugins.repository')}</a>
+          <a href={PLUGIN_REPOSITORY_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: colors.primary }}>{t('musicPlugins.repository')}</a>
         </div>
         {openDirectoryError && <SettingsMessage tone="error">{openDirectoryError}</SettingsMessage>}
       </section>

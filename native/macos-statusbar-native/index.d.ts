@@ -74,5 +74,12 @@ export function updatePlaylistSwitcher(state: {
 }): void;
 export function setPlaylistSwitcherCover(url: string, data: Buffer): void;
 export function stopPlaylistSwitcher(): void;
-/** Attaches or updates the native settings backing; defaults to dark. */
-export function attachSettingsGlass(handle: Buffer, darkMode?: boolean): boolean;
+/** Main-thread-only macOS 26 settings sheet; the snapshot shape is src/types/nativeSettings.ts. */
+export function startNativeSettings(handle: Buffer, onAction: (action: {
+  type: string; id: string; value: number; text: string; code: string;
+}) => void): boolean;
+export function updateNativeSettings(state: object): void;
+/** Hides the sheet and keeps its views for the next start. */
+export function stopNativeSettings(): void;
+/** Removes the sheet, e.g. when its page reloads. */
+export function destroyNativeSettings(): void;

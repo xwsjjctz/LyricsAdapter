@@ -12,8 +12,8 @@ interface Props {
   onUpdate(): void;
   onSetSource(source: PluginUpdateSource | null): void;
 }
-export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSetSource }: Props) {
-  const { t } = useTranslation();
+/** The update-source draft of one plugin; `save` hands the parsed source to `onSetSource`. */
+export function usePluginUpdateSource(info: PluginUpdateInfo, onSetSource: (source: PluginUpdateSource | null) => void) {
   const [kind, setKind] = useState<PluginUpdateSource['kind'] | 'none'>(info.source?.kind ?? 'none');
   const [value, setValue] = useState('');
   const [channel, setChannel] = useState<PluginUpdateChannel>('stable');
@@ -28,6 +28,12 @@ export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSe
     onSetSource(kind === 'none' ? null : kind === 'official' ? { kind, channel: 'stable' }
       : kind === 'github' ? { kind, repository: input, channel } : { kind, url: value.trim(), channel });
   };
+  return { kind, setKind, value, setValue, channel, setChannel, save };
+}
+
+export default function PluginUpdateControls({ info, theme, busy, onUpdate, onSetSource }: Props) {
+  const { t } = useTranslation();
+  const { kind, setKind, value, setValue, channel, setChannel, save } = usePluginUpdateSource(info, onSetSource);
   return <div className="w-full text-xs space-y-2" data-testid={`plugin-update-${info.id}`} style={{ color: theme.colors.textSecondary }}>
     <div className="flex flex-wrap items-center gap-3">
       <p role="status">{info.status === 'available' ? t('pluginUpdates.available', { current: info.currentVersion, next: info.targetVersion }) : t(`pluginUpdates.${info.status}`)}</p>

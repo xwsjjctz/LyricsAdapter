@@ -14,7 +14,7 @@ import type { SettingsSectionId } from '../../types/settingsPanel';
 export type { SettingsSectionId } from '../../types/settingsPanel';
 
 /** `navKey` labels the short link in the bar; `titleKey` heads the section in the list. */
-const SECTIONS: { id: SettingsSectionId; icon: string; navKey: string; titleKey: string }[] = [
+export const SETTINGS_SECTIONS: { id: SettingsSectionId; icon: string; navKey: string; titleKey: string }[] = [
   { id: 'general', icon: 'tune', navKey: 'settings.nav.general', titleKey: 'settings.nav.general' },
   { id: 'plugins', icon: 'extension', navKey: 'settings.nav.plugins', titleKey: 'settings.nav.plugins' },
   { id: 'cloud', icon: 'cloud', navKey: 'settings.nav.cloudShort', titleKey: 'settings.nav.cloud' },
@@ -22,7 +22,7 @@ const SECTIONS: { id: SettingsSectionId; icon: string; navKey: string; titleKey:
   { id: 'focus', icon: 'science', navKey: 'settings.nav.experimentalShort', titleKey: 'settings.nav.experimental' },
   { id: 'shortcuts', icon: 'keyboard', navKey: 'settings.nav.shortcutsShort', titleKey: 'settings.shortcuts.title' },
 ];
-const SECTION_IDS = SECTIONS.map(entry => entry.id);
+const SECTION_IDS = SETTINGS_SECTIONS.map(entry => entry.id);
 
 interface SettingsViewProps {
   initialSection?: SettingsSectionId | undefined;
@@ -99,7 +99,7 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
         <header className="settings-sheet__header">
           <h1 className="settings-sheet__title">{t('settings.title')}</h1>
           <nav aria-label={t('settings.title')} className="settings-sheet__tabs no-scrollbar">
-            {SECTIONS.map(entry => (
+            {SETTINGS_SECTIONS.map(entry => (
               <a
                 key={entry.id}
                 href={`#settings-section-${entry.id}`}
@@ -119,7 +119,7 @@ export default function SettingsView({ initialSection = 'general', onClose, useP
         </header>
 
         <div ref={contentRef} className="settings-sheet__content no-scrollbar">
-          {SECTIONS.map(entry => (
+          {SETTINGS_SECTIONS.map(entry => (
             <section key={entry.id} id={`settings-section-${entry.id}`} data-settings-section={entry.id}
               aria-labelledby={`settings-heading-${entry.id}`} className="settings-section">
               <h2 id={`settings-heading-${entry.id}`} className="settings-section__title">{t(entry.titleKey)}</h2>

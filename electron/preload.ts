@@ -61,20 +61,11 @@ const downloadProgress = keyedListener<'download-progress', (progress: DownloadP
 const updaterEvents = keyedListener<'updater-event', (state: UpdaterState) => void>('updater-event');
 
 const typedIpc = {
-  settingsPanel: {
-    open: invoker('ipc:settingsPanel:open'),
-    close: invoker('ipc:settingsPanel:close'),
-    prewarm: invoker('ipc:settingsPanel:prewarm'),
-    ready: async (height: number, darkMode?: boolean) => invoke('ipc:settingsPanel:ready',
-      darkMode === undefined ? height : { height, darkMode }),
-    previewOpacity: invoker('ipc:settingsPanel:previewOpacity'),
-    forwardShortcut: async (key: string, modifiers: number) => invoke('ipc:settingsPanel:shortcut', { key, modifiers }),
-    previewWelcome: invoker('ipc:settingsPanel:previewWelcome'),
-    onSection: callback => listen('settings-panel-section', callback),
-    onShortcut: callback => listen('settings-panel-shortcut', callback),
-    onPreviewOpacity: callback => listen('settings-panel-preview-opacity', callback),
-    onClosed: callback => listen('settings-panel-closed', callback),
-    onPreviewWelcome: callback => listen('settings-panel-preview-welcome', callback),
+  nativeSettings: {
+    start: invoker('ipc:nativeSettings:start'),
+    update: invoker('ipc:nativeSettings:update'),
+    stop: invoker('ipc:nativeSettings:stop'),
+    onAction: callback => listen('native-settings-action', callback),
   },
   applicationMenu: {
     onAction: callback => listen('application-menu-action', callback),

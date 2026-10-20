@@ -2,9 +2,21 @@ import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { OnlineSource } from '@/services/settingsManager';
 import type { SettingsTheme } from '../shared';
-import { useSourceLogin } from '../hooks/useSourceLogin';
+import { useSourceLogin, type SourceLogin } from '../hooks/useSourceLogin';
 import Button from '../../ui/Button';
 import SettingsMessage from '../SettingsMessage';
+
+/** Signed in, unless a new QR session is being scanned. */
+export const qrSignedIn = (state: SourceLogin) => state.signedIn && !state.qrScanning;
+
+/** The QR login line under the title, from loading to signed in. */
+export function qrStatusText(state: SourceLogin, t: (key: string) => string): string {
+  return qrSignedIn(state) ? t('settingsDialog.qrLoggedIn')
+    : state.qrState === 'loading' ? t('settingsDialog.qrLoading')
+      : state.qrImage ? (state.qrMsg || t('settingsDialog.qrWaiting'))
+        : state.qrState === 'expired' ? t('settingsDialog.qrExpired')
+          : (state.qrMsg || t('settingsDialog.qrError'));
+}
 
 /**
  * A music source's sign-in inside its plugin card: QR login for the sources that support
@@ -15,12 +27,8 @@ export default function SourceLoginSection({ source, theme }: { source: OnlineSo
   const { colors, inputStyle, inputFocus, inputBlur } = theme;
   const state = useSourceLogin(source);
   const cookieId = useId();
-  const signedIn = state.signedIn && !state.qrScanning;
-  const qrStatus = signedIn ? t('settingsDialog.qrLoggedIn')
-    : state.qrState === 'loading' ? t('settingsDialog.qrLoading')
-      : state.qrImage ? (state.qrMsg || t('settingsDialog.qrWaiting'))
-        : state.qrState === 'expired' ? t('settingsDialog.qrExpired')
-          : (state.qrMsg || t('settingsDialog.qrError'));
+  const signedIn = qrSignedIn(state);
+  const qrStatus = qrStatusText(state, t);
 
   return (
     <div className="space-y-3 text-xs" style={{ color: colors.textPrimary }}>

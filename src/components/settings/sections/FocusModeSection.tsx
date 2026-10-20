@@ -49,10 +49,14 @@ function RangeRow({ theme, label, value, min, max, step, display, onChange }: Ra
   );
 }
 
-/** Focus mode appearance: backdrop and scrolling lyrics. Shown under Experimental features. */
-export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
-  const { t } = useTranslation();
-  const { colors } = theme;
+/** Previews the backdrop opacity on Focus Mode while the slider moves. */
+function previewBackdropOpacity(value: number): void {
+  const preview = (window as unknown as { bg_blur_trans?: (value: number) => void }).bg_blur_trans;
+  if (typeof preview === 'function') preview(value);
+}
+
+/** Focus Mode settings shared by the web and native sheets; the opacity persists once it settles. */
+export function useFocusModeSettings() {
   const storedOpacity = useSettingValue(readBgBlurTrans);
   const blurRadius = useSettingValue(readBlurRadius);
   const amllBackground = useSettingValue(readAmllBackground);
@@ -69,6 +73,19 @@ export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
     const timer = setTimeout(() => { void settingsManager.setBgBlurTrans(opacity); }, BG_OPACITY_PERSIST_DELAY_MS);
     return () => clearTimeout(timer);
   }, [opacity, storedOpacity]);
+  const changeOpacity = (value: number) => {
+    setOpacity(value);
+    previewBackdropOpacity(value);
+  };
+
+  return { opacity, changeOpacity, blurRadius, amllBackground, fontSize, lineSpacing, enhancedFont, isWindows };
+}
+
+/** Focus mode appearance: backdrop and scrolling lyrics. Shown under Experimental features. */
+export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
+  const { t } = useTranslation();
+  const { colors } = theme;
+  const { opacity, changeOpacity, blurRadius, amllBackground, fontSize, lineSpacing, enhancedFont, isWindows } = useFocusModeSettings();
 
   return (
     <section className="space-y-2" aria-labelledby="focus-mode-settings-title">
@@ -88,11 +105,7 @@ export default function FocusModeSection({ theme }: { theme: SettingsTheme }) {
         </div>
         <RangeRow theme={theme} label={t('settings.bgBlurTrans')} value={opacity} min={0} max={1} step={0.01}
           display={opacity.toFixed(2)}
-          onChange={value => {
-            setOpacity(value);
-            const preview = (window as unknown as { bg_blur_trans?: (value: number) => void }).bg_blur_trans;
-            if (typeof preview === 'function') preview(value);
-          }} />
+          onChange={changeOpacity} />
         {/* The mesh gradient has no blur radius; it only applies to the classic cover. */}
         {!amllBackground && (
           <RangeRow theme={theme} label={t('settings.focusBgBlurRadius')} value={blurRadius} min={40} max={80} step={1}

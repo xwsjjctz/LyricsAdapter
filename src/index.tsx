@@ -32,20 +32,8 @@ async function bootstrap(): Promise<void> {
     const { installSettingsSync } = await import('./services/settingsSync');
     installSettingsSync();
     const root = createRoot(rootElement);
-    const settingsSection = new URLSearchParams(location.search).get('settings-panel');
-    if (platform === 'darwin' && settingsSection) {
-      document.documentElement.dataset['settingsPanel'] = 'native';
-      delete document.documentElement.dataset['windowEffect'];
-      document.title = 'LyricsAdapter Settings';
-      dismissStartupScreen();
-      const { default: SettingsWindow } = await import('./components/settings/SettingsWindow');
-      const sections = ['general', 'plugins', 'cloud', 'focus', 'shortcuts'];
-      const section = sections.includes(settingsSection) ? settingsSection as import('./types/settingsPanel').SettingsSectionId : 'general';
-      root.render(<SettingsWindow section={section} />);
-    } else {
-      const { default: App } = await import('./App');
-      root.render(<App />);
-    }
+    const { default: App } = await import('./App');
+    root.render(<App />);
   } catch (err) {
     console.error("Failed to render React app:", err);
     dismissStartupScreen();
