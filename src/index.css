@@ -817,7 +817,7 @@ textarea:focus-visible {
   content: '';
   position: absolute;
   left: calc(1rem + 2.5rem + 0.75rem);
-  right: 1rem;
+  right: var(--library-end-gutter);
   bottom: 0;
   height: 1px;
   background: var(--library-divider);
@@ -837,7 +837,15 @@ textarea:focus-visible {
 
 /* The playing row is filled in place, so it scrolls with the list exactly, and
    runs square to the list's edges like the hover band. */
-.library-view[data-row-style='floating'] { --library-row-radius: 0px; }
+.library-view[data-row-style='floating'] {
+  --library-row-radius: 0px;
+  /* No shadowed band spills past the rows any more, so the list keeps to the
+     window and its scroll indicator stays on screen, in a right gutter that
+     the durations stop short of. */
+  --library-bleed: 0px;
+  --library-end-gutter: 32px;
+}
+.library-view[data-row-style='floating'] .library-track-grid { padding-right: var(--library-end-gutter); }
 .library-view[data-row-style='floating'] .library-track-row[data-current],
 .library-view[data-row-style='floating'] .library-track-row[data-current]:hover {
   background-color: var(--library-accent);
