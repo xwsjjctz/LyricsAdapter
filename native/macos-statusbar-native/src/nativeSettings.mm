@@ -22,6 +22,8 @@ constexpr CGFloat kCloseSize = 28;
 /** Room on each side of a segment's label, so the end labels sit clear of the capsule's round ends.
  *  A narrow sheet shrinks it to fit, down to the minimum. */
 constexpr CGFloat kSegmentPadding = 14, kMinSegmentPadding = 2;
+/** `NSSegmentedControlRoleTabs` (macOS 27 SDK). */
+constexpr NSInteger kSegmentedControlRoleTabs = 1;
 /** Header width the switcher cannot use: both margins, the close button and the gap after it. */
 constexpr CGFloat kNavReserved = 12 + kCloseSize + 10 + 12;
 /** A section counts as current once its heading is this close to the top. */
@@ -614,7 +616,8 @@ API_AVAILABLE(macos(26.0))
   _nav.segmentStyle = NSSegmentStyleAutomatic; _nav.borderShape = NSControlBorderShapeCapsule; _nav.controlSize = NSControlSizeLarge;
   _nav.segmentDistribution = NSSegmentDistributionFit; _nav.refusesFirstResponder = YES;
   // As tabs the segments are drawn without dividers between them (macOS 27; macOS 26 keeps them).
-  if (@available(macOS 27.0, *)) _nav.role = NSSegmentedControlRoleTabs;
+  // Set by name: CI and releases build with the macOS 26 SDK, which does not declare `role`.
+  if ([_nav respondsToSelector:NSSelectorFromString(@"setRole:")]) [_nav setValue:@(kSegmentedControlRoleTabs) forKey:@"role"];
   _nav.translatesAutoresizingMaskIntoConstraints = NO; _nav.accessibilityIdentifier = @"native-settings-nav";
   // Above the centring: a squeezed segmented control draws past its frame instead of shrinking.
   [_nav setContentCompressionResistancePriority:NSLayoutPriorityDefaultHigh + 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
