@@ -835,7 +835,9 @@ textarea:focus-visible {
   background-color: var(--library-hover);
 }
 
-/* The playing row is filled in place, so it scrolls with the list exactly. */
+/* The playing row is filled in place, so it scrolls with the list exactly, and
+   runs square to the list's edges like the hover band. */
+.library-view[data-row-style='floating'] { --library-row-radius: 0px; }
 .library-view[data-row-style='floating'] .library-track-row[data-current],
 .library-view[data-row-style='floating'] .library-track-row[data-current]:hover {
   background-color: var(--library-accent);
