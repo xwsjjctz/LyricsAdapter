@@ -42,7 +42,7 @@ for (const renderer of ['amll', 'legacy'] as const) {
     }));
     for (const song of songs) {
       await writeFile(song.filePath, audio);
-      await copyFile(path.join(repo, 'app-icon.png'), path.join(covers, `${song.id}.png`));
+      await copyFile(path.join(repo, 'assets', 'app-icon', 'icon.png'), path.join(covers, `${song.id}.png`));
     }
     await writeFile(path.join(userData, 'library-index.json'), JSON.stringify({ songs, settings: {
       activeSlotId: 'local', localSlot: { currentTrackIndex: 0, currentTime: 12, volume: .5,

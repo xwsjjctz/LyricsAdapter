@@ -236,7 +236,7 @@ node scripts/package.mjs
 - 普通调用与音频解析可能同时发生，方法需要能处理并发；提供请求超时和明确错误。
 - 在临时用户目录中验证首次安装、禁用、启用、更新后重启、卸载和凭据保留，不依赖开发者已有登录状态。
 
-宿主集成测试见 [electron.music-plugins.spec.ts](../../test/e2e/electron.music-plugins.spec.ts)。使用项目的隔离测试约定，详情见 [DEBUGGING.md](../../DEBUGGING.md)。
+宿主集成测试见 [electron.music-plugins.spec.ts](../../test/e2e/electron.music-plugins.spec.ts)。使用项目的隔离测试约定，详情见 [DEBUGGING.md](../DEBUGGING.md)。
 
 ## 让第三方新增来源真正开箱可用，需要哪些后续改造
 

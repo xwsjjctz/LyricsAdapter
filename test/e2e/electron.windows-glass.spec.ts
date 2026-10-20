@@ -26,7 +26,7 @@ test('Windows glass samples the live page, keeps native proportions and routes b
   }));
   for (const song of songs) {
     await writeFile(song.filePath, audio);
-    await copyFile(path.join(repo, 'app-icon.png'), path.join(userData, 'covers', `${song.id}.png`));
+    await copyFile(path.join(repo, 'assets', 'app-icon', 'icon.png'), path.join(userData, 'covers', `${song.id}.png`));
   }
   // An opaque white cover exercises the real main-process contrast analysis.
   await writeFile(path.join(userData, 'covers', 'glass-1.png'), Buffer.from(

@@ -288,7 +288,7 @@ test.describe('Windows taskbar lyrics visual surface', () => {
       mkdir(directory, { recursive: true })
     )));
     await copyFile(
-      path.join(repoRoot, 'app-icon.png'),
+      path.join(repoRoot, 'assets', 'app-icon', 'icon.png'),
       path.join(coverDirectory, 'windows-taskbar-visual-e2e.png'),
     );
 

@@ -176,7 +176,7 @@ test.describe('focus mode compositor layer probe', () => {
     const audioPath = path.join(tempRoot, 'fixture.wav');
     await writeFile(audioPath, silentWav(120));
     const trackId = 'focus-layer-probe';
-    await copyFile(path.join(repoRoot, 'app-icon.png'), path.join(covers, `${trackId}.png`));
+    await copyFile(path.join(repoRoot, 'assets', 'app-icon', 'icon.png'), path.join(covers, `${trackId}.png`));
     await writeFile(path.join(userData, 'library-index.json'), JSON.stringify({
       songs: [{
         id: trackId,

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app-icon.png" width="120" height="120" alt="LyricsAdapter logo">
+<img src="assets/app-icon/icon.png" width="120" height="120" alt="LyricsAdapter logo">
 
 # LyricsAdapter
 
@@ -188,8 +188,8 @@ npm ci
 npm run electron:dev
 ```
 
-`npm run check` 会检查、测试和构建主应用。插件开发和独立验证见 [音乐源插件文档](docs/music-source-plugins.md)。调试和隔离数据说明见 [DEBUGGING.md](DEBUGGING.md)。
+`npm run check` 会检查、测试和构建主应用。插件开发和独立验证见 [音乐源插件文档](docs/music-source-plugins.md)。调试和隔离数据说明见 [DEBUGGING.md](docs/DEBUGGING.md)。
 
 ## 许可与致谢
 
-项目使用 [GPLv3 许可证](LICENSE)，应用图标使用 [CC BY 4.0 许可证](app-icon-LICENSE)。第三方组件与设计来源见[第三方声明](docs/THIRD_PARTY_NOTICES.md)。隐私说明见[隐私政策](PRIVACY.md)。
+项目使用 [GPLv3 许可证](LICENSE)，应用图标使用 [CC BY 4.0 许可证](assets/app-icon/LICENSE)。第三方组件与设计来源见[第三方声明](docs/THIRD_PARTY_NOTICES.md)。隐私说明见[隐私政策](PRIVACY.md)。

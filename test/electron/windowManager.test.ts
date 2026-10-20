@@ -80,7 +80,7 @@ describe('windowManager', () => {
       appPath: '/virtual/app',
       resourcesPath: '/virtual/resources',
       isPackaged: false,
-    })).toBe(path.join('/virtual/app', 'app-icon-win.ico'));
+    })).toBe(path.join('/virtual/app', 'assets', 'app-icon', 'icon-win.ico'));
   });
 
   it('isolates development from the packaged Windows application identity', () => {
@@ -109,12 +109,12 @@ describe('windowManager', () => {
     const windowOptions = electronMocks.BrowserWindow.mock.calls[0]?.[0];
     if (process.platform === 'win32') {
       expect(windowOptions).toEqual(expect.objectContaining({
-        icon: path.join('/virtual/app', 'app-icon-win.ico'),
+        icon: path.join('/virtual/app', 'assets', 'app-icon', 'icon-win.ico'),
       }));
       const window = electronMocks.BrowserWindow.mock.results[0]?.value;
       expect(window.setAppDetails).toHaveBeenCalledWith({
         appId: 'com.lyricsadapter.app.development',
-        appIconPath: path.join('/virtual/app', 'app-icon-win.ico'),
+        appIconPath: path.join('/virtual/app', 'assets', 'app-icon', 'icon-win.ico'),
         appIconIndex: 0,
       });
     } else {

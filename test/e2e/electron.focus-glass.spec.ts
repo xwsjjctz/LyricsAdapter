@@ -38,7 +38,7 @@ test('macOS Liquid Glass controls route intents, resize and release their native
   }));
   for (const song of songs) {
     await writeFile(song.filePath, wav);
-    await copyFile(path.join(repo, 'app-icon.png'), path.join(userData, 'covers', `${song.id}.png`));
+    await copyFile(path.join(repo, 'assets', 'app-icon', 'icon.png'), path.join(userData, 'covers', `${song.id}.png`));
   }
   await writeFile(path.join(userData, 'library-index.json'), JSON.stringify({ songs, settings: {
     activeSlotId: 'local', localSlot: { currentTrackIndex: 0, currentTime: 0, volume: 0, playbackMode: 'order', scrollPosition: 0, filterType: 'default', categorySelection: null },

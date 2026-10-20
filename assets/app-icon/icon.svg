@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">LyricsAdapter app icon — refined vector</title>
-  <desc id="desc">A white curled musical ribbon and three lyric lines on a pink, violet and blue rounded tile. Editable SVG reconstruction of app-icon.png; gradients and shadows are resolution independent. Adapted from the LyricsAdapter project icon, CC BY 4.0; see app-icon-LICENSE. https://creativecommons.org/licenses/by/4.0/</desc>
+  <desc id="desc">A white curled musical ribbon and three lyric lines on a pink, violet and blue rounded tile. Editable SVG reconstruction of icon.png; gradients and shadows are resolution independent. Adapted from the LyricsAdapter project icon, CC BY 4.0; see LICENSE in this folder. https://creativecommons.org/licenses/by/4.0/</desc>
   <defs>
     <path id="tile-shape" d="M310 100H714C853 100 924 162 924 310V714C924 856 862 924 714 924H310C164 924 100 858 100 714V310C100 165 163 100 310 100Z"/>
     <clipPath id="tile-clip"><use href="#tile-shape"/></clipPath>

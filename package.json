@@ -109,14 +109,14 @@
     "directories": {
       "output": "release"
     },
-    "icon": "app-icon.png",
+    "icon": "assets/app-icon/icon.png",
     "compression": "normal",
     "files": [
       "dist-electron/**/*"
     ],
     "extraResources": [
       {
-        "from": "app-icon.png",
+        "from": "assets/app-icon/icon.png",
         "to": "app-icon.png"
       },
       {
@@ -150,10 +150,10 @@
       "repo": "LyricsAdapter"
     },
     "win": {
-      "icon": "app-icon-win.ico",
+      "icon": "assets/app-icon/icon-win.ico",
       "extraResources": [
         {
-          "from": "app-icon-win.ico",
+          "from": "assets/app-icon/icon-win.ico",
           "to": "app-icon-win.ico"
         },
         {

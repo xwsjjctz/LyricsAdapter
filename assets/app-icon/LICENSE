@@ -1,6 +1,6 @@
 # LyricsAdapter App Icon License
 
-The app icon (`app-icon.png`) is licensed under the **Creative Commons Attribution 4.0 International License (CC BY 4.0)**.
+The app icon (`icon.png`, with `icon.svg` and `icon-win.ico` derived from it) is licensed under the **Creative Commons Attribution 4.0 International License (CC BY 4.0)**.
 
 ## Summary
 
@@ -21,7 +21,7 @@ https://creativecommons.org/licenses/by/4.0/legalcode
 
 ---
 
-**Note**: This license applies to `app-icon.png` and the derivative listed below. The project source code is licensed separately under GPLv3 (see `LICENSE`).
+**Note**: This license applies to the icon files in this folder and the derivative listed below. The project source code is licensed separately under GPLv3 (see `LICENSE` at the repository root).
 
 `public/wall-background.jpg` is a resized, blurred derivative of the app icon,
 prepared from `public/default-cover.jpg`, and retains the icon's CC BY 4.0 license.

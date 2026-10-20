@@ -51,7 +51,7 @@ test('AMLL uses the animation budget by default and ignores the retired setting'
       })) }),
     })),
   }));
-  await Promise.all(songs.map(song => copyFile(path.join(repoRoot, 'app-icon.png'), path.join(covers, `${song.id}.png`))));
+  await Promise.all(songs.map(song => copyFile(path.join(repoRoot, 'assets', 'app-icon', 'icon.png'), path.join(covers, `${song.id}.png`))));
   await writeFile(path.join(userData, 'library-index.json'), JSON.stringify({
     songs,
     settings: { activeSlotId: 'local', localSlot: {

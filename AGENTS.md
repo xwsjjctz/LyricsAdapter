@@ -93,7 +93,7 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
 ## Debugging and Git
 
 - Start a dev server or Electron when needed for the task. Normal development has no
-  debug ports; CDP covers the renderer only. Read [DEBUGGING.md](DEBUGGING.md) for live
+  debug ports; CDP covers the renderer only. Read [DEBUGGING.md](docs/DEBUGGING.md) for live
   debugging and isolated E2E data. Stop only processes this task started and no longer
   needs. Keep `.playwright-mcp/`, `.codegraph/` and build outputs untracked.
 - Before committing on `master`, create a focused branch. Prefer `feature/`, `fix/`,
