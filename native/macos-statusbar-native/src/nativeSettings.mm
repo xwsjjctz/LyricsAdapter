@@ -19,6 +19,11 @@ constexpr int kMaxDepth = 16;
 constexpr CGFloat kHeaderHeight = 50;
 /** The close button is a glass circle; the same width is kept free on the other side. */
 constexpr CGFloat kCloseSize = 28;
+/** Room on each side of a segment's label, so the end labels sit clear of the capsule's round ends.
+ *  A narrow sheet shrinks it to fit, down to the minimum. */
+constexpr CGFloat kSegmentPadding = 14, kMinSegmentPadding = 2;
+/** Header width the switcher cannot use: both margins, the close button and the gap after it. */
+constexpr CGFloat kNavReserved = 12 + kCloseSize + 10 + 12;
 /** A section counts as current once its heading is this close to the top. */
 constexpr CGFloat kActiveOffset = 48;
 /** Space kept above a section heading when the list scrolls to it. */
@@ -568,6 +573,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic) double revealToken;
 @property(nonatomic) BOOL open;
 @property(nonatomic) BOOL compact;
+@property(nonatomic) CGFloat navWidth;
 @property(nonatomic, weak) NSResponder* restoreResponder;
 @property(nonatomic, strong) id keyMonitor;
 @property(nonatomic, strong) LASettingsRecorder* recorderToFocus;
@@ -610,7 +616,8 @@ API_AVAILABLE(macos(26.0))
   // As tabs the segments are drawn without dividers between them (macOS 27; macOS 26 keeps them).
   if (@available(macOS 27.0, *)) _nav.role = NSSegmentedControlRoleTabs;
   _nav.translatesAutoresizingMaskIntoConstraints = NO; _nav.accessibilityIdentifier = @"native-settings-nav";
-  [_nav setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+  // Above the centring: a squeezed segmented control draws past its frame instead of shrinking.
+  [_nav setContentCompressionResistancePriority:NSLayoutPriorityDefaultHigh + 1 forOrientation:NSLayoutConstraintOrientationHorizontal];
   NSView* header = [[NSView alloc] initWithFrame:NSZeroRect]; header.translatesAutoresizingMaskIntoConstraints = NO;
   [header addSubview:_closeButton]; [header addSubview:_nav];
   NSLayoutConstraint* centred = [_nav.centerXAnchor constraintEqualToAnchor:header.centerXAnchor];
@@ -683,8 +690,8 @@ API_AVAILABLE(macos(26.0))
   self.content.frame = self.panel.bounds;
   // A narrow sheet keeps the navigation to its labels.
   BOOL compact = width < 520;
-  if (compact != self.compact) {
-    self.compact = compact;
+  if (compact != self.compact || width != self.navWidth) {
+    self.compact = compact; self.navWidth = width;
     [self refreshNav];
   }
 }
@@ -781,12 +788,34 @@ API_AVAILABLE(macos(26.0))
     (void)stop; NSInteger segment = (NSInteger)index;
     BOOL unsaved = Flag(section, @"unsaved");
     NSImage* symbol = self.compact ? nil : Symbol(Str(section, @"symbol"), 13, NSFontWeightMedium);
-    [nav setLabel:Str(section, @"navTitle") forSegment:segment];
-    [nav setImage:unsaved ? Badged(symbol, self.unsavedLabel) : symbol forSegment:segment];
+    NSImage* image = unsaved ? Badged(symbol, self.unsavedLabel) : symbol;
+    NSString* label = Str(section, @"navTitle");
+    [nav setLabel:label forSegment:segment];
+    [nav setImage:image forSegment:segment];
     [nav setImageScaling:NSImageScaleNone forSegment:segment];
-    [nav setToolTip:unsaved && self.unsavedLabel.length ? self.unsavedLabel : nil forSegment:segment];
   }];
   if (selected >= 0 && selected < nav.segmentCount) nav.selectedSegment = selected;
+  [self fitNav];
+}
+/** Pads every segment so the end labels sit clear of the capsule's round ends, shrinking the
+ *  padding until the switcher fits beside the close button. */
+- (void)fitNav {
+  using namespace NativeSettings;
+  NSSegmentedControl* nav = self.nav;
+  NSInteger count = nav.segmentCount;
+  NSFont* font = nav.font;
+  auto pad = ^(CGFloat padding) {
+    for (NSInteger segment = 0; segment < count; segment++) {
+      NSString* label = [nav labelForSegment:segment] ?: @""; NSImage* image = [nav imageForSegment:segment];
+      CGFloat content = [label sizeWithAttributes:@{NSFontAttributeName: font}].width + (image ? image.size.width + 4 : 0);
+      [nav setWidth:std::ceil(content + padding * 2) forSegment:segment];
+    }
+    return nav.intrinsicContentSize.width;
+  };
+  CGFloat overflow = pad(kSegmentPadding) - (self.navWidth - kNavReserved);
+  if (count == 0 || overflow <= 0) return;
+  // Segment widths add up linearly, so one step takes the overflow out of the padding.
+  pad(std::max(kMinSegmentPadding, kSegmentPadding - std::ceil(overflow / (2 * count))));
 }
 
 - (void)applyDialog:(NSDictionary*)dialog {
