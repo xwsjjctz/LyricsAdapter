@@ -759,7 +759,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         <div className="flex-shrink-0">
           <div
             className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
-            style={{ borderColor: colors.borderLight }}
             onDoubleClick={handleScrollToTop}
           >
             <span>{t('library.titleCol')}</span>
@@ -1001,7 +1000,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              <div className="library-bleed flex-shrink-0">
                <div
                  className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
-                 style={{ borderColor: colors.borderLight }}
                  onDoubleClick={handleScrollToTop}
                >
                  <span>{t('library.titleCol')}</span>

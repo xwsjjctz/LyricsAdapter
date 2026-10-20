@@ -80,8 +80,8 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
       style={{
         animation: shouldShowAnimation ? `fadeInUp 0.3s ease-out ${Math.min(filteredIndex, 15) * 0.03}s both` : undefined,
         // The floating band marks the current track in the default themes; inline themes fill the row.
-        backgroundColor: isSelected ? `${colors.primary}20` : inlineCurrent ? colors.primary : undefined,
-        border: `var(--theme-control-border-width) solid ${isSelected ? colors.primary : 'var(--theme-list-item-border)'}`,
+        backgroundColor: isSelected ? 'var(--library-selected)' : inlineCurrent ? colors.primary : undefined,
+        border: `var(--theme-control-border-width) solid ${isSelected ? 'var(--library-accent)' : 'var(--theme-list-item-border)'}`,
         borderBottom: 'none', borderRadius: 'var(--library-row-radius)',
         paddingTop: 'var(--theme-list-item-padding-y)', paddingBottom: 'var(--theme-list-item-padding-y)',
         boxShadow: inlineCurrent ? 'var(--theme-elevated-shadow)' : undefined,
@@ -96,7 +96,7 @@ const LibraryTrackRow: React.FC<LibraryTrackRowProps> = memo(({
             <input type="checkbox" checked={isSelected}
               aria-label={t('library.selectTrack', { title: track.title })}
               onChange={() => onToggleSelect(track.id)} onClick={e => e.stopPropagation()}
-              className="w-5 h-5 cursor-pointer" style={{ accentColor: colors.primary }} />
+              className="w-5 h-5 cursor-pointer" style={{ accentColor: 'var(--library-accent)' }} />
           </div>
         ) : (
           <span className="library-track-row__art">

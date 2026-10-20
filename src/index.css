@@ -767,20 +767,51 @@ textarea:focus-visible {
 /* Song actions use the same visible menu for mouse and keyboard. */
 .library-track-row:hover { background-color: var(--theme-background-card-hover); }
 
-/* Song list text: titles at body weight (Apple Music style), the artist and
-   album line and the duration quieter. Inline (brutalist) themes keep their
-   heavy titles. */
+/* Song list palette. Inline-highlight (brutalist) themes keep the theme's own
+   colours and heavy titles; the default themes use Apple Music's below. */
 .library-view {
   --library-title-weight: 500;
-  --library-current-band: color-mix(in srgb, var(--theme-control-current-track-band-tint) 10%, transparent);
+  --library-surface: transparent;
+  --library-text: var(--theme-text-primary);
+  --library-text-secondary: var(--theme-text-secondary);
+  --library-text-muted: var(--theme-text-muted);
   --library-divider: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
+  --library-hover: var(--theme-background-card-hover);
+  --library-current-band: color-mix(in srgb, var(--theme-control-current-track-band-tint) 10%, transparent);
+  --library-accent: var(--theme-primary);
+  --library-selected: color-mix(in srgb, var(--theme-primary) 12.5%, transparent);
+  background: var(--library-surface);
 }
 .library-view[data-row-style='inline'] { --library-title-weight: var(--theme-text-heading-weight); }
-.library-track-header { color: var(--theme-text-muted); font-weight: 500; }
-.library-track-row__title { color: var(--theme-text-primary); font-weight: var(--library-title-weight); }
-.library-track-row__subtitle { color: var(--theme-text-secondary); }
-.library-track-row__time { color: var(--theme-text-muted); }
-.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__title { color: var(--theme-primary); }
+
+/* Apple Music: a plain surface, neutral greys, the system blue, and the playing
+   row set apart by a grey band rather than a tint, whatever the theme's hue. */
+.theme-light .library-view[data-row-style='floating'] {
+  --library-surface: #ffffff;
+  --library-text: #1d1d1f;
+  --library-text-secondary: rgba(0, 0, 0, 0.5);
+  --library-text-muted: rgba(0, 0, 0, 0.42);
+  --library-divider: rgba(0, 0, 0, 0.08);
+  --library-hover: rgba(0, 0, 0, 0.04);
+  --library-current-band: rgba(0, 0, 0, 0.065);
+  --library-accent: #007aff;
+  --library-selected: rgba(0, 122, 255, 0.12);
+}
+.theme-dark .library-view[data-row-style='floating'] {
+  --library-surface: #1e1e1e;
+  --library-text: #f5f5f7;
+  --library-text-secondary: rgba(255, 255, 255, 0.55);
+  --library-text-muted: rgba(255, 255, 255, 0.42);
+  --library-divider: rgba(255, 255, 255, 0.08);
+  --library-hover: rgba(255, 255, 255, 0.05);
+  --library-current-band: rgba(255, 255, 255, 0.09);
+  --library-accent: #0a84ff;
+  --library-selected: rgba(10, 132, 255, 0.2);
+}
+.library-track-header { color: var(--library-text-muted); border-color: var(--library-divider); font-weight: 500; }
+.library-track-row__title { color: var(--library-text); font-weight: var(--library-title-weight); }
+.library-track-row__subtitle { color: var(--library-text-secondary); }
+.library-track-row__time { color: var(--library-text-muted); }
 
 /* Default themes separate rows with a hairline from the text to the end, as
    Apple Music does, instead of gaps; it gives way around the hovered and the
@@ -804,7 +835,7 @@ textarea:focus-visible {
 
 /* A grey hover, like Apple Music; the card-hover colour is white in light themes. */
 .library-view[data-row-style='floating'] .library-track-row:hover {
-  background-color: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
+  background-color: var(--library-hover);
 }
 
 /* The current song's cover carries bars, moving while it plays. */
