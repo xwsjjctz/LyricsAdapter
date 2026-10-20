@@ -482,7 +482,7 @@ export interface FocusModel {
 
 function slider(id: string, title: string, value: number, range: [number, number, number], display: string): NativeSettingsRow {
   const [min, max, step] = range;
-  return row(id, 'inline', { title, tone: 'secondary', controls: [{ type: 'slider', id, value, min, max, step, display: clip(display), label: clip(title) }] });
+  return row(id, 'inline', { title, controls: [{ type: 'slider', id, value, min, max, step, display: clip(display), label: clip(title) }] });
 }
 
 export function focusBlocks(model: FocusModel, t: TFunction): NativeSettingsBlock[] {
@@ -490,7 +490,6 @@ export function focusBlocks(model: FocusModel, t: TFunction): NativeSettingsBloc
     row('focus:amll', 'inline', {
       title: t('settings.focusAmllBackground'),
       detail: t('settings.focusAmllBackgroundDesc'),
-      tone: 'secondary',
       controls: [toggle('focus:amll', model.amllBackground, { label: t('settings.focusAmllBackground') })],
     }),
     slider('focus:opacity', t('settings.bgBlurTrans'), model.opacity, [0, 1, 0.01], model.opacity.toFixed(2)),
@@ -504,7 +503,6 @@ export function focusBlocks(model: FocusModel, t: TFunction): NativeSettingsBloc
     blocks.push(card('focus:welcome', [row('focus:welcome', 'inline', {
       title: t('settings.welcomePreview'),
       detail: t('settings.welcomePreviewDesc'),
-      tone: 'secondary',
       controls: [button('focus:welcome', t('settings.welcomePreviewAction'))],
     })]));
   }
@@ -540,7 +538,7 @@ export function shortcutsBlocks(model: ShortcutsModel, t: TFunction): NativeSett
         label: config.currentKey ? t('settings.shortcuts.reset') : t('settings.shortcuts.clear'),
       }));
     }
-    const result = [row(id, 'inline', { title: t(config.name), tone: 'secondary', controls })];
+    const result = [row(id, 'inline', { title: t(config.name), controls })];
     if (recording && model.conflict) {
       result.push(row(`${id}:conflict`, 'inline', {
         title: t('settings.shortcuts.conflictWith', {
