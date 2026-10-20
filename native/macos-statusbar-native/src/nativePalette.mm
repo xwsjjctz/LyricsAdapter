@@ -150,7 +150,10 @@ NSString* DomKey(NSEvent* event) {
 }
 - (void)setSelected:(BOOL)selected {
   _selected = selected;
-  self.highlight.layer.backgroundColor = selected ? [NSColor.labelColor colorWithAlphaComponent:0.1].CGColor : NSColor.clearColor.CGColor;
+  // An accent tint, like the web palette's: a faint label-colour wash vanished on light glass.
+  [self.effectiveAppearance performAsCurrentDrawingAppearance:^{
+    self.highlight.layer.backgroundColor = selected ? [NSColor.controlAccentColor colorWithAlphaComponent:0.22].CGColor : NSColor.clearColor.CGColor;
+  }];
 }
 - (void)viewDidChangeEffectiveAppearance {
   [super viewDidChangeEffectiveAppearance];
