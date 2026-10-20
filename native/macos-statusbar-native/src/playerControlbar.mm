@@ -202,19 +202,25 @@ API_AVAILABLE(macos(26.0))
 @end
 
 @implementation LAMarqueeLabel {
-  NSTextField* _lead;
-  NSTextField* _trail;
+  NSTextField* _label;
+  // AppKit only paints the part of a view inside its clip, so a scrolling label
+  // would stay blank past the edge. The line is rendered once instead, and two
+  // copies of it move in a layer-hosting view that AppKit neither paints nor culls.
+  NSView* _strip;
+  CALayer* _track;
+  CALayer* _lead;
+  CALayer* _trail;
   CGFloat _animatedDistance;
-}
-- (NSTextField*)copyLabel:(NSFont*)font {
-  NSTextField* label = [NSTextField labelWithString:@""]; label.font = font; label.maximumNumberOfLines = 1;
-  label.lineBreakMode = NSLineBreakByTruncatingTail; label.accessibilityElement = NO; [self addSubview:label]; return label;
 }
 - (instancetype)initWithFont:(NSFont*)font color:(NSColor*)color {
   self = [super initWithFrame:NSZeroRect]; if (!self) return nil;
   _stringValue = @""; self.wantsLayer = YES; self.clipsToBounds = YES;
   self.accessibilityElement = YES; self.accessibilityRole = NSAccessibilityStaticTextRole; self.accessibilityLabel = @"";
-  _lead = [self copyLabel:font]; _trail = [self copyLabel:font]; _trail.hidden = YES;
+  _label = [NSTextField labelWithString:@""]; _label.font = font; _label.maximumNumberOfLines = 1;
+  _label.lineBreakMode = NSLineBreakByTruncatingTail; _label.accessibilityElement = NO; [self addSubview:_label];
+  _strip = [[NSView alloc] initWithFrame:NSZeroRect]; _strip.layer = [CALayer layer]; _strip.wantsLayer = YES; _strip.hidden = YES;
+  _track = [CALayer layer]; _lead = [CALayer layer]; _trail = [CALayer layer];
+  [_track addSublayer:_lead]; [_track addSublayer:_trail]; [_strip.layer addSublayer:_track]; [self addSubview:_strip];
   self.textColor = color;
   [NSWorkspace.sharedWorkspace.notificationCenter addObserver:self selector:@selector(restart) name:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil];
   return self;
@@ -222,42 +228,65 @@ API_AVAILABLE(macos(26.0))
 - (void)dealloc { [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self]; }
 - (void)setStringValue:(NSString*)stringValue {
   if ([_stringValue isEqualToString:stringValue]) return;
-  _stringValue = [stringValue copy]; _lead.stringValue = _stringValue; _trail.stringValue = _stringValue;
+  _stringValue = [stringValue copy]; _label.stringValue = _stringValue;
   self.accessibilityLabel = _stringValue; [self restart];
 }
-- (void)setTextColor:(NSColor*)textColor { _textColor = textColor; _lead.textColor = textColor; _trail.textColor = textColor; }
+- (void)setTextColor:(NSColor*)textColor {
+  if ([_textColor isEqual:textColor]) return;
+  _textColor = textColor; _label.textColor = textColor; [self restart];
+}
 - (void)setFrameSize:(NSSize)size { [super setFrameSize:size]; [self setNeedsLayout:YES]; }
 - (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self restart]; }
-- (void)stop {
-  for (NSTextField* label in @[_lead, _trail]) [label.layer removeAnimationForKey:kMarqueeAnimationKey];
-  _animatedDistance = 0;
-}
+- (void)viewDidChangeBackingProperties { [super viewDidChangeBackingProperties]; [self restart]; }
+- (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self restart]; }
+- (void)stop { [_track removeAnimationForKey:kMarqueeAnimationKey]; _animatedDistance = 0; }
 - (void)restart { [self stop]; [self setNeedsLayout:YES]; }
+- (id)renderLine:(NSSize)size scale:(CGFloat)scale {
+  // The label's own cell draws the line, so scrolling text matches the static label.
+  // Drawing happens now, under this view's appearance; a lazily drawn NSImage would
+  // pick up whatever appearance is current when Core Animation asks for it.
+  NSBitmapImageRep* rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr
+    pixelsWide:static_cast<NSInteger>(std::ceil(size.width * scale)) pixelsHigh:static_cast<NSInteger>(std::ceil(size.height * scale))
+    bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+  if (!rep) return nil;
+  rep.size = size;
+  CGContextRef cg = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep].CGContext;
+  BOOL flipped = _label.isFlipped;
+  if (flipped) { CGContextTranslateCTM(cg, 0, size.height); CGContextScaleCTM(cg, 1, -1); }
+  [NSGraphicsContext saveGraphicsState];
+  NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithCGContext:cg flipped:flipped];
+  _label.lineBreakMode = NSLineBreakByClipping;
+  [self.effectiveAppearance performAsCurrentDrawingAppearance:^{
+    [self->_label.cell drawInteriorWithFrame:NSMakeRect(0, 0, size.width, size.height) inView:self->_label];
+  }];
+  _label.lineBreakMode = NSLineBreakByTruncatingTail;
+  [NSGraphicsContext restoreGraphicsState];
+  CGImageRef image = rep.CGImage;
+  return image ? CFBridgingRelease(CGImageRetain(image)) : nil;
+}
 - (void)layout {
-  [super layout]; NSSize size = self.bounds.size;
+  [super layout]; NSSize size = self.bounds.size; _label.frame = self.bounds;
   // A truncating label under-reports its intrinsic width; measure the whole line.
-  CGFloat textWidth = std::ceil([_lead.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)].width);
+  CGFloat textWidth = std::ceil([_label.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)].width);
   BOOL scroll = textWidth > size.width + 1 && !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
-  _trail.hidden = !scroll;
-  _lead.lineBreakMode = scroll ? NSLineBreakByClipping : NSLineBreakByTruncatingTail; _trail.lineBreakMode = _lead.lineBreakMode;
-  if (!scroll) { [self stop]; _lead.frame = self.bounds; return; }
-  // Both copies keep their frame inside the clip and only their layers move:
-  // AppKit never draws a subview whose frame lies entirely outside the clip.
-  _lead.frame = NSMakeRect(0, 0, textWidth, size.height); _trail.frame = _lead.frame;
+  _label.hidden = scroll; _strip.hidden = !scroll; _strip.frame = self.bounds;
+  if (!scroll) { [self stop]; return; }
   CGFloat distance = textWidth + kMarqueeGap;
   // Layout runs on every playback tick; only a new distance restarts the pass.
-  if (_animatedDistance == distance && [_trail.layer animationForKey:kMarqueeAnimationKey]) return;
+  if (_animatedDistance == distance && [_track animationForKey:kMarqueeAnimationKey]) return;
   [self stop]; _animatedDistance = distance;
+  CGFloat scale = self.window.backingScaleFactor ?: 2;
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  id contents = [self renderLine:NSMakeSize(textWidth, size.height) scale:scale];
+  _track.frame = NSMakeRect(0, 0, distance + textWidth, size.height);
+  _lead.frame = NSMakeRect(0, 0, textWidth, size.height); _trail.frame = NSMakeRect(distance, 0, textWidth, size.height);
+  for (CALayer* copy in @[_lead, _trail]) { copy.contents = contents; copy.contentsScale = scale; }
   CFTimeInterval travel = std::max<CGFloat>(kMarqueeMinTravelSeconds, distance / kMarqueePixelsPerSecond);
   CFTimeInterval duration = kMarqueePauseSeconds + travel;
-  [CATransaction begin];  // One transaction gives both copies the same begin time.
-  for (NSTextField* label in @[_lead, _trail]) {
-    CGFloat from = label == _lead ? 0 : distance;
-    CAKeyframeAnimation* animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
-    animation.values = @[@(from), @(from), @(from - distance)]; animation.keyTimes = @[@0, @(kMarqueePauseSeconds / duration), @1];
-    animation.duration = duration; animation.repeatCount = HUGE_VALF; animation.removedOnCompletion = NO;
-    [label.layer addAnimation:animation forKey:kMarqueeAnimationKey];
-  }
+  CAKeyframeAnimation* animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
+  animation.values = @[@0, @0, @(-distance)]; animation.keyTimes = @[@0, @(kMarqueePauseSeconds / duration), @1];
+  animation.duration = duration; animation.repeatCount = HUGE_VALF; animation.removedOnCompletion = NO;
+  [_track addAnimation:animation forKey:kMarqueeAnimationKey];
   [CATransaction commit];
 }
 @end
