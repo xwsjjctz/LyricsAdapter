@@ -195,10 +195,44 @@ NSString* const kMarqueeAnimationKey = @"marquee";
 // One line that scrolls only when wider than its frame. A trailing copy makes the
 // wrap point seamless; each pass starts after resting there, so the beginning of
 // the text is readable first. Short text and Reduce Motion keep tail truncation.
+@class LAMarqueeGroup;
+
 API_AVAILABLE(macos(26.0))
 @interface LAMarqueeLabel : NSView
 @property(nonatomic, copy) NSString* stringValue;
 @property(nonatomic, strong) NSColor* textColor;
+@property(nonatomic, weak) LAMarqueeGroup* group;
+/// How far one pass travels; 0 while the line fits.
+@property(nonatomic, readonly) CGFloat scrollDistance;
+- (void)scrollWithDuration:(CFTimeInterval)duration begin:(CFTimeInterval)begin;
+@end
+
+namespace {
+CFTimeInterval MarqueeTravel(CGFloat distance) {
+  return std::max<CGFloat>(kMarqueeMinTravelSeconds, distance / kMarqueePixelsPerSecond);
+}
+}
+
+// Puts the title and artist on one schedule: both start together at the same
+// speed, and the shorter line waits at its wrap point until the longer one ends.
+API_AVAILABLE(macos(26.0))
+@interface LAMarqueeGroup : NSObject
+- (void)add:(LAMarqueeLabel*)label;
+- (void)schedule;
+@end
+
+@implementation LAMarqueeGroup {
+  NSHashTable<LAMarqueeLabel*>* _labels;
+}
+- (instancetype)init { self = [super init]; if (self) _labels = [NSHashTable weakObjectsHashTable]; return self; }
+- (void)add:(LAMarqueeLabel*)label { [_labels addObject:label]; label.group = self; }
+- (void)schedule {
+  CFTimeInterval travel = 0;
+  for (LAMarqueeLabel* label in _labels) if (label.scrollDistance > 0) travel = std::max(travel, MarqueeTravel(label.scrollDistance));
+  if (travel <= 0) return;
+  CFTimeInterval begin = CACurrentMediaTime();
+  for (LAMarqueeLabel* label in _labels) [label scrollWithDuration:kMarqueePauseSeconds + travel begin:begin];
+}
 @end
 
 @implementation LAMarqueeLabel {
@@ -239,6 +273,7 @@ API_AVAILABLE(macos(26.0))
 - (void)viewDidMoveToWindow { [super viewDidMoveToWindow]; [self restart]; }
 - (void)viewDidChangeBackingProperties { [super viewDidChangeBackingProperties]; [self restart]; }
 - (void)viewDidChangeEffectiveAppearance { [super viewDidChangeEffectiveAppearance]; [self restart]; }
+- (CGFloat)scrollDistance { return _animatedDistance; }
 - (void)stop { [_track removeAnimationForKey:kMarqueeAnimationKey]; _animatedDistance = 0; }
 - (void)restart { [self stop]; [self setNeedsLayout:YES]; }
 - (id)renderLine:(NSSize)size scale:(CGFloat)scale {
@@ -269,8 +304,13 @@ API_AVAILABLE(macos(26.0))
   // A truncating label under-reports its intrinsic width; measure the whole line.
   CGFloat textWidth = std::ceil([_label.cell cellSizeForBounds:NSMakeRect(0, 0, CGFLOAT_MAX, CGFLOAT_MAX)].width);
   BOOL scroll = textWidth > size.width + 1 && !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
+  BOOL wasScrolling = !_strip.hidden;
   _label.hidden = scroll; _strip.hidden = !scroll; _strip.frame = self.bounds;
-  if (!scroll) { [self stop]; return; }
+  if (!scroll) {
+    [self stop];
+    if (wasScrolling) [self.group schedule];  // The partner may now pass faster.
+    return;
+  }
   CGFloat distance = textWidth + kMarqueeGap;
   // Layout runs on every playback tick; only a new distance restarts the pass.
   if (_animatedDistance == distance && [_track animationForKey:kMarqueeAnimationKey]) return;
@@ -281,13 +321,20 @@ API_AVAILABLE(macos(26.0))
   _track.frame = NSMakeRect(0, 0, distance + textWidth, size.height);
   _lead.frame = NSMakeRect(0, 0, textWidth, size.height); _trail.frame = NSMakeRect(distance, 0, textWidth, size.height);
   for (CALayer* copy in @[_lead, _trail]) { copy.contents = contents; copy.contentsScale = scale; }
-  CFTimeInterval travel = std::max<CGFloat>(kMarqueeMinTravelSeconds, distance / kMarqueePixelsPerSecond);
-  CFTimeInterval duration = kMarqueePauseSeconds + travel;
+  [CATransaction commit];
+  if (self.group) [self.group schedule];
+  else [self scrollWithDuration:kMarqueePauseSeconds + MarqueeTravel(distance) begin:CACurrentMediaTime()];
+}
+- (void)scrollWithDuration:(CFTimeInterval)duration begin:(CFTimeInterval)begin {
+  [_track removeAnimationForKey:kMarqueeAnimationKey];
+  CGFloat distance = _animatedDistance; if (distance <= 0) return;
+  CFTimeInterval moved = kMarqueePauseSeconds + MarqueeTravel(distance);
   CAKeyframeAnimation* animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
-  animation.values = @[@0, @0, @(-distance)]; animation.keyTimes = @[@0, @(kMarqueePauseSeconds / duration), @1];
+  animation.values = @[@0, @0, @(-distance), @(-distance)];
+  animation.keyTimes = @[@0, @(kMarqueePauseSeconds / duration), @(moved / duration), @1];
+  animation.beginTime = [_track convertTime:begin fromLayer:nil];
   animation.duration = duration; animation.repeatCount = HUGE_VALF; animation.removedOnCompletion = NO;
   [_track addAnimation:animation forKey:kMarqueeAnimationKey];
-  [CATransaction commit];
 }
 @end
 
@@ -305,6 +352,7 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) NSButton* artwork;
 @property(nonatomic, strong) LAMarqueeLabel* title;
 @property(nonatomic, strong) LAMarqueeLabel* artist;
+@property(nonatomic, strong) LAMarqueeGroup* marquees;
 @property(nonatomic, strong) NSButton* previous;
 @property(nonatomic, strong) NSButton* play;
 @property(nonatomic, strong) NSButton* next;
@@ -362,6 +410,7 @@ API_AVAILABLE(macos(26.0))
   _title = [[LAMarqueeLabel alloc] initWithFont:[NSFont systemFontOfSize:12.5 weight:NSFontWeightSemibold] color:NSColor.labelColor];
   _artist = [[LAMarqueeLabel alloc] initWithFont:[NSFont systemFontOfSize:10.5 weight:NSFontWeightRegular] color:NSColor.secondaryLabelColor];
   [content addSubview:_title]; [content addSubview:_artist];
+  _marquees = [[LAMarqueeGroup alloc] init]; [_marquees add:_title]; [_marquees add:_artist];
   _title.accessibilityIdentifier = @"player-controlbar-title";
   _artist.accessibilityIdentifier = @"player-controlbar-artist";
   _previous = [self button:@"backward.end.fill" name:@"player-controlbar-previous" size:16 action:@selector(previous:) parent:content];
