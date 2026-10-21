@@ -1,7 +1,7 @@
-import { useCallback, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { type CSSProperties, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLiquidGlass } from '../LiquidGlass';
 import '../../styles/playerSliders.css';
+import '../../styles/windowsFocusControls.css';
 import type { FocusControlsProps } from './FocusControls';
 import FocusTranslateButton from './FocusTranslateButton';
 
@@ -14,40 +14,32 @@ function sliderKey(event: KeyboardEvent<HTMLInputElement>) {
     && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) event.stopPropagation();
 }
 
-/** Same 350×96 content geometry as focusGlass.mm; Material replaces SF Symbols. */
+/**
+ * Same 350×96 content geometry as focusGlass.mm, on Fluent Acrylic instead of
+ * Liquid Glass; Material Symbols replace SF Symbols.
+ */
 export default function WindowsFocusControls(props: FocusControlsProps & { backdropLight: boolean | null }) {
   const { t } = useTranslation();
-  const ref = useRef<HTMLDivElement | null>(null);
-  const setRef = useCallback((element: HTMLDivElement | null) => {
-    ref.current = element;
-    if (typeof props.playerRef === 'function') props.playerRef(element);
-    else if (props.playerRef) (props.playerRef as React.MutableRefObject<HTMLDivElement | null>).current = element;
-  }, [props.playerRef]);
-  const glass = useLiquidGlass(ref, true, 'clear', 24);
   const scale = props.scale ?? 1;
   const shown = props.isPlayerVisible && props.isFocusVisible;
   const duration = Number.isFinite(props.track?.duration) ? Math.max(0, props.track!.duration) : 0;
   const time = Number.isFinite(props.activeCurrentTime) ? Math.max(0, Math.min(duration, props.activeCurrentTime)) : 0;
-  const light = props.backdropLight;
-  const foreground = light == null ? props.colors.textPrimary : light ? 'rgba(15, 23, 42, .92)' : 'rgba(255, 255, 255, .94)';
-  const muted = light == null ? props.colors.textMuted : light ? 'rgba(15, 23, 42, .55)' : 'rgba(255, 255, 255, .6)';
-  const trackColor = light == null ? props.colors.borderLight : light ? 'rgba(15, 23, 42, .16)' : 'rgba(255, 255, 255, .22)';
+  // Acrylic follows the analysed cover; until then the theme picks it in CSS.
+  const tone = props.backdropLight == null ? undefined : props.backdropLight ? 'light' : 'dark';
   const mode = props.playbackMode === 'shuffle' ? 'shuffleMode' : props.playbackMode === 'repeat-one' ? 'repeatOneMode' : 'sequence';
   const icon = (name: string) => <span className="material-symbols-rounded" aria-hidden="true">{name}</span>;
   const translation = props.onToggleTranslation ? props.translationStatus ?? 'unavailable' : 'unavailable';
-  return <>
-    {glass.filter}
-    <div ref={setRef} className="windows-focus-glass liquid-glass liquid-glass--clear transition-opacity duration-500 motion-reduce:transition-none"
-      data-testid="focus-web-controls" data-glass-material="clear" data-translation={translation !== 'unavailable'} aria-hidden={!shown || undefined}
+  return (
+    <div ref={props.playerRef} className="windows-focus-controls transition-opacity duration-500 motion-reduce:transition-none"
+      data-testid="focus-web-controls" data-material="acrylic" data-tone={tone} data-translation={translation !== 'unavailable'} aria-hidden={!shown || undefined}
       onMouseEnter={props.onMouseEnter}
       onMouseLeave={event => { if (!event.currentTarget.contains(document.activeElement)) props.onMouseLeave(); }}
       onFocusCapture={props.onMouseEnter}
       onBlurCapture={event => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null) && !event.currentTarget.matches(':hover')) props.onMouseLeave();
       }}
-      style={{ ...glass.style, opacity: shown ? 1 : 0,
+      style={{ opacity: shown ? 1 : 0,
         '--focus-glass-scale': scale, '--focus-glass-bottom': `${24 * scale}px`,
-        '--focus-glass-fg': foreground, '--focus-glass-muted': muted, '--focus-glass-track': trackColor,
       } as CSSProperties}>
       <span className="focus-glass-time focus-glass-elapsed">{timeLabel(time)}</span>
       <div className="player-slider focus-glass-seek" style={{ '--slider-progress': `${duration ? time / duration * 100 : 0}%` } as CSSProperties}>
@@ -78,5 +70,5 @@ export default function WindowsFocusControls(props: FocusControlsProps & { backd
         <span className="player-slider-thumb" aria-hidden="true" />
       </div>
     </div>
-  </>;
+  );
 }

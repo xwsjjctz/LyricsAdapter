@@ -24,7 +24,7 @@ const LABEL_KEYS: Record<Exclude<PluginTranslationStatus, 'unavailable'>, string
 const PLACEMENT_CLASS: Record<FocusTranslatePlacement, string> = {
   inline: 'focus-translate-button--inline',
   bar: 'focus-translate-button--bar focus-control-icon focus-control-icon--muted',
-  // Placed and coloured by liquidGlass.css like the other glass buttons.
+  // Placed and coloured by windowsFocusControls.css like the other Windows focus buttons.
   glass: 'focus-glass-translate',
 };
 

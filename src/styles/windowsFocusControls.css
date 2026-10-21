@@ -1,0 +1,133 @@
+/*
+ * FocusMode's floating transport on Windows, in Fluent's in-app Acrylic.
+ * The frames keep LAFocusGlassHost's 350×96 layout (focusGlass.mm) so both
+ * platforms place every control alike; only the material and the controls'
+ * look follow Windows 11. Acrylic stays mostly opaque, so text over a busy
+ * cover or the lyrics underneath stays legible.
+ */
+
+.windows-focus-controls {
+  /* Dark Acrylic: Fluent AcrylicInAppFillColorDefault over a 30px blur. */
+  --acrylic-tint: rgba(36, 36, 36, .82);
+  --acrylic-fallback: #2c2c2c;
+  --acrylic-stroke: rgba(255, 255, 255, .08);
+  --acrylic-shadow: 0 8px 16px rgba(0, 0, 0, .26);
+  --acrylic-fg: #ffffff;
+  --acrylic-muted: rgba(255, 255, 255, .786);
+  --acrylic-subtle-hover: rgba(255, 255, 255, .0605);
+  --acrylic-subtle-pressed: rgba(255, 255, 255, .0419);
+  --acrylic-slider-track: rgba(255, 255, 255, .545);
+  --acrylic-thumb: #454545;
+  --acrylic-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+
+  position: fixed;
+  bottom: var(--focus-glass-bottom);
+  left: 50%;
+  width: 350px;
+  max-width: calc((100vw - 48px) / var(--focus-glass-scale));
+  aspect-ratio: 350 / 96;
+  border-radius: 8px;
+  background: var(--acrylic-tint);
+  /* The stroke is an inset shadow: a border would shift the absolute layout. */
+  box-shadow: inset 0 0 0 1px var(--acrylic-stroke), var(--acrylic-shadow);
+  backdrop-filter: blur(30px) saturate(125%);
+  -webkit-backdrop-filter: blur(30px) saturate(125%);
+  transform: translateX(-50%) scale(var(--focus-glass-scale));
+  transform-origin: center bottom;
+  z-index: 20;
+  color: var(--acrylic-fg);
+  --theme-progress-height: 4px;
+  --theme-progress-radius: 999px;
+  --theme-control-slider-track: var(--acrylic-slider-track);
+  --theme-control-slider-fill: var(--theme-primary);
+  --theme-control-icon-fg-hover: var(--acrylic-fg);
+}
+
+/* Acrylic's grain keeps the surface reading as a material, not a flat fill. */
+.windows-focus-controls::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--acrylic-noise);
+  opacity: .02;
+  pointer-events: none;
+}
+
+/* Light Acrylic follows a light cover, or a light theme before the cover is analysed. */
+.windows-focus-controls[data-tone="light"],
+:root.theme-light .windows-focus-controls:not([data-tone]) {
+  --acrylic-tint: rgba(249, 249, 249, .84);
+  --acrylic-fallback: #f9f9f9;
+  --acrylic-stroke: rgba(0, 0, 0, .0578);
+  --acrylic-shadow: 0 8px 16px rgba(0, 0, 0, .14);
+  --acrylic-fg: rgba(0, 0, 0, .896);
+  --acrylic-muted: rgba(0, 0, 0, .606);
+  --acrylic-subtle-hover: rgba(0, 0, 0, .0373);
+  --acrylic-subtle-pressed: rgba(0, 0, 0, .0241);
+  --acrylic-slider-track: rgba(0, 0, 0, .446);
+  --acrylic-thumb: #ffffff;
+}
+
+/* Fluent subtle buttons: no fill at rest, a faint layer on hover and press. */
+.windows-focus-controls button { position: absolute; display: grid; place-items: center; border-radius: 4px; color: inherit; transition: background-color 83ms linear; }
+.windows-focus-controls button:hover:enabled { background: var(--acrylic-subtle-hover); }
+.windows-focus-controls button:active:enabled { background: var(--acrylic-subtle-pressed); }
+.windows-focus-controls button:disabled { opacity: .36; }
+/* Fluent focus visual: a 2px outer ring in the foreground over a 1px inner gap. */
+.windows-focus-controls button:focus-visible { outline: 2px solid var(--acrylic-fg); outline-offset: 1px; }
+.windows-focus-controls .material-symbols-rounded { font-size: 24px; font-variation-settings: 'FILL' 1; }
+.windows-focus-controls .focus-glass-mode .material-symbols-rounded { font-size: 20px; font-variation-settings: 'FILL' 0; }
+.windows-focus-controls .focus-glass-mute .material-symbols-rounded { font-size: 22px; font-variation-settings: 'FILL' 0; }
+
+/* The play button is the accent-filled circle of the Windows Media Player transport. */
+.windows-focus-controls .focus-glass-play { border-radius: 50%; background: var(--theme-primary); color: var(--theme-on-primary); }
+.windows-focus-controls .focus-glass-play:hover:enabled { background: color-mix(in srgb, var(--theme-primary) 90%, transparent); }
+.windows-focus-controls .focus-glass-play:active:enabled { background: color-mix(in srgb, var(--theme-primary) 80%, transparent); }
+.windows-focus-controls .focus-glass-play .material-symbols-rounded { font-size: 28px; }
+
+.windows-focus-controls .focus-glass-time { position: absolute; top: 15.625%; width: 11.4286%; height: 14px; font-size: 11px; line-height: 14px; font-weight: 400; text-align: center; font-variant-numeric: tabular-nums; color: var(--acrylic-muted); }
+.windows-focus-controls .focus-glass-elapsed { left: 3.4286%; }
+.windows-focus-controls .focus-glass-total { left: 85.1429%; }
+.windows-focus-controls .focus-glass-seek { position: absolute; left: 16%; top: 13.5417%; width: 68%; height: 18.75%; }
+.windows-focus-controls .focus-glass-mode { left: 4.5714%; top: 47.9167%; width: 9.1429%; height: 37.5%; color: var(--acrylic-muted); }
+.windows-focus-controls .focus-glass-mode[data-active="true"] { color: var(--theme-primary); }
+.windows-focus-controls .focus-glass-previous { left: 20.5714%; top: 47.9167%; width: 10.2857%; height: 37.5%; }
+.windows-focus-controls .focus-glass-play { left: 33.1429%; top: 43.75%; width: 12.5714%; height: 45.8333%; }
+.windows-focus-controls .focus-glass-next { left: 48%; top: 47.9167%; width: 10.2857%; height: 37.5%; }
+.windows-focus-controls .focus-glass-mute { left: 64%; top: 47.9167%; width: 9.1429%; height: 37.5%; }
+.windows-focus-controls .focus-glass-volume { position: absolute; left: 76%; top: 56.25%; width: 19.4286%; height: 20.8333%; }
+/* With translation, the row matches focusGlass.mm: translate leads, the transport moves right
+   and the volume slider shortens. */
+.windows-focus-controls .focus-glass-translate { left: 5.1429%; top: 47.9167%; width: 8%; height: 37.5%; color: var(--acrylic-muted); }
+.windows-focus-controls[data-translation="true"] .focus-glass-mode { left: 17.7143%; width: 8%; }
+.windows-focus-controls[data-translation="true"] .focus-glass-previous { left: 29.1429%; }
+.windows-focus-controls[data-translation="true"] .focus-glass-play { left: 40.8571%; }
+.windows-focus-controls[data-translation="true"] .focus-glass-next { left: 54.8571%; }
+.windows-focus-controls[data-translation="true"] .focus-glass-mute { left: 68%; }
+.windows-focus-controls[data-translation="true"] .focus-glass-volume { left: 80%; width: 14.2857%; }
+.windows-focus-controls .focus-glass-translate .material-symbols-rounded { font-size: 20px; font-variation-settings: 'FILL' 0; }
+.windows-focus-controls .focus-glass-translate[aria-busy="true"] { opacity: 1; }
+.windows-focus-controls .focus-glass-translate[aria-pressed="true"] { color: var(--theme-primary); }
+
+/* Fluent slider thumb: an accent dot inside a ring of the control fill. */
+.windows-focus-controls .player-slider-thumb {
+  left: clamp(7px, var(--slider-progress), calc(100% - 7px));
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle, var(--theme-primary) 0 3.5px, var(--acrylic-thumb) 4px);
+  box-shadow: 0 0 0 1px var(--acrylic-stroke), 0 1px 2px rgba(0, 0, 0, .2);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .windows-focus-controls { background: var(--acrylic-fallback); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .windows-focus-controls::before { display: none; }
+}
+@media (forced-colors: active) {
+  .windows-focus-controls {
+    --acrylic-fg: CanvasText !important; --acrylic-muted: CanvasText !important; --acrylic-slider-track: GrayText !important;
+    background: Canvas; box-shadow: none; outline: 1px solid CanvasText; backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  .windows-focus-controls::before { display: none; }
+  .windows-focus-controls .focus-glass-play { background: ButtonText; color: ButtonFace; }
+}

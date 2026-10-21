@@ -140,10 +140,12 @@ test('Windows glass samples the live page, keeps native proportions and routes b
 
     await page.keyboard.press('ControlOrMeta+Enter');
     const focus = page.getByTestId('focus-web-controls');
-    await expect(focus).toHaveAttribute('data-glass-material', 'clear');
+    // FocusMode's transport is Fluent Acrylic, not Liquid Glass: a plain blur
+    // under a mostly opaque tint keeps it legible over any cover or lyric.
+    await expect(focus).toHaveAttribute('data-material', 'acrylic');
     await focus.hover(); await expect(focus).toHaveCSS('opacity', '1');
-    await expect(focus).toHaveCSS('backdrop-filter', /url\(/);
-    await expect(focus).toHaveCSS('border-radius', '24px');
+    await expect(focus).toHaveCSS('backdrop-filter', /^blur\(30px\) saturate\(/);
+    await expect(focus).toHaveCSS('border-radius', '8px');
     const focusBounds = (await focus.boundingBox())!;
     expect(focusBounds.width).toBe(350); expect(focusBounds.height).toBe(96);
     const focusSelectors = {
@@ -157,54 +159,10 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     };
     expect(await focus.evaluate(frames, focusSelectors)).toEqual(focusFrames);
     expect(await focus.evaluate(node => node.closest('.focus-mode-content') === null)).toBe(true);
-    // Keyboard focus keeps controls awake during the longer pixel/frame probes.
+    // Keyboard focus keeps the controls awake while the steps below drive them.
     const seek = focus.getByRole('slider', { name: 'Playback position' });
     await seek.focus();
-    const focusFilterId = await focus.evaluate(node => getComputedStyle(node).backdropFilter.match(/#([^"\)]+)/)![1]!);
-    const focusMap = await page.locator(`[id="${focusFilterId}"] feImage`).getAttribute('href');
-    await page.locator('.focus-mode-overlay').evaluate(node => {
-      const background = document.createElement('div'); background.id = 'focus-test-background';
-      Object.assign(background.style, { position: 'absolute', inset: '0', zIndex: '15', pointerEvents: 'none',
-        background: 'repeating-linear-gradient(90deg, #000 0 16px, #fff 16px 32px)' });
-      node.appendChild(background);
-    });
-    const refracted = await sample(focusBounds.x + 5, focusBounds.y + 36);
-    // Both the frosted body and the clear rim pass through the same lens.
-    const lenses = page.locator(`[id="${focusFilterId}"] feDisplacementMap`);
-    const lensScale = (await lenses.first().getAttribute('scale'))!;
-    await lenses.evaluateAll(nodes => nodes.forEach(node => node.setAttribute('scale', '0')));
-    const unrefracted = await sample(focusBounds.x + 5, focusBounds.y + 36);
-    expect(Math.max(...refracted.map((value, index) => Math.abs(value - unrefracted[index]!)))).toBeGreaterThan(8);
-    await lenses.evaluateAll((nodes, scale) => nodes.forEach(node => node.setAttribute('scale', scale)), lensScale);
-    // Compare frame cadence while the backdrop really changes, with the same
-    // blur as the CSS fallback. Record timings instead of imposing a CI GPU limit.
-    const timings = await focus.evaluate(async node => {
-      const panel = node as HTMLElement;
-      const background = document.getElementById('focus-test-background')!;
-      const original = panel.style.getPropertyValue('--liquid-glass-filter');
-      const measure = async (filter: string) => {
-        panel.style.setProperty('--liquid-glass-filter', filter);
-        const intervals: number[] = [];
-        await new Promise<void>(resolve => {
-          let previous = 0, frame = 0;
-          const tick = (now: number) => {
-            if (previous && frame > 3) intervals.push(now - previous);
-            previous = now; background.style.backgroundPosition = `${frame * 3}px 0`;
-            if (++frame < 45) requestAnimationFrame(tick); else resolve();
-          };
-          requestAnimationFrame(tick);
-        });
-        intervals.sort((a, b) => a - b);
-        return { median: intervals[Math.floor(intervals.length / 2)], p95: intervals[Math.floor(intervals.length * .95)] };
-      };
-      try { return { svg: await measure(original), css: await measure('blur(3px) saturate(140%)') }; }
-      finally { panel.style.setProperty('--liquid-glass-filter', original); }
-    });
-    await testInfo.attach('backdrop-frame-intervals-ms', { body: JSON.stringify(timings), contentType: 'application/json' });
-    console.log('Windows glass backdrop frame intervals (ms):', timings);
-    await page.locator('#focus-test-background').evaluate(node => node.remove());
-    await testInfo.attach('rim-refraction-pixels', { body: JSON.stringify({ refracted, unrefracted }), contentType: 'application/json' });
-    await page.screenshot({ path: testInfo.outputPath('windows-clear.png') });
+    await page.screenshot({ path: testInfo.outputPath('windows-acrylic.png') });
     await seek.press('Home'); await seek.press('ArrowRight');
     await expect.poll(async () => (await audioState()).time).toBeCloseTo(.1, 1);
     const volume = focus.getByRole('slider', { name: 'Volume', exact: true });
@@ -217,9 +175,10 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await focus.getByTestId('focus-play-button').click(); await expect.poll(async () => (await audioState()).paused).toBe(true);
     await focus.getByRole('button', { name: 'Next Track' }).click();
     await expect(main).toContainText(songs[1]!.title);
-    await expect(focus).toHaveCSS('color', 'rgba(15, 23, 42, 0.92)');
+    await expect(focus).toHaveAttribute('data-tone', 'light');
+    await expect(focus).toHaveCSS('color', 'rgba(0, 0, 0, 0.896)');
     await page.waitForTimeout(1200);
-    await page.screenshot({ path: testInfo.outputPath('windows-clear-light-cover.png') });
+    await page.screenshot({ path: testInfo.outputPath('windows-acrylic-light-cover.png') });
     await focus.getByRole('button', { name: 'Previous Track' }).click();
     await expect(main).toContainText(songs[0]!.title);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(1700, 1150));
@@ -227,14 +186,14 @@ test('Windows glass samples the live page, keeps native proportions and routes b
     await expect.poll(async () => (await focus.boundingBox())!.height).toBeCloseTo(129.6, 0);
     // Like AppKit's content bounds, the whole layout scales with the bar.
     expect(await focus.evaluate(frames, focusSelectors)).toEqual(focusFrames);
-    await expect(page.locator(`[id="${focusFilterId}"] feImage`)).toHaveAttribute('href', focusMap!);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(1200, 800));
     await page.keyboard.press('ControlOrMeta+Enter');
     await expect(main).toHaveClass(/translate-y-0/);
     await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);
+    // Acrylic needs no SVG lens, so FocusMode adds no filter definitions.
     for (let cycle = 0; cycle < 2; cycle++) {
       await page.keyboard.press('ControlOrMeta+Enter');
-      await expect(page.locator('.liquid-glass-definitions')).toHaveCount(3);
+      await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);
       await page.keyboard.press('ControlOrMeta+Enter');
       await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);
     }
