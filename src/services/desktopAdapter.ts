@@ -25,6 +25,7 @@ import type { AppNotificationOptions } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 import type { UpdaterState } from '../shared/updater';
 import type { CoverCacheInfo } from '../types/coverCache';
+import type { WindowChromeAppearance } from '../shared/windowsChrome';
 import type { ElectronBridge } from '../shared/electronBridge';
 import type { PathValidationRequest, PathValidationResult, WebdavAccountProbe, WebdavCredentialMode } from '../shared/ipcContract';
 
@@ -86,6 +87,7 @@ export interface DesktopAPI {
   closeWindow?: Bridge['closeWindow'];
   isMaximized?: Bridge['isMaximized'];
   isFullScreen?: Bridge['isFullScreen'];
+  setWindowChromeAppearance?: Bridge['setWindowChromeAppearance'];
   onFullScreenChange?: Bridge['onFullScreenChange'];
   onWindowVisibilityChange?: Bridge['onWindowVisibilityChange'];
   onBeforeWindowClose?: Bridge['onBeforeWindowClose'];
@@ -319,6 +321,10 @@ class ElectronAdapter implements FullDesktopAPI {
 
   async isFullScreen(): Promise<boolean> {
     return this.api.isFullScreen();
+  }
+
+  async setWindowChromeAppearance(appearance: WindowChromeAppearance): Promise<void> {
+    return this.api.setWindowChromeAppearance(appearance);
   }
 
   onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {

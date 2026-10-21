@@ -21,6 +21,7 @@ import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
 import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
+import { WINDOWS_TITLE_BAR_HEIGHT } from '../shared/windowsChrome';
 import { useLibraryState } from '../stores/libraryState';
 
 /** The browsed slot's selection, scroll offset and filters come from the library store. */
@@ -125,7 +126,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const categorySelection = useLibraryState(state => state.slots[state.viewSlot].categorySelection);
   const desktopAPI = getDesktopAPI();
   const titleBarHeight = desktopAPI
-    ? desktopAPI.platform === 'darwin' ? getMacTitleBarLayout(desktopAPI.osRelease).height : 36
+    ? desktopAPI.platform === 'darwin' ? getMacTitleBarLayout(desktopAPI.osRelease).height
+      : desktopAPI.platform === 'win32' ? WINDOWS_TITLE_BAR_HEIGHT : 36
     : 0;
   const progress = importProgress ?? (dataSource === 'cloud' ? loadProgress : null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null); // Track being reordered

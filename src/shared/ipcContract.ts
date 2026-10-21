@@ -43,6 +43,7 @@ import type {
 import type { PluginUpdateInfo, PluginUpdateSource } from './pluginUpdate';
 import type { QQCredential } from './qqCredential';
 import type { UpdaterState } from './updater';
+import type { WindowChromeAppearance } from './windowsChrome';
 
 // ---- Payload and result shapes of the positional channels -----------------
 
@@ -173,6 +174,7 @@ export interface IpcInvokeContract {
   'window-close': [[alreadyFlushed?: boolean], void];
   'window-is-maximized': [[], boolean];
   'window-is-fullscreen': [[], boolean];
+  'window-set-chrome-appearance': [[appearance: WindowChromeAppearance], void];
   'read-audio-metadata': [[filePath: string], OperationResult & { metadata?: unknown }];
   'write-audio-metadata': [[filePath: string, metadata: AudioMetadataWrite], OperationResult];
   'select-download-folder': [[], OperationResult & { path?: string | undefined; canceled?: boolean }];

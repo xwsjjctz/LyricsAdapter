@@ -34,6 +34,8 @@ export interface ElectronBridge {
   closeWindow: IpcInvoker<'window-close'>;
   isMaximized: IpcInvoker<'window-is-maximized'>;
   isFullScreen: IpcInvoker<'window-is-fullscreen'>;
+  /** Windows: matches Mica to the app theme and the caption buttons to the content behind them. */
+  setWindowChromeAppearance: IpcInvoker<'window-set-chrome-appearance'>;
   onFullScreenChange(callback: (isFullScreen: boolean) => void): Unsubscribe;
   /** False while the main window is minimized or hidden. */
   onWindowVisibilityChange(callback: (visible: boolean) => void): Unsubscribe;

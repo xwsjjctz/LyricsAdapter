@@ -215,6 +215,13 @@
   outline: 2px solid var(--theme-primary, #2b8cee);
   outline-offset: -2px;
 }
+/* Windows: the system draws the caption buttons in the overlay at the right
+   (left under RTL); the titlebar-area-* variables bound the rest of the strip. */
+.windows-titlebar {
+  left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 32px);
+}
 
 /* Library list geometry. Rows, their covers and the floating now-playing
    highlight read the same tokens so they stay aligned in both densities.

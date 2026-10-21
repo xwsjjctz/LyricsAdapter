@@ -165,6 +165,7 @@ const bridge = {
   closeWindow: async (alreadyFlushed = false) => invoke('window-close', alreadyFlushed),
   isMaximized: invoker('window-is-maximized'),
   isFullScreen: invoker('window-is-fullscreen'),
+  setWindowChromeAppearance: invoker('window-set-chrome-appearance'),
   onFullScreenChange: callback => listen('fullscreen-changed', callback),
   onWindowVisibilityChange: callback => listen('window-visibility-changed', callback),
   onBeforeWindowClose: callback => listen('window-before-close-flush', async requestId => {

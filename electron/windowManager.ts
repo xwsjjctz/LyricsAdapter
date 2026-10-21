@@ -1,4 +1,5 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { APP } from '../src/constants/config';
@@ -6,6 +7,7 @@ import { logger } from './logger';
 import { getInitialWindowState, rememberWindowState } from './services/windowState';
 import { sendIpc } from './ipc/ipcMainTyped';
 import { sandboxedPreloadPreferences } from './services/preloadOptions';
+import { getWindowsTitleBarOverlay, supportsWindowsSystemBackdrop } from '../src/shared/windowsChrome';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +22,10 @@ process.env['VITE_PUBLIC'] = app.isPackaged
   : path.join(__dirname, '../../public');
 
 let win: BrowserWindow | null = null;
+
+// Default theme background: what an opaque Windows window shows before the
+// renderer's first paint on builds without a system backdrop.
+const WINDOWS_OPAQUE_BACKGROUND = '#15121d';
 
 export interface ResolveWindowsWindowIconPathOptions {
   appPath: string;
@@ -49,6 +55,22 @@ export function shouldThrottleRendererInBackground(
   return platform !== 'darwin';
 }
 
+/**
+ * Windows keeps the system caption buttons (Snap Layouts, native hover colours)
+ * through the Window Controls Overlay; `frame: false` would remove them. Mica
+ * shows through only on builds that support a system backdrop — elsewhere a
+ * transparent background turns black, so those builds keep an opaque window.
+ */
+export function getWindowsChromeOptions(osRelease: string): BrowserWindowConstructorOptions {
+  return {
+    titleBarStyle: 'hidden',
+    titleBarOverlay: getWindowsTitleBarOverlay('dark'),
+    ...(supportsWindowsSystemBackdrop(osRelease)
+      ? { backgroundMaterial: 'mica' as const, backgroundColor: '#00000000' }
+      : { backgroundColor: WINDOWS_OPAQUE_BACKGROUND }),
+  };
+}
+
 export function getWindow(): BrowserWindow | null {
   return win;
 }
@@ -74,16 +96,15 @@ export async function createWindow(): Promise<BrowserWindow> {
   win = new BrowserWindow({
     ...windowState,
     title: 'LyricsAdapter',
-    frame: false,
     transparent: isMacOS || process.platform === 'linux',
     ...(windowsIconPath ? { icon: windowsIconPath } : {}),
-    ...(isWindows ? { backgroundMaterial: 'acrylic' as const } : {}),
-    ...(isWindows ? { backgroundColor: '#00000000' } : {}),
     // No native background wash here: an 8-digit hex backgroundColor on a
     // transparent macOS window is parsed as #AARRGGBB (opaque) and paints the
     // whole window pale yellow. The translucent white base lives in the
     // renderer root (index.css `[data-window-effect='translucent']`).
-    titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
+    ...(isWindows
+      ? getWindowsChromeOptions(os.release())
+      : { frame: false, titleBarStyle: isMacOS ? 'hiddenInset' as const : 'hidden' as const }),
     webPreferences: {
       ...sandboxedPreloadPreferences(path.join(__dirname, 'preload.cjs')),
       webSecurity: true,

@@ -50,10 +50,16 @@ body,
   height: 100%;
 }
 
-html.electron[data-window-effect='acrylic'],
-html.electron[data-window-effect='acrylic'] body,
-html.electron[data-window-effect='acrylic'] #root {
+html.electron[data-window-effect='mica'],
+html.electron[data-window-effect='mica'] body,
+html.electron[data-window-effect='mica'] #root {
   background-color: transparent;
+}
+
+/* Windows 11 type: Segoe UI Variable for Latin, YaHei UI for CJK. Chromium's
+   system-ui stops at the static Segoe UI, and a bare sans-serif is Arial. */
+html.platform-windows {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', system-ui, sans-serif;
 }
 
 /* macOS replaces the retired native vibrancy with a uniform white wash drawn
