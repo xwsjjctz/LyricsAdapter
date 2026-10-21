@@ -16,7 +16,6 @@ const THEME_STORAGE_KEY = 'app-theme';
 /** Write a theme's CSS custom properties and light/dark marker to an element. */
 function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   const colors = theme.colors;
-  const fonts = theme.fonts;
   const radius = theme.borderRadius;
   const controls = resolveThemeControls(theme);
   const appearance = resolveThemeAppearance(theme);
@@ -58,10 +57,6 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 
   el.style.setProperty('--theme-shadow-color', colors.shadowColor);
   el.style.setProperty('--theme-glow-color', colors.glowColor);
-
-  el.style.setProperty('--theme-font-main', fonts.main);
-  el.style.setProperty('--theme-font-display', fonts.display || fonts.main);
-  el.style.setProperty('--theme-font-mono', fonts.mono || 'ui-monospace, monospace');
 
   el.style.setProperty('--theme-radius-sm', radius.sm);
   el.style.setProperty('--theme-radius-md', radius.md);
@@ -244,8 +239,9 @@ class ThemeManagerClass {
 
     applyThemeVarsToElement(root, theme);
 
-    // Apply font family to body
-    root.style.fontFamily = theme.fonts.main;
+    // Only themes with their own typeface override the root font; clearing it
+    // lets body-level portals inherit the same --font-sans as the app shell.
+    root.style.fontFamily = theme.fonts?.main ?? '';
 
     // Clean up legacy theme classes
     root.classList.remove('theme-cute');

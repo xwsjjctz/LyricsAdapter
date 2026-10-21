@@ -9,7 +9,6 @@
   --color-background-dark: #101922;
   --color-background-sidebar: #16212e;
   --color-background-card: rgba(255, 255, 255, 0.05);
-  --font-family-sans: var(--theme-font-main, 'Inter', sans-serif);
 }
 
 :root {

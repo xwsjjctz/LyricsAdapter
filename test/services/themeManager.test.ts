@@ -170,11 +170,14 @@ describe('applyTheme', () => {
     expect(root.style.getPropertyValue('--theme-button-letter-spacing')).toBe('0.12em');
   });
 
-  it('should set font family on root', () => {
+  it('overrides the root font only for themes with their own typeface', () => {
     const theme = getDefaultTheme();
-    themeManager.applyTheme(theme);
+    themeManager.applyTheme({ ...theme, fonts: { main: "'Arial Black', sans-serif" } });
     // CSSOM serializes single quotes to double quotes, so do a contains check
-    expect(document.documentElement.style.fontFamily).toContain('Inter');
+    expect(document.documentElement.style.fontFamily).toContain('Arial Black');
+
+    themeManager.applyTheme(theme);
+    expect(document.documentElement.style.fontFamily).toBe('');
   });
 
   it('should toggle theme-dark / theme-light class based on isDark', () => {
