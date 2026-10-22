@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties, type RefObject } from 'react';
 import '../styles/liquidGlass.css';
 
-type Material = 'regular';
+type Material = 'regular' | 'clear';
 interface Geometry { width: number; height: number; padding: number; map: string }
 
 /**
@@ -11,6 +11,7 @@ interface Geometry { width: number; height: number; padding: number; map: string
  */
 const OPTICS = {
   regular: { frost: 12, rim: 2, bezel: 20, depth: 12, saturation: 1.4 },
+  clear: { frost: 3, rim: .75, bezel: 22, depth: 18, saturation: 1.25 },
 } as const;
 
 /**

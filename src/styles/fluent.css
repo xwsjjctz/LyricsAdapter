@@ -9,7 +9,7 @@
  * which themeManager sets on Windows for the themes that take Fluent.
  */
 
-/* ---- Materials (all Windows themes; FocusMode's bar has its own copy) ---- */
+/* ---- Acrylic for flyouts (all Windows themes) ---- */
 
 :root.platform-windows {
   /* AcrylicInAppFillColorDefault over a 30px blur; SurfaceStrokeColorFlyout. */
