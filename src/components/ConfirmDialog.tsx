@@ -29,16 +29,12 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       onDismiss={cancel}
       overlayClassName="z-50"
       overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      panelClassName="r-surface p-6 max-w-md w-full mx-4 shadow-2xl"
-      panelStyle={{
-        backgroundColor: 'var(--theme-background-dark)',
-        border: '1px solid var(--theme-border-light)',
-      }}
+      panelClassName="confirm-dialog r-surface p-6 max-w-md w-full mx-4 shadow-2xl"
     >
       <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--theme-text-primary)' }}>{title}</h3>
       <p className="mb-4" style={{ color: 'var(--theme-text-secondary)' }}>{message}</p>
       {error && <p role="alert" className="mb-4" style={{ color: 'var(--theme-error)' }}>{error}</p>}
-      <div className="flex justify-end gap-3">
+      <div className="confirm-dialog__actions flex justify-end gap-3">
         <Button variant="ghost" onClick={cancel} disabled={busy}>{t('common.cancel')}</Button>
         <Button variant={tone} onClick={onConfirm} disabled={busy}>{confirmLabel}</Button>
       </div>

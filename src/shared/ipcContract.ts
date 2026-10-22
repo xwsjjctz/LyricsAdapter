@@ -28,6 +28,7 @@ import type { PlaylistSwitcherAction, PlaylistSwitcherState } from '../types/pla
 import type { FocusGlassAction, FocusGlassState, PlaybackSymbols } from '../types/focusGlass';
 import type { SystemLyricsAction, SystemLyricsState } from '../types/systemLyrics';
 import type { ApplicationMenuAction } from '../types/applicationMenu';
+import type { CoverCacheInfo } from '../types/coverCache';
 import type { AppNotificationPayload } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 import type { MusicPluginCatalogEntry, MusicPluginInfo } from './musicPlugin';
@@ -42,6 +43,7 @@ import type {
 import type { PluginUpdateInfo, PluginUpdateSource } from './pluginUpdate';
 import type { QQCredential } from './qqCredential';
 import type { UpdaterState } from './updater';
+import type { WindowChromeAppearance } from './windowsChrome';
 
 // ---- Payload and result shapes of the positional channels -----------------
 
@@ -172,6 +174,7 @@ export interface IpcInvokeContract {
   'window-close': [[alreadyFlushed?: boolean], void];
   'window-is-maximized': [[], boolean];
   'window-is-fullscreen': [[], boolean];
+  'window-set-chrome-appearance': [[appearance: WindowChromeAppearance], void];
   'read-audio-metadata': [[filePath: string], OperationResult & { metadata?: unknown }];
   'write-audio-metadata': [[filePath: string, metadata: AudioMetadataWrite], OperationResult];
   'select-download-folder': [[], OperationResult & { path?: string | undefined; canceled?: boolean }];
@@ -187,6 +190,9 @@ export interface IpcInvokeContract {
   'updater:check': [[], { ok: boolean; reason?: string }];
   'updater:quit-and-install': [[], { ok: boolean }];
   'app:get-version': [[], string];
+  'cover-cache:info': [[], CoverCacheInfo];
+  /** Empties the cache and reports what is left. */
+  'cover-cache:clear': [[], CoverCacheInfo];
 
   // ---- Plugin host ----
   'plugin-host-info': [[], PluginHostInfo];

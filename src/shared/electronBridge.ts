@@ -34,6 +34,8 @@ export interface ElectronBridge {
   closeWindow: IpcInvoker<'window-close'>;
   isMaximized: IpcInvoker<'window-is-maximized'>;
   isFullScreen: IpcInvoker<'window-is-fullscreen'>;
+  /** Windows: matches Mica to the app theme and the caption buttons to the content behind them. */
+  setWindowChromeAppearance: IpcInvoker<'window-set-chrome-appearance'>;
   onFullScreenChange(callback: (isFullScreen: boolean) => void): Unsubscribe;
   /** False while the main window is minimized or hidden. */
   onWindowVisibilityChange(callback: (visible: boolean) => void): Unsubscribe;
@@ -87,6 +89,8 @@ export interface ElectronBridge {
   getUpdaterState: IpcInvoker<'updater:state'>;
   quitAndInstall: IpcInvoker<'updater:quit-and-install'>;
   getAppVersion: IpcInvoker<'app:get-version'>;
+  coverCacheInfo: IpcInvoker<'cover-cache:info'>;
+  clearCoverCache: IpcInvoker<'cover-cache:clear'>;
   showNotification(title: string, body: string, options?: AppNotificationOptions): Promise<IpcInvokeResult<'notification:show'>>;
   onUpdaterEvent(callback: (state: UpdaterState) => void): void;
   offUpdaterEvent(callback: (state: UpdaterState) => void): void;

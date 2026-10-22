@@ -28,10 +28,12 @@ export default function WindowsFocusControls(props: FocusControlsProps & { backd
   const shown = props.isPlayerVisible && props.isFocusVisible;
   const duration = Number.isFinite(props.track?.duration) ? Math.max(0, props.track!.duration) : 0;
   const time = Number.isFinite(props.activeCurrentTime) ? Math.max(0, Math.min(duration, props.activeCurrentTime)) : 0;
-  const light = props.backdropLight;
-  const foreground = light == null ? props.colors.textPrimary : light ? 'rgba(15, 23, 42, .92)' : 'rgba(255, 255, 255, .94)';
-  const muted = light == null ? props.colors.textMuted : light ? 'rgba(15, 23, 42, .55)' : 'rgba(255, 255, 255, .6)';
-  const trackColor = light == null ? props.colors.borderLight : light ? 'rgba(15, 23, 42, .16)' : 'rgba(255, 255, 255, .22)';
+  // Like focusGlass.mm: the cover's luminance picks the appearance, and the
+  // theme's until the cover has been analysed.
+  const light = props.backdropLight ?? !document.documentElement.classList.contains('theme-dark');
+  const foreground = light ? 'rgba(15, 23, 42, .92)' : 'rgba(255, 255, 255, .94)';
+  const muted = light ? 'rgba(15, 23, 42, .55)' : 'rgba(255, 255, 255, .6)';
+  const trackColor = light ? 'rgba(15, 23, 42, .16)' : 'rgba(255, 255, 255, .22)';
   const mode = props.playbackMode === 'shuffle' ? 'shuffleMode' : props.playbackMode === 'repeat-one' ? 'repeatOneMode' : 'sequence';
   const icon = (name: string) => <span className="material-symbols-rounded" aria-hidden="true">{name}</span>;
   const translation = props.onToggleTranslation ? props.translationStatus ?? 'unavailable' : 'unavailable';

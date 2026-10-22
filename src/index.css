@@ -2,6 +2,7 @@
 @import "./styles/ui.css";
 @import "./styles/wall.css";
 @import "./styles/palette.css";
+@import "./styles/fluent.css";
 @import "tailwindcss";
 
 @theme {
@@ -9,7 +10,6 @@
   --color-background-dark: #101922;
   --color-background-sidebar: #16212e;
   --color-background-card: rgba(255, 255, 255, 0.05);
-  --font-family-sans: var(--theme-font-main, 'Inter', sans-serif);
 }
 
 :root {
@@ -27,8 +27,8 @@
   --theme-control-border-width: 1px;
   --theme-panel-border-width: 1px;
   --theme-list-item-border: transparent;
-  --theme-list-item-gap: 8px;
-  --theme-list-item-padding-y: 12px;
+  --theme-list-item-gap: 0px;
+  --theme-list-item-padding-y: 6px;
   --theme-surface-shadow: 0 18px 48px -28px rgba(0, 0, 0, 0.3);
   --theme-surface-shadow-hover: 0 22px 54px -30px rgba(0, 0, 0, 0.3);
   --theme-elevated-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.2);
@@ -50,10 +50,16 @@ body,
   height: 100%;
 }
 
-html.electron[data-window-effect='acrylic'],
-html.electron[data-window-effect='acrylic'] body,
-html.electron[data-window-effect='acrylic'] #root {
+html.electron[data-window-effect='mica'],
+html.electron[data-window-effect='mica'] body,
+html.electron[data-window-effect='mica'] #root {
   background-color: transparent;
+}
+
+/* Windows 11 type: Segoe UI Variable for Latin, YaHei UI for CJK. Chromium's
+   system-ui stops at the static Segoe UI, and a bare sans-serif is Arial. */
+html.platform-windows {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', system-ui, sans-serif;
 }
 
 /* macOS replaces the retired native vibrancy with a uniform white wash drawn
@@ -292,12 +298,7 @@ textarea.no-scrollbar::-webkit-scrollbar {
 }
 
 .library-track-grid {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) 72px;
-}
-
-/* The album repeated after the artist; shown only once its column is hidden. */
-.library-track-album-inline {
-  display: none;
+  grid-template-columns: minmax(0, 1fr) 72px;
 }
 
 /* Album/artist rail rows: skip painting (and lazy-cover decoding) for rows
@@ -637,19 +638,6 @@ textarea.no-scrollbar::-webkit-scrollbar {
     flex: 1 1 auto;
     width: auto;
   }
-
-  /* Medium: the album column folds into the artist line instead of vanishing. */
-  .library-track-grid {
-    grid-template-columns: minmax(0, 1fr) 72px;
-  }
-
-  .library-track-album {
-    display: none;
-  }
-
-  .library-track-album-inline {
-    display: inline;
-  }
 }
 
 /* Narrow: two columns need no labels, and the spacing tightens. Rows keep
@@ -695,33 +683,48 @@ textarea.no-scrollbar::-webkit-scrollbar {
   animation-play-state: paused !important;
 }
 
-/* The native gutter stays hidden; a visual thumb overlays the list so header
-   and row columns retain identical usable width on every desktop platform. */
+/* The native scrollbar stays hidden. The list and its column labels stop short
+   of a right gutter on every platform, and our own scrollbar lives there:
+   beside the rows rather than over them, so it can be grabbed and dragged. */
+.library-view { --library-scroll-gutter: 14px; }
 .library-track-scroll {
   scrollbar-width: none;
+}
+.library-track-scroll,
+.library-track-header {
+  margin-right: var(--library-scroll-gutter);
 }
 
 .library-overlay-scrollbar {
   position: absolute;
   z-index: 35;
   top: 0;
-  /* List shells extend 24px beyond the rows. Keep the thumb in that outer
-     gutter so highlighted rows and the scroll indicator remain distinct. */
-  right: 12px;
+  /* The gutter starts where the shell's bleed padding ends. */
+  right: var(--library-bleed, 0px);
   bottom: 0;
-  width: 5px;
-  pointer-events: none;
+  width: var(--library-scroll-gutter);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   opacity: 0;
   transition: opacity 180ms ease;
 }
 
 .library-track-scroll-shell:hover > .library-overlay-scrollbar,
-.library-overlay-scrollbar.is-scrolling {
+.library-overlay-scrollbar.is-scrolling,
+.library-overlay-scrollbar.is-dragging {
   opacity: 1;
 }
 
+.library-overlay-scrollbar:hover .library-overlay-scrollbar__thumb,
+.library-overlay-scrollbar.is-dragging .library-overlay-scrollbar__thumb {
+  width: 9px;
+}
+
 .library-overlay-scrollbar__thumb {
-  width: 100%;
+  flex-shrink: 0;
+  width: 6px;
+  transition: width 120ms ease;
   border-radius: 999px;
   background: color-mix(in srgb, var(--theme-text-muted, rgba(255, 255, 255, 0.42)) 58%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-background-dark, #0b0d14) 30%, transparent);
@@ -783,7 +786,227 @@ textarea:focus-visible {
 }
 
 /* Song actions use the same visible menu for mouse and keyboard. */
+.library-track-menu {
+  border: 1px solid var(--theme-border-light);
+  border-radius: var(--theme-surface-radius);
+  background-color: var(--theme-background-sidebar);
+  color: var(--theme-text-primary);
+}
 .library-track-row:hover { background-color: var(--theme-background-card-hover); }
+
+/* Song list palette. Inline-highlight (brutalist) themes keep the theme's own
+   colours and heavy titles; the default themes use Apple Music's below. */
+.library-view {
+  --library-title-weight: 500;
+  --library-surface: transparent;
+  --library-text: var(--theme-text-primary);
+  --library-text-secondary: var(--theme-text-secondary);
+  --library-text-muted: var(--theme-text-muted);
+  --library-divider: color-mix(in srgb, var(--theme-text-primary) 9%, transparent);
+  --library-hover: var(--theme-background-card-hover);
+  --library-accent: var(--theme-primary);
+  --library-selected: color-mix(in srgb, var(--theme-primary) 12.5%, transparent);
+  background: var(--library-surface);
+}
+.library-view[data-row-style='inline'] { --library-title-weight: var(--theme-text-heading-weight); }
+
+/* Apple Music: a plain surface, neutral greys, and the playing row filled with
+   the system blue in white type, whatever the theme's hue. */
+.theme-light .library-view[data-row-style='floating'] {
+  --library-surface: #ffffff;
+  --library-text: #1d1d1f;
+  --library-text-secondary: rgba(0, 0, 0, 0.5);
+  --library-text-muted: rgba(0, 0, 0, 0.42);
+  --library-divider: rgba(0, 0, 0, 0.08);
+  --library-hover: rgba(0, 0, 0, 0.04);
+  --library-accent: #007aff;
+  --library-selected: rgba(0, 122, 255, 0.12);
+}
+.theme-dark .library-view[data-row-style='floating'] {
+  --library-surface: #1e1e1e;
+  --library-text: #f5f5f7;
+  --library-text-secondary: rgba(255, 255, 255, 0.55);
+  --library-text-muted: rgba(255, 255, 255, 0.42);
+  --library-divider: rgba(255, 255, 255, 0.08);
+  --library-hover: rgba(255, 255, 255, 0.05);
+  --library-accent: #0a84ff;
+  --library-selected: rgba(10, 132, 255, 0.2);
+}
+.library-track-header { color: var(--library-text-muted); border-color: var(--library-divider); font-weight: 500; }
+.library-track-row__title { color: var(--library-text); font-weight: var(--library-title-weight); }
+.library-track-row__subtitle { color: var(--library-text-secondary); }
+.library-track-row__time { color: var(--library-text-muted); }
+
+/* Default themes separate rows with a hairline from the text to the end, as
+   Apple Music does, instead of gaps; it gives way around the hovered and the
+   current row, whose own backgrounds already set them apart. */
+.library-view[data-row-style='floating'] .library-track-row::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--library-row-padding) + var(--library-cover-size) + 0.75rem);
+  right: var(--library-row-padding);
+  bottom: 0;
+  height: 1px;
+  background: var(--library-divider);
+  pointer-events: none;
+}
+.library-view[data-row-style='floating'] .library-track-row:hover::after,
+.library-view[data-row-style='floating'] .library-track-row:has(+ .library-track-row:hover)::after,
+.library-view[data-row-style='floating'] .library-track-row[data-current]::after,
+.library-view[data-row-style='floating'] .library-track-row:has(+ .library-track-row[data-current])::after {
+  opacity: 0;
+}
+
+/* A grey hover, like Apple Music; the card-hover colour is white in light themes. */
+.library-view[data-row-style='floating'] .library-track-row:hover {
+  background-color: var(--library-hover);
+}
+
+/* macOS's inset list: rows, and the hover and playing fills on them, stand in
+   from both sides by the scrollbar gutter's width, so they sit evenly between
+   the window's edge and the scrollbar, with rounded ends. The cover and the
+   time keep the same distance from those ends, and the column labels and the
+   collection line up with them. */
+.library-view[data-row-style='floating'] {
+  --library-row-radius: 8px;
+  --library-row-inset: var(--library-scroll-gutter);
+  --library-row-padding: 8px;
+  /* No shadowed band spills past the rows any more, so the list keeps to the window. */
+  --library-bleed: 0px;
+}
+.library-view[data-row-style='floating'][data-density='compact'] { --library-row-radius: 6px; }
+.library-view[data-row-style='floating'] .library-track-scroll { padding-left: var(--library-row-inset); }
+.library-view[data-row-style='floating'] .library-track-header { margin-left: var(--library-row-inset); }
+.library-view[data-row-style='floating'] .library-track-grid { padding-inline: var(--library-row-padding); }
+.library-view[data-row-style='floating'] .library-collection-header {
+  padding-inline: calc(var(--library-row-inset) + var(--library-row-padding));
+}
+.library-view[data-row-style='floating'] .library-track-row[data-current],
+.library-view[data-row-style='floating'] .library-track-row[data-current]:hover {
+  background-color: var(--library-accent);
+}
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__title { color: #fff; }
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__subtitle,
+.library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* The list body: the collection above the songs, or in a column beside them
+   once the list is wide. Only the songs scroll. */
+.library-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.library-body__songs {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+@container library-view (min-width: 900px) {
+  .library-body { flex-direction: row; }
+  .library-body > .library-collection-header {
+    flex: 0 0 clamp(260px, 28cqw, 340px);
+    flex-direction: column;
+    align-items: stretch;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+  }
+  .library-body > .library-collection-header .library-collection-header__art { width: 100%; }
+  .library-body > .library-collection-header .library-collection-header__title {
+    font-size: 26px;
+    -webkit-line-clamp: 3;
+  }
+}
+
+/* Apple Music's playlist header: artwork, name and a short count. Sizes
+   follow the list's width. */
+.library-collection-header {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(16px, 4cqw, 32px);
+  padding: 20px 16px 24px;
+}
+.library-collection-header__art {
+  flex-shrink: 0;
+  width: clamp(112px, 26cqw, 220px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--theme-media-radius);
+  background: var(--library-hover);
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.3);
+}
+.library-collection-header__art img,
+.library-collection-header__art > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.library-collection-header__mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.library-collection-header__text {
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.library-collection-header__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--library-text);
+  font-size: clamp(20px, 4.2cqw, 30px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.library-collection-header__details {
+  margin-top: 6px;
+  color: var(--library-text-secondary);
+  font-size: 13px;
+}
+
+/* The current song's cover carries bars, moving while it plays. */
+.library-track-row__art {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+}
+.now-playing-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--library-cover-radius);
+  background: rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+}
+.now-playing-bars > span {
+  width: 3px;
+  height: 6px;
+  border-radius: 1px;
+  background: #fff;
+  transform-origin: bottom;
+}
+.now-playing-bars > span:nth-child(2) { height: 12px; }
+.now-playing-bars > span:nth-child(3) { height: 8px; }
+.now-playing-bars--animated > span { animation: now-playing-bar 0.9s ease-in-out infinite alternate; }
+.now-playing-bars--animated > span:nth-child(2) { animation-delay: -0.3s; }
+.now-playing-bars--animated > span:nth-child(3) { animation-delay: -0.6s; }
+@keyframes now-playing-bar {
+  from { transform: scaleY(0.35); }
+  to { transform: scaleY(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .now-playing-bars--animated > span { animation: none; }
+}
 .library-menu-item:hover, .library-menu-item:focus-visible {
   background: color-mix(in srgb, currentColor 10%, transparent);
 }

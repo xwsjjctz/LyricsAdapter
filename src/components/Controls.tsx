@@ -11,6 +11,7 @@ import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { FLOATING_PLAYER_BOTTOM, FLOATING_PLAYER_HEIGHT } from '../constants/playerLayout';
 import { useLiquidGlass } from './LiquidGlass';
+import { useBaseThemeTokens } from '../hooks/useBaseThemeTokens';
 
 interface ControlsProps {
   track: Track | null;
@@ -72,6 +73,8 @@ const Controls: React.FC<ControlsProps> = memo(({
   const disclosure = useVolumeDisclosure(floatingPlayer && !isFocusMode && layout === 'full');
   const glass = useLiquidGlass(panelRef, isWindows, 'regular', 22);
   const volumeGlass = useLiquidGlass(volumeShellRef, isWindows && layout === 'full', 'regular', 22);
+  // The glass bar keeps the theme's own look rather than the Fluent layer.
+  useBaseThemeTokens(panelRef, isWindows);
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
     visible: true,

@@ -40,10 +40,9 @@ export interface ThemeColors {
   glowColor: string;
 }
 
+/** Replaces the platform UI font (`--font-sans`) on the document root. */
 interface ThemeFonts {
   main: string;
-  display?: string;
-  mono?: string;
 }
 
 interface ThemeBorderRadius {
@@ -147,10 +146,12 @@ export interface ThemeConfig {
   description: string;
   icon: string;
   colors: ThemeColors;
-  fonts: ThemeFonts;
+  fonts?: ThemeFonts;
   borderRadius: ThemeBorderRadius;
   controls?: Partial<ThemeControlStyles>;
   appearance?: Partial<ThemeAppearanceStyles>;
+  /** Set on the theme as drawn on a platform with its own design language (Windows: Fluent). */
+  designLanguage?: 'fluent';
   tags: string[];
   isDark: boolean;
 }

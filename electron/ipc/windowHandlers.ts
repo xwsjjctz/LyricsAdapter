@@ -1,6 +1,7 @@
-import { BrowserWindow, type IpcMainEvent } from "electron";
+import { BrowserWindow, nativeTheme, type IpcMainEvent } from "electron";
 import { logger } from "../logger";
 import { handleIpc, onIpc, sendIpc } from './ipcMainTyped';
+import { getWindowsTitleBarOverlay, isWindowChromeAppearance } from '../../src/shared/windowsChrome';
 
 interface WindowControls {
   prepareForUpdate: () => Promise<boolean>;
@@ -88,6 +89,18 @@ export function registerWindowControls(win: BrowserWindow | null): WindowControl
       return win.isFullScreen();
     }
     return false;
+  });
+
+  handleIpc('window-set-chrome-appearance', async (_event, appearance) => {
+    if (process.platform !== 'win32' || !win || win.isDestroyed() || !isWindowChromeAppearance(appearance)) return;
+    // Mica tints from the system light/dark mode; follow the app theme instead
+    // so a dark theme on a light desktop does not sit on a pale backdrop.
+    nativeTheme.themeSource = appearance.theme;
+    try {
+      win.setTitleBarOverlay(getWindowsTitleBarOverlay(appearance.captions));
+    } catch (error) {
+      logger.warn('[Window] Failed to update title bar overlay:', error);
+    }
   });
 
   if (win) {

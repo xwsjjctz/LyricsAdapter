@@ -81,9 +81,7 @@ function WebTrackMenu({ position, colors, items, onClose, onAction, abovePalette
   return createPortal(
     <div ref={ref} role="menu" tabIndex={-1} aria-label={t('library.songActions')}
       className={`library-track-menu fixed z-[100] p-1.5 shadow-2xl${abovePalette ? ' library-track-menu--above-palette' : ''}`}
-      style={{ left: point.x, top: point.y, width: 220, maxWidth: 'calc(100vw - 16px)',
-        backgroundColor: colors.backgroundSidebar, color: colors.textPrimary,
-        border: `1px solid ${colors.borderLight}`, borderRadius: 'var(--theme-surface-radius)' }}
+      style={{ left: point.x, top: point.y, width: 220, maxWidth: 'calc(100vw - 16px)' }}
       onContextMenu={e => e.preventDefault()}
       onKeyDown={e => {
         const buttons = Array.from(ref.current!.querySelectorAll<HTMLButtonElement>('button'));

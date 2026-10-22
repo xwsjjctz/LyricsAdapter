@@ -8,6 +8,7 @@ import { toCoverThumb } from '../services/coverUrl';
 import { ThemeConfig } from '../types/theme';
 import { resolveThemeAppearance } from '../services/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
+import LibraryCollectionHeader, { type LibraryCollection } from './LibraryCollectionHeader';
 import TrackMenu from './TrackMenu';
 import type { TrackDownloadQuality } from '../domain/trackMenuItems';
 import LibrarySelectionBar from './LibrarySelectionBar';
@@ -20,12 +21,17 @@ import { readableForeground } from '../services/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
 import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
+import { WINDOWS_TITLE_BAR_HEIGHT } from '../shared/windowsChrome';
 import { useLibraryState } from '../stores/libraryState';
 
 /** The browsed slot's selection, scroll offset and filters come from the library store. */
 interface LibraryViewProps {
   tracks: Track[];
   currentTrackId?: string;
+  /** The current track is playing and visible, so its row's bars move. */
+  nowPlayingAnimated?: boolean;
+  /** Shown above the songs, like Apple Music's playlist header. */
+  collection?: LibraryCollection | undefined;
   onTrackSelect: (index: number) => void;
   onRemoveTrack: (trackId: string) => void | Promise<void>;
   onRemoveMultipleTracks?: (trackIds: string[]) => void | Promise<void>;
@@ -79,6 +85,8 @@ interface LibraryEmptyState {
 const LibraryView: React.FC<LibraryViewProps> = memo(({
   tracks,
   currentTrackId,
+  nowPlayingAnimated = false,
+  collection,
   onTrackSelect,
   onRemoveTrack,
   onRemoveMultipleTracks,
@@ -118,17 +126,12 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const categorySelection = useLibraryState(state => state.slots[state.viewSlot].categorySelection);
   const desktopAPI = getDesktopAPI();
   const titleBarHeight = desktopAPI
-    ? desktopAPI.platform === 'darwin' ? getMacTitleBarLayout(desktopAPI.osRelease).height : 36
+    ? desktopAPI.platform === 'darwin' ? getMacTitleBarLayout(desktopAPI.osRelease).height
+      : desktopAPI.platform === 'win32' ? WINDOWS_TITLE_BAR_HEIGHT : 36
     : 0;
   const progress = importProgress ?? (dataSource === 'cloud' ? loadProgress : null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null); // Track being reordered
   const [insertPosition, setInsertPosition] = useState<{ index: number; position: 'before' | 'after' } | null>(null); // Where to insert the dragged item
-  const [highlightStyle, setHighlightStyle] = useState<{ top: number; height: number; opacity: number }>({
-    top: 0,
-    height: 0,
-    opacity: 0
-  });
-  const [isHighlightTransitionSuppressed, setIsHighlightTransitionSuppressed] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefreshCloud = useCallback(async () => {
@@ -218,7 +221,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   const listRef = useRef<HTMLDivElement>(null);
   const previousTrackIndexRef = useRef<number>(-1);
   const lastHandledAutoLocateTokenRef = useRef<number>(autoLocateToken);
-  const highlightUpdateIdRef = useRef(0);
   // A cross-slot locate prepares the target scroll position before its entrance.
   const skipNextScrollRestoreRef = useRef(false);
   // 实时记录 scrollTop，cleanup 时读此 ref 而非 DOM（避免 DOM 切换后 scrollTop 被 clamp）
@@ -226,8 +228,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
   const colors = currentTheme.colors;
   const localImportForeground = readableForeground(colors.primary);
-  // 当前播放指示器形态：'inline' 时不渲染浮动跟随滑块，改用行内实色高亮，
-  // 彻底规避浮动定位错位，且滚动时无跟随动画。
+  // 当前播放行都由行本身着色，随列表原生滚动：'floating'（默认主题）是 Apple Music
+  // 式的强调色整行；'inline'（粗粝类主题）是主题主色实底。
   const playingIndicator = resolveThemeAppearance(currentTheme).playingIndicator;
   // inline 模式（粗粝类主题）下，浮动定位按钮也走粗粝风：实色底 + 黑色直角边框 + 硬阴影。
   const inlineFab = playingIndicator === 'inline';
@@ -378,27 +380,16 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
     return targetTracks.findIndex(t => t.id === currentTrackId);
   }, [currentTrackId, filteredTracks, categoryFilteredTracks, filterType]);
 
-  // Get the index of current track in the full displayTracks list
-  const currentTrackInDisplayIndex = useMemo(() => {
-    if (!currentTrackId) return -1;
-    return displayTracks.findIndex(t => t.id === currentTrackId);
-  }, [currentTrackId, displayTracks]);
-
   // When locating across slots, prepare the target list while its wrapper is
   // invisible. This deliberately happens before the GSAP entrance begins.
   useLayoutEffect(() => {
     if (pendingLocateSlot !== dataSource || pendingLocateToken == null) {
-      // A completed or cancelled cross-slot preparation must never leave the
-      // normal track-switch slider without its transition class.
-      setIsHighlightTransitionSuppressed(false);
       onSlotContentReady?.(dataSource);
       return;
     }
 
     // The following normal effect must not restore the saved scroll position.
     skipNextScrollRestoreRef.current = true;
-    setIsHighlightTransitionSuppressed(true);
-    setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
     let restoreTransitionFrame: number | undefined;
     let enterFrame: number | undefined;
     const frame = requestAnimationFrame(() => {
@@ -413,19 +404,10 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
         setScrollTop(clampedTop);
         hasAutoLocatedToTrackRef.current = true;
       }
-      if (filterType === 'default' && currentTrackInDisplayIndex >= 0) {
-        setHighlightStyle({
-          top: rowTop(currentTrackInDisplayIndex),
-          height: baseRowHeight,
-          opacity: 1,
-        });
-      }
-      // Keep the list wrapper hidden until React has committed the final
-      // highlight position, then restore the regular track-switch transition
-      // before starting the wrapper entrance. Clearing pending state earlier
-      // would rerun this effect and cancel the restoration frame.
+      // Keep the list wrapper hidden until React has committed the scrolled
+      // rows, then start the wrapper entrance. Clearing pending state earlier
+      // would rerun this effect and cancel these frames.
       restoreTransitionFrame = requestAnimationFrame(() => {
-        setIsHighlightTransitionSuppressed(false);
         enterFrame = requestAnimationFrame(() => {
           onPendingLocatePrepared?.(pendingLocateToken);
           onSlotContentReady?.(dataSource);
@@ -438,7 +420,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       if (restoreTransitionFrame !== undefined) cancelAnimationFrame(restoreTransitionFrame);
       if (enterFrame !== undefined) cancelAnimationFrame(enterFrame);
     };
-  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, currentTrackInDisplayIndex, filterType, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
+  }, [dataSource, pendingLocateSlot, pendingLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, onPendingLocatePrepared, onSlotContentReady]);
 
   // Auto-locate only when a track-switch action occurs.
   useEffect(() => {
@@ -486,86 +468,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
 
     return () => clearTimeout(timer);
   }, [autoLocateToken, currentTrackInFilteredIndex, rowStride, baseRowHeight, totalHeight, isFocusMode, topInset, bottomInset]);
-
-  // 高亮覆盖层（"滑块"）的位置与可见性。
-  // default 模式用纯计算 index*rowStride 定位，绝不查询 DOM：当前播放行被虚拟滚动
-  // 卸载时高亮也不会丢失，滚动时 scrollTop 变化触发重渲染、transform 自动跟随。
-  // （此前用 querySelector 取行元素，行被卸载后返回 null 会把 opacity 置 0，且 effect
-  // 依赖不含 scrollTop，滚回该行后无法恢复，表现为"滑块消失"。）
-  // category（专辑/艺术家）模式列表不按全局索引布局，保留 DOM 查找 + 重试。
-  useEffect(() => {
-    if (isSelecting || !currentTrackId || displayTracks.length === 0) {
-      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-      return;
-    }
-
-    if (filterType === 'default') {
-      if (currentTrackInDisplayIndex < 0) {
-        setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-        return;
-      }
-      setHighlightStyle({
-        top: rowTop(currentTrackInDisplayIndex),
-        height: baseRowHeight,
-        opacity: 1,
-      });
-      return;
-    }
-
-    // category 模式：等 DOM 渲染后查找当前行（带 updateId 防竞态、带重试）
-    const currentUpdateId = ++highlightUpdateIdRef.current;
-
-    const updateHighlight = (retryCount = 0) => {
-      if (currentUpdateId !== highlightUpdateIdRef.current) {
-        return;
-      }
-
-      let currentTrackElement: HTMLElement | null = null;
-      const isCurrentInCategory = categoryFilteredTracks.some(t => t.id === currentTrackId);
-      if (isCurrentInCategory && scrollContainerRef.current) {
-        currentTrackElement = scrollContainerRef.current.querySelector(
-          `[data-track-index="${currentTrackInDisplayIndex}"]`
-        ) as HTMLElement | null;
-      }
-
-      if (currentUpdateId !== highlightUpdateIdRef.current) {
-        return;
-      }
-
-      if (currentTrackElement) {
-        setHighlightStyle({
-          top: currentTrackElement.offsetTop,
-          height: currentTrackElement.offsetHeight,
-          opacity: 1,
-        });
-        return;
-      }
-
-      if (retryCount < 30) {
-        const nextRetry = retryCount + 1;
-        const delay = 50 * nextRetry;
-        setTimeout(() => {
-          requestAnimationFrame(() => updateHighlight(nextRetry));
-        }, delay);
-      } else {
-        setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-      }
-    };
-
-    const timer = setTimeout(() => {
-      requestAnimationFrame(() => updateHighlight(0));
-    }, 150);
-
-    return () => clearTimeout(timer);
-  }, [currentTrackId, currentTrackInDisplayIndex, displayTracks.length, isSelecting, filterType, categoryFilteredTracks, rowStride, baseRowHeight, topInset]);
-
-  // 切到非 default 视图时立即隐藏高亮（category 列表布局不同，避免错位闪烁）
-  useEffect(() => {
-    if (filterType !== 'default') {
-      logger.debug(`[LibraryView] Filter type changed to ${filterType}, hiding highlight temporarily`);
-      setHighlightStyle(prev => ({ ...prev, opacity: 0 }));
-    }
-  }, [filterType]);
 
   // Check if current track is visible in viewport
   // Account for the overlaid ControlBar: a track underneath it must count as
@@ -726,6 +628,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
   return (
     <div
       className="library-view w-full flex flex-col h-full relative transition-all duration-300"
+      data-row-style={playingIndicator}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -751,22 +654,20 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
       {isSelecting && <LibrarySelectionBar count={selectedIds.size} total={activeTracks.length} colors={colors}
         onToggleAll={toggleSelectAll} onRemove={trackActions.requestBatchDelete} onDone={finishSelection} />}
 
-      {filterType === 'default' && (
-        <div className="flex-shrink-0">
-          <div
-            className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-2 text-xs font-bold uppercase tracking-widest border-b select-none"
-            style={{ color: colors.textSecondary, borderColor: colors.borderLight }}
-            onDoubleClick={handleScrollToTop}
-          >
-            <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
-            <span className="text-right">{t('library.timeCol')}</span>
-          </div>
-        </div>
-      )}
       </div>
 
       {/* 可滚动的歌曲列表 */}
       {filterType === 'default' ? (
+        // The collection and the column labels stay put; only the songs scroll.
+        // Wide lists put the collection in a column beside the songs.
+        <div className="library-body">
+        {collection && tracks.length > 0 && <LibraryCollectionHeader collection={collection} tracks={tracks} onDoubleClick={handleScrollToTop} />}
+        <div className="library-body__songs">
+        <div className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none flex-shrink-0"
+          onDoubleClick={handleScrollToTop}>
+          <span>{t('library.titleCol')}</span>
+          <span className="text-right">{t('library.timeCol')}</span>
+        </div>
         <div
           className="library-track-scroll-shell library-bleed flex-1 relative min-h-0 overflow-hidden"
         >
@@ -780,25 +681,6 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
               </div>
             </div>
           )}
-          {/* Sliding highlight overlay (outside scroll clipping) */}
-          <div className="absolute inset-0 pointer-events-none">
-            {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
-              <div
-                className={`absolute pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
-                style={{
-                  transform: `translateY(${highlightStyle.top - scrollTop}px)`,
-                  height: `${highlightStyle.height}px`,
-                  opacity: highlightStyle.opacity,
-                  left: 'var(--library-bleed)',
-                  right: 'var(--library-bleed)',
-                  backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                  boxShadow: 'var(--theme-elevated-shadow)',
-                  borderRadius: 'var(--library-row-radius)',
-                }}
-              />
-            )}
-          </div>
 
           <div
             ref={scrollContainerRef}
@@ -840,6 +722,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                       shouldShowAnimation={shouldShowAnimation}
                       colors={colors}
                       playingIndicator={playingIndicator}
+                      nowPlayingAnimated={nowPlayingAnimated && isCurrentTrack}
                       measureRef={idx === 0 ? rowMeasureRef : undefined}
                       realTrackIndex={displayIndexMap.get(track.id) ?? -1}
                       onTrackSelect={onTrackSelect}
@@ -921,6 +804,8 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
             bottomInset={bottomInset}
           />
         </div>
+        </div>
+        </div>
       ) : (
         <div className="library-bleed flex-1 flex gap-4 overflow-hidden">
           {/* 左侧分类列表 */}
@@ -997,34 +882,14 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
              )}
              <div className="library-bleed flex-shrink-0">
                <div
-                 className="library-track-grid grid gap-4 px-4 py-2 text-xs font-bold uppercase tracking-widest border-b mb-2 select-none"
-                 style={{ color: colors.textMuted, borderColor: colors.borderLight }}
+                 className="library-track-header library-track-grid grid gap-4 px-4 py-2 mb-1 text-xs border-b select-none"
                  onDoubleClick={handleScrollToTop}
                >
-                 <span>{t('library.titleCol')}</span><span className="library-track-album pl-8">{t('library.albumCol')}</span>
-                <span className="text-right">{t('library.timeCol')}</span>
+                 <span>{t('library.titleCol')}</span>
+                 <span className="text-right">{t('library.timeCol')}</span>
                </div>
              </div>
              <div className="library-track-scroll-shell library-bleed flex-1 relative min-h-0 overflow-hidden">
-               {/* Sliding highlight overlay (outside scroll clipping) */}
-               <div className="absolute inset-0 pointer-events-none">
-                 {playingIndicator === 'floating' && highlightStyle.opacity > 0 && (
-                   <div
-                     className={`absolute pointer-events-none ${isHighlightTransitionSuppressed ? '' : 'transition-[transform,height] duration-150 ease-out'}`}
-                     style={{
-                       transform: `translateY(${highlightStyle.top - scrollTop}px)`,
-                       height: `${highlightStyle.height}px`,
-                       opacity: highlightStyle.opacity,
-                       left: 'var(--library-bleed)',
-                       right: 'var(--library-bleed)',
-                       backgroundColor: 'color-mix(in srgb, var(--theme-control-current-track-band-tint) 15%, transparent)',
-                       border: '1px solid color-mix(in srgb, var(--theme-control-current-track-band-tint) 25%, transparent)',
-                       boxShadow: 'var(--theme-elevated-shadow)',
-                       borderRadius: 'var(--library-row-radius)',
-                     }}
-                   />
-                 )}
-               </div>
 
               <div
                 ref={scrollContainerRef}
@@ -1043,6 +908,7 @@ const LibraryView: React.FC<LibraryViewProps> = memo(({
                           isCurrentTrack={track.id === currentTrackId} isSelecting={isSelecting}
                           isSelected={selectedIds.has(track.id)} isDragged={false} hasMenu={menuItemsFor(track).length > 0} canReorder={false}
                           shouldShowAnimation={shouldShowAnimation} colors={colors} playingIndicator={playingIndicator}
+                          nowPlayingAnimated={nowPlayingAnimated && track.id === currentTrackId}
                           measureRef={idx === 0 ? rowMeasureRef : undefined} onTrackSelect={onTrackSelect}
                           onToggleSelect={toggleSelectOne} onOpenMenu={openTrackMenu}
                           onDragStart={handleTrackDragStart} onDragOver={handleTrackDragOver}

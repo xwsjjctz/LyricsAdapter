@@ -59,6 +59,20 @@ describe('RemoteCoverCache', () => {
     expect(fetchCover).toHaveBeenCalledTimes(3);
   });
 
+  it('reports what it keeps and clears it, downloading again afterwards', async () => {
+    const fetchCover = vi.fn(async (url: string) => Buffer.alloc(10, url.at(-1)));
+    const cache = new RemoteCoverCache(directory, fetchCover);
+    expect(await cache.info()).toEqual({ entries: 0, bytes: 0 });
+    await cache.get('https://cdn.example/a');
+    await cache.get('https://cdn.example/b');
+    expect(await cache.info()).toEqual({ entries: 2, bytes: 20 });
+    await cache.clear();
+    expect(await cache.info()).toEqual({ entries: 0, bytes: 0 });
+    await cache.get('https://cdn.example/a');
+    expect(fetchCover).toHaveBeenCalledTimes(3);
+    expect(await cache.info()).toEqual({ entries: 1, bytes: 10 });
+  });
+
   it('removes the least recently used covers once past its size limit', async () => {
     const fetchCover = vi.fn(async (url: string) => Buffer.alloc(100, url.at(-1)));
     const cache = new RemoteCoverCache(directory, fetchCover, 350);

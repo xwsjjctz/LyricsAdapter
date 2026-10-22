@@ -27,12 +27,30 @@ describe('native settings snapshot', () => {
   it('offers the installed-app update only when the build supports updates', () => {
     const general = (updater: Partial<{ visible: boolean; downloaded: boolean; busy: boolean }>) => generalBlocks({
       language: 'zh', languages: [{ value: 'zh', title: '中文' }], downloadPath: '/music', downloadRevision: 2, appVersion: '1.0.0',
+      coverCache: { visible: false, size: '', empty: true, busy: false, error: '' },
       updater: { visible: false, status: 'updater.checking', error: '', downloaded: false, busy: false, ...updater },
     }, t)[0]!.rows;
     expect(general({}).map(entry => entry.id)).toEqual(['general:language', 'general:download', 'general:about']);
     expect(control(general({}), 'general:download-path')).toMatchObject({ type: 'field', value: '/music', revision: 2 });
     expect(control(general({ visible: true, busy: true }), 'general:check')).toMatchObject({ enabled: false });
     expect(control(general({ visible: true, downloaded: true }), 'general:restart')).toMatchObject({ style: 'primary' });
+  });
+
+  it('shows the cover cache with its size, and clears only a non-empty cache', () => {
+    const general = (coverCache: Partial<{ visible: boolean; size: string; empty: boolean; busy: boolean; error: string }>) => generalBlocks({
+      language: 'zh', languages: [{ value: 'zh', title: '中文' }], downloadPath: '', downloadRevision: 0, appVersion: '1.0.0',
+      coverCache: { visible: true, size: '12.0 MiB', empty: false, busy: false, error: '', ...coverCache },
+      updater: { visible: false, status: '', error: '', downloaded: false, busy: false },
+    }, t)[0]!.rows;
+    expect(general({}).map(entry => entry.id)).toEqual(['general:language', 'general:download', 'general:cover-cache', 'general:about']);
+    expect(general({}).find(entry => entry.id === 'general:cover-cache')).toMatchObject({
+      title: 'settings.coverCache', detail: 'settings.coverCacheDesc', detailTone: 'secondary', tone: 'default',
+      controls: [{ type: 'label', text: '12.0 MiB' }, { type: 'button', id: 'general:clear-cover-cache', enabled: true }],
+    });
+    expect(control(general({ empty: true }), 'general:clear-cover-cache')).toMatchObject({ enabled: false });
+    expect(control(general({ busy: true }), 'general:clear-cover-cache')).toMatchObject({ enabled: false });
+    expect(general({ error: 'failed' }).find(entry => entry.id === 'general:cover-cache')).toMatchObject({ detail: 'failed', detailTone: 'error' });
+    expect(general({ visible: false }).map(entry => entry.id)).not.toContain('general:cover-cache');
   });
 
   it('builds plugin configuration fields under their own id segment', () => {

@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useLibraryVirtualScroll } from '../../src/hooks/useLibraryVirtualScroll';
 
@@ -17,6 +17,23 @@ function makeRef(clientHeight: number): React.RefObject<HTMLDivElement> {
 describe('useLibraryVirtualScroll', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+  });
+
+  it('reads the row gap with the first row, since the list mounts after the tracks arrive', async () => {
+    const scrollContainerRef = makeRef(600);
+    // No list element yet: the gap effect has nothing to read on mount.
+    const listRef: React.RefObject<HTMLDivElement> = { current: null };
+    const { result } = renderHook(() => useLibraryVirtualScroll({
+      itemCount: 10, scrollTop: 0, scrollContainerRef, listRef, isEditMode: false,
+    }));
+    const list = document.createElement('div');
+    list.style.rowGap = '0px';
+    const row = document.createElement('div');
+    list.appendChild(row);
+    vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ height: 52 } as DOMRect);
+    act(() => result.current.rowMeasureRef(row));
+    expect(result.current.rowGap).toBe(0);
+    expect(result.current.rowStride).toBe(52);
   });
 
   it('uses a bounded initial window before the viewport can be measured', () => {

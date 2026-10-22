@@ -22,6 +22,15 @@
   background: linear-gradient(135deg, var(--theme-background-gradient-start, #17131f), var(--theme-background-gradient-end, #111b2a));
 }
 
+/* Windows 11: let Mica (tinted by the wallpaper) show through the theme
+   gradient, the way Fluent apps let their backdrop carry the window. */
+html[data-window-effect='mica'] .app-library-background {
+  --mica-gradient-alpha: 78%;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--theme-background-gradient-start, #17131f) var(--mica-gradient-alpha), transparent),
+    color-mix(in srgb, var(--theme-background-gradient-end, #111b2a) var(--mica-gradient-alpha), transparent));
+}
+
 .poster-wall {
   /* Tiles run flush to every window edge. The floating control bar may cover
      part of the last row for now. */

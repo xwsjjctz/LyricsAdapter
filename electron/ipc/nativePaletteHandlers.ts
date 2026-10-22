@@ -6,7 +6,7 @@ import {
 } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { createCoverQueue } from './coverQueue';
-import { loadArtwork } from './playerControlbarHandlers';
+import { loadArtwork } from '../services/artwork';
 import { fail, ok, parsePayload } from './typedResult';
 import { handleIpc, sendIpc } from './ipcMainTyped';
 

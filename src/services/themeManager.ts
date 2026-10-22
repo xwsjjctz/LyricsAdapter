@@ -10,13 +10,35 @@ import { predefinedThemes, getDefaultTheme } from './themes/predefinedThemes';
 import { hexToRgba, readableForeground } from './colorUtils';
 import { resolveThemeControls } from './themeControls';
 import { resolveThemeAppearance } from './themeAppearance';
+import { supportsFluentAppearance, withFluentAppearance } from './themes/fluentTheme';
 
 const THEME_STORAGE_KEY = 'app-theme';
 
+/** Windows draws the themes that allow it in Fluent (themes/fluentTheme.ts). */
+const usesFluent = (theme: ThemeConfig): boolean =>
+  typeof window !== 'undefined' && window.electron?.platform === 'win32' && supportsFluentAppearance(theme);
+
+// One drawn copy per predefined theme, so getCurrentTheme() stays referentially stable.
+const fluentThemes = new WeakMap<ThemeConfig, ThemeConfig>();
+
+/** A predefined theme as this platform draws it. */
+function forPlatform(theme: ThemeConfig): ThemeConfig {
+  if (!usesFluent(theme)) return theme;
+  let drawn = fluentThemes.get(theme);
+  if (!drawn) {
+    drawn = withFluentAppearance(theme);
+    fluentThemes.set(theme, drawn);
+  }
+  return drawn;
+}
+
+function predefinedTheme(themeId: ThemeId): ThemeConfig {
+  return predefinedThemes.find(t => t.id === themeId) || getDefaultTheme();
+}
+
 /** Write a theme's CSS custom properties and light/dark marker to an element. */
-function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
+export function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   const colors = theme.colors;
-  const fonts = theme.fonts;
   const radius = theme.borderRadius;
   const controls = resolveThemeControls(theme);
   const appearance = resolveThemeAppearance(theme);
@@ -58,10 +80,6 @@ function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
 
   el.style.setProperty('--theme-shadow-color', colors.shadowColor);
   el.style.setProperty('--theme-glow-color', colors.glowColor);
-
-  el.style.setProperty('--theme-font-main', fonts.main);
-  el.style.setProperty('--theme-font-display', fonts.display || fonts.main);
-  el.style.setProperty('--theme-font-mono', fonts.mono || 'ui-monospace, monospace');
 
   el.style.setProperty('--theme-radius-sm', radius.sm);
   el.style.setProperty('--theme-radius-md', radius.md);
@@ -190,12 +208,17 @@ class ThemeManagerClass {
     return this.currentThemeId;
   }
 
+  /** The current theme as defined, without the platform's design-language layer. */
+  getBaseTheme(): ThemeConfig {
+    return predefinedTheme(this.currentThemeId);
+  }
+
   getCurrentTheme(): ThemeConfig {
-    return predefinedThemes.find(t => t.id === this.currentThemeId) || getDefaultTheme();
+    return forPlatform(predefinedTheme(this.currentThemeId));
   }
 
   applyCurrentTheme(): void {
-    this.applyTheme(this.getCurrentTheme());
+    this.applyTheme(predefinedTheme(this.currentThemeId));
   }
 
   /** Re-read a repaired AppStorage snapshot without persisting it again. */
@@ -237,15 +260,21 @@ class ThemeManagerClass {
     this.listeners.forEach(listener => listener(this.currentThemeId));
   }
 
+  /** Applies a predefined theme as this platform draws it. */
   applyTheme(theme: ThemeConfig): void {
     const root = document.documentElement;
 
     this.startThemeTransition(root);
 
-    applyThemeVarsToElement(root, theme);
+    const drawn = forPlatform(theme);
+    // Fluent component styles (styles/fluent.css) key off this marker.
+    if (drawn.designLanguage) root.dataset['designLanguage'] = drawn.designLanguage;
+    else delete root.dataset['designLanguage'];
+    applyThemeVarsToElement(root, drawn);
 
-    // Apply font family to body
-    root.style.fontFamily = theme.fonts.main;
+    // Only themes with their own typeface override the root font; clearing it
+    // lets body-level portals inherit the same --font-sans as the app shell.
+    root.style.fontFamily = theme.fonts?.main ?? '';
 
     // Clean up legacy theme classes
     root.classList.remove('theme-cute');

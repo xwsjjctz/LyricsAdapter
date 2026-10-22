@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { appStorage } from './services/appStorage';
 import { installInputModality } from './services/inputModality';
 import { dismissStartupScreen } from './services/startupScreen';
+import { supportsWindowsSystemBackdrop } from './shared/windowsChrome';
 
 // 初始化应用存储：主进程已有设置时以其为权威；仅在主存储为空时迁移
 // allowlist 中的旧 localStorage 设置。UI 模块在初始化完成后才加载，避免
@@ -11,7 +12,12 @@ const platform = window.electron?.platform;
 if (platform) {
   document.documentElement.classList.add('electron');
   if (platform === 'win32') {
-    document.documentElement.dataset['windowEffect'] = 'acrylic';
+    // Matches the main process: only builds with a system backdrop get Mica;
+    // older Windows keeps an opaque window and the plain app background.
+    document.documentElement.classList.add('platform-windows');
+    if (supportsWindowsSystemBackdrop(window.electron?.osRelease)) {
+      document.documentElement.dataset['windowEffect'] = 'mica';
+    }
   } else if (platform === 'darwin') {
     // Native vibrancy is gone; the translucent white wash on the root keeps
     // the desktop faintly visible and biases glass surfaces light.

@@ -37,10 +37,6 @@ export const predefinedThemes: ThemeConfig[] = [
       shadowColor: 'rgba(6, 3, 12, 0.42)',
       glowColor: 'rgba(241, 155, 209, 0.24)',
     },
-    fonts: {
-      main: "'Inter', system-ui, -apple-system, sans-serif",
-      display: "'Inter', system-ui, -apple-system, sans-serif",
-    },
     borderRadius: {
       sm: '4px',
       md: '8px',
@@ -57,10 +53,6 @@ export const predefinedThemes: ThemeConfig[] = [
     isDark: false,
     tags: ['默认', '浅色', '粉蓝'],
     colors: dayPaletteColors,
-    fonts: {
-      main: "'Inter', system-ui, -apple-system, sans-serif",
-      display: "'Inter', system-ui, -apple-system, sans-serif",
-    },
     borderRadius: {
       sm: '4px',
       md: '8px',
@@ -102,8 +94,6 @@ export const predefinedThemes: ThemeConfig[] = [
     },
     fonts: {
       main: "'Arial Black', 'Impact', system-ui, -apple-system, sans-serif",
-      display: "'Arial Black', 'Impact', system-ui, -apple-system, sans-serif",
-      mono: "'SFMono-Regular', Consolas, monospace",
     },
     borderRadius: {
       sm: '0px',

@@ -5,6 +5,7 @@ import { nativeSettingsOwnsKeyboard } from '../services/nativeSettingsFocus';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
 import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
+import { useWindowsChromeAppearance } from '../hooks/useWindowsChromeAppearance';
 
 // 窗口控制按钮图标组件
 const MinimizeIcon = () => (
@@ -105,7 +106,9 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
   const desktopAPI = getDesktopAPI();
   const platform = desktopAPI?.platform || '';
   const isMacOS = platform === 'darwin';
+  const isWindows = platform === 'win32';
   const isLinux = platform === 'linux';
+  useWindowsChromeAppearance(isWindows, !!isFocusMode);
 
   // 如果不在桌面环境，不显示标题栏
   if (!canControl) {
@@ -161,7 +164,35 @@ const TitleBar: React.FC<TitleBarProps> = memo(({ isFocusMode, onToggleFocusMode
     );
   }
 
-  // Windows / Linux 渲染自定义标题栏和窗口控制按钮
+  // Windows 的最小化/最大化/关闭由系统绘制（Window Controls Overlay），保留贴靠布局；
+  // 这里只铺拖动区域，并把专注模式按钮放在系统按钮左侧。
+  if (isWindows) {
+    return (
+      <div
+        className="windows-titlebar fixed top-0 select-none z-[160] flex items-stretch"
+        style={{
+          WebkitAppRegion: 'drag',
+          WebkitUserSelect: 'none',
+          userSelect: 'none'
+        } as React.CSSProperties}
+      >
+        <div className="flex-1" />
+        <button
+          onClick={onToggleFocusMode}
+          data-no-gsap-bounce
+          className="titlebar-btn"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          aria-label={isFocusMode ? t('titleBar.exitFocusMode') : t('titleBar.enterFocusMode')}
+        >
+          <span style={{ display: 'flex', transform: isFocusMode ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+            <CollapseIcon />
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  // Linux 渲染自定义标题栏和窗口控制按钮
   return (
       <div
         className={`fixed top-0 left-0 right-0 h-9 bg-transparent select-none z-[160] flex items-start${isLinux ? ' rounded-lg overflow-hidden' : ''}`}

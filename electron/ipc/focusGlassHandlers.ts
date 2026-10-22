@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { loadMacosFocusGlassBridge, type MacosFocusGlassBridge } from '../native/macosFocusGlassNative';
 import { logger } from '../logger';
 import { fail, ok, parsePayload } from './typedResult';
-import { loadArtwork } from './playerControlbarHandlers';
+import { loadArtwork } from '../services/artwork';
 import type { PlaybackSymbols } from '../../src/types/focusGlass';
 import { handleIpc, sendIpc } from './ipcMainTyped';
 

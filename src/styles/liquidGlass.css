@@ -106,11 +106,13 @@
   z-index: 20;
   color: var(--focus-glass-fg);
   --theme-control-slider-track: var(--focus-glass-track);
-  --theme-control-slider-fill: var(--focus-glass-fg);
+  /* NSSlider fills with the accent colour. */
+  --theme-control-slider-fill: var(--theme-primary);
   --theme-control-icon-fg-hover: var(--focus-glass-fg);
 }
-.windows-focus-glass button { position: absolute; display: grid; place-items: center; border-radius: 12px; }
-.windows-focus-glass button:hover:enabled { background: var(--focus-glass-track); }
+/* Borderless NSButtons: no hover plate; the glyph dims while pressed. */
+.windows-focus-glass button { position: absolute; display: grid; place-items: center; border-radius: 12px; transition: opacity 120ms ease; }
+.windows-focus-glass button:active:enabled { opacity: .6; transition-duration: 0s; }
 .windows-focus-glass button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .windows-focus-glass button:disabled { opacity: .3; }
 .windows-focus-glass .material-symbols-rounded { font-size: 26px; font-variation-settings: 'FILL' 1; }
@@ -140,6 +142,16 @@
 .windows-focus-glass .focus-glass-translate[aria-busy="true"] { opacity: 1; }
 .windows-focus-glass .focus-glass-translate[aria-pressed="true"] { color: var(--theme-primary); }
 .windows-focus-glass .focus-glass-volume { position: absolute; left: 76%; top: 56.25%; width: 19.4286%; height: 20.8333%; }
+/* macOS 26's small NSSlider knob: a white capsule that always shows. */
+.windows-focus-glass .player-slider-thumb {
+  left: clamp(10px, var(--slider-progress), calc(100% - 10px));
+  width: 20px;
+  height: 12px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .12), 0 1px 3px rgba(0, 0, 0, .3);
+}
+.windows-focus-glass .player-slider:has(input:enabled) .player-slider-thumb { opacity: 1; }
 .windows-focus-glass, .windows-glass-player { --theme-progress-height: 4px; --theme-progress-radius: 999px; }
 
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {

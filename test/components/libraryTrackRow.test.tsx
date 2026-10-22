@@ -4,13 +4,14 @@ import LibraryTrackRow from '@/components/LibraryTrackRow';
 import { themeManager } from '@/services/themeManager';
 
 vi.mock('@/components/TrackCover', () => ({ default: () => <div data-testid="cover" /> }));
-function setup(selecting = false, available = true) {
+function setup(selecting = false, available = true, current: { isCurrentTrack?: boolean; nowPlayingAnimated?: boolean } = {}) {
   const onTrackSelect = vi.fn();
   const onToggleSelect = vi.fn();
   const onOpenMenu = vi.fn();
   const rendered = render(<LibraryTrackRow
     track={{ id: 'track', title: 'A Song', artist: 'Artist', album: 'Album', duration: 60, audioUrl: '', available }}
-    filteredIndex={8} realTrackIndex={12} isCurrentTrack={false} isSelecting={selecting}
+    filteredIndex={8} realTrackIndex={12} isCurrentTrack={current.isCurrentTrack ?? false} isSelecting={selecting}
+    nowPlayingAnimated={current.nowPlayingAnimated ?? false}
     isSelected={false} isDragged={false} hasMenu canReorder={!selecting} shouldShowAnimation={false}
     colors={themeManager.getCurrentTheme().colors} onTrackSelect={onTrackSelect}
     onToggleSelect={onToggleSelect} onOpenMenu={onOpenMenu} onDragStart={vi.fn()}
@@ -18,11 +19,25 @@ function setup(selecting = false, available = true) {
   return { ...rendered, onTrackSelect, onToggleSelect, onOpenMenu };
 }
 describe('song row interactions', () => {
-  it('plays the original track index from a filtered list, without a number column', () => {
+  it('plays the original track index from a filtered list, without a number or album column', () => {
     const { container, onTrackSelect } = setup();
     fireEvent.click(screen.getByText('A Song'));
     expect(onTrackSelect).toHaveBeenCalledWith(12);
-    expect(container.firstElementChild?.children).toHaveLength(3);
+    // Song (cover, title, artist — album) and duration.
+    expect(container.firstElementChild?.children).toHaveLength(2);
+    expect(screen.getByText('Artist — Album')).toBeInTheDocument();
+  });
+  it('marks the current song with bars on its cover that move only while it plays', () => {
+    const paused = setup(false, true, { isCurrentTrack: true });
+    expect(paused.container.firstElementChild).toHaveAttribute('data-current', 'true');
+    expect(paused.container.querySelector('.now-playing-bars')).not.toHaveClass('now-playing-bars--animated');
+    paused.unmount();
+    const playing = setup(false, true, { isCurrentTrack: true, nowPlayingAnimated: true });
+    expect(playing.container.querySelector('.now-playing-bars')).toHaveClass('now-playing-bars--animated');
+    playing.unmount();
+    const other = setup();
+    expect(other.container.firstElementChild).not.toHaveAttribute('data-current');
+    expect(other.container.querySelector('.now-playing-bars')).toBeNull();
   });
   it('opens the right-click menu without playing or showing a more button', () => {
     const { container, onOpenMenu, onTrackSelect } = setup();

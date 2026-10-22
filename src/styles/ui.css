@@ -215,6 +215,13 @@
   outline: 2px solid var(--theme-primary, #2b8cee);
   outline-offset: -2px;
 }
+/* Windows: the system draws the caption buttons in the overlay at the right
+   (left under RTL); the titlebar-area-* variables bound the rest of the strip. */
+.windows-titlebar {
+  left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 32px);
+}
 
 /* Library list geometry. Rows, their covers and the floating now-playing
    highlight read the same tokens so they stay aligned in both densities.
@@ -223,6 +230,7 @@
   --library-bleed: 24px;
   --library-row-radius: var(--theme-control-radius);
   --library-cover-radius: var(--theme-media-radius-sm);
+  --library-cover-size: 2.5rem;
 }
 
 .library-bleed {
@@ -237,10 +245,11 @@
   --theme-list-item-padding-y: 6px;
   --library-row-radius: min(var(--theme-control-radius), 10px);
   --library-cover-radius: min(var(--theme-media-radius-sm), 6px);
+  --library-cover-size: 2rem;
 }
 .library-view[data-density='compact'] .library-track-row__cover {
-  width: 2rem;
-  height: 2rem;
+  width: var(--library-cover-size);
+  height: var(--library-cover-size);
 }
 
 /* Library placeholder rows (playlist first-page load). */
@@ -317,6 +326,12 @@
 
 .ui-switch--checked .ui-switch__thumb {
   transform: translateX(22px);
+}
+
+/* Two-action confirmation (ConfirmDialog). */
+.confirm-dialog {
+  border: 1px solid var(--theme-border-light);
+  background-color: var(--theme-background-dark);
 }
 
 /* Settings: a glass sheet floating over the poster wall. */

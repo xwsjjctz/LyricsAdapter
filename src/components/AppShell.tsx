@@ -7,6 +7,8 @@ import Controls from './Controls';
 import FocusMode from './FocusMode';
 import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
+import type { LibraryCollection } from './LibraryCollectionHeader';
+import { toCoverThumb } from '../services/coverUrl';
 import DownloadStatusPill from './wall/DownloadStatusPill';
 import WelcomePreview from './wall/WelcomePreview';
 import SettingsSurface, { NativeSettingsPrewarm } from './settings/SettingsSurface';
@@ -237,6 +239,19 @@ const AppShell: React.FC<AppShellProps> = ({
     })),
   ], [hasCloudConfig, openPlaylistInfo, slots.local.tracks.length, slots.cloud.tracks.length,
     slots.online.tracks.length, switchSource, t, visiblePlaylists]);
+  // The list's Apple Music-style header: the browsed playlist, or the shown source.
+  const listCollection = useMemo<LibraryCollection>(() => {
+    if (viewSlot !== 'playlist') {
+      return { title: t(`sidebar.${viewSlot}`), coverUrl: null, trackCount: shownTracks.length };
+    }
+    const playlist = visiblePlaylists.find(entry => entry.id === playlistState.playlistId && entry.source === playlistState.source);
+    return {
+      title: playlistState.title ?? playlist?.name ?? t('playlists.title'),
+      coverUrl: playlist?.coverUrl ? toCoverThumb(playlist.coverUrl, 400) ?? null : null,
+      trackCount: Math.max(playlistState.totalTrackCount ?? 0, shownTracks.length),
+    };
+  }, [playlistState.playlistId, playlistState.source, playlistState.title, playlistState.totalTrackCount,
+    shownTracks.length, t, viewSlot, visiblePlaylists]);
   const paletteLibrary = useMemo<PaletteLibrarySources>(() => ({
     localTracks: slots.local.tracks,
     cloudTracks: slots.cloud.tracks,
@@ -272,6 +287,8 @@ const AppShell: React.FC<AppShellProps> = ({
                   <LibraryView
                     tracks={shownTracks}
                     {...(player.currentTrack?.id != null && { currentTrackId: player.currentTrack.id })}
+                    nowPlayingAnimated={player.isPlaying && !isFocusMode && windowVisible}
+                    collection={listCollection}
                     onTrackSelect={playShownTrack}
                     onRemoveTrack={library.removeTrack}
                     onRemoveMultipleTracks={library.removeTracks}

@@ -14,7 +14,7 @@ import { dispatchForwardedShortcut } from '../../palette/nativePaletteState';
 import { useShortcutEditor, type RecordedKey } from '../../ShortcutsSettings';
 import { useWebdavSettings } from '../hooks/useWebdavSettings';
 import { useFocusModeSettings } from '../sections/FocusModeSection';
-import { useDownloadPath, useGeneralSettings } from '../sections/GeneralSection';
+import { useCoverCache, useDownloadPath, useGeneralSettings } from '../sections/GeneralSection';
 import { useMusicPluginManager } from '../sections/MusicPluginManager';
 import { downloadKey } from '../sections/PluginCatalog';
 import { SETTINGS_SECTIONS } from '../SettingsView';
@@ -78,6 +78,7 @@ function NativeSettingsSheet({ initialSection, onClose, onPreviewWelcome, onFail
   const darkMode = useDocumentDarkMode();
 
   const general = useGeneralSettings();
+  const coverCache = useCoverCache();
   const download = useDownloadPath();
   const [downloadRevision, setDownloadRevision] = useState(0);
   const webdav = useWebdavSettings();
@@ -143,6 +144,13 @@ function NativeSettingsSheet({ initialSection, onClose, onPreviewWelcome, onFail
       downloadPath: download.path,
       downloadRevision,
       appVersion: general.appVersion,
+      coverCache: {
+        visible: !!coverCache.info,
+        size: coverCache.size,
+        empty: !coverCache.info?.entries,
+        busy: coverCache.busy,
+        error: coverCache.error,
+      },
       updater: {
         visible: general.canUpdate && !!updater,
         status: general.updateStatus,
@@ -294,6 +302,7 @@ function NativeSettingsSheet({ initialSection, onClose, onPreviewWelcome, onFail
       case 'general:choose-folder':
         void download.chooseFolder().then(() => setDownloadRevision(value => value + 1));
         return;
+      case 'general:clear-cover-cache': void coverCache.clear(); return;
       case 'general:check': general.checkForUpdates(); return;
       case 'general:restart': general.restartToUpdate(); return;
       case 'plugins:install': void manager.change('install', () => desktop!.musicPluginInstall!()); return;

@@ -24,6 +24,8 @@ import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';
 import type { DownloadProgressEvent } from '../types/onlineProgress';
 import type { UpdaterState } from '../shared/updater';
+import type { CoverCacheInfo } from '../types/coverCache';
+import type { WindowChromeAppearance } from '../shared/windowsChrome';
 import type { ElectronBridge } from '../shared/electronBridge';
 import type { PathValidationRequest, PathValidationResult, WebdavAccountProbe, WebdavCredentialMode } from '../shared/ipcContract';
 
@@ -85,6 +87,7 @@ export interface DesktopAPI {
   closeWindow?: Bridge['closeWindow'];
   isMaximized?: Bridge['isMaximized'];
   isFullScreen?: Bridge['isFullScreen'];
+  setWindowChromeAppearance?: Bridge['setWindowChromeAppearance'];
   onFullScreenChange?: Bridge['onFullScreenChange'];
   onWindowVisibilityChange?: Bridge['onWindowVisibilityChange'];
   onBeforeWindowClose?: Bridge['onBeforeWindowClose'];
@@ -109,6 +112,8 @@ export interface DesktopAPI {
   quitAndInstall?: Bridge['quitAndInstall'];
   getUpdaterState?: Bridge['getUpdaterState'];
   getAppVersion?: Bridge['getAppVersion'];
+  coverCacheInfo?: Bridge['coverCacheInfo'];
+  clearCoverCache?: Bridge['clearCoverCache'];
   onUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   offUpdaterEvent?: (cb: (state: UpdaterState) => void) => void;
   // System notification API (main process Notification)
@@ -318,6 +323,10 @@ class ElectronAdapter implements FullDesktopAPI {
     return this.api.isFullScreen();
   }
 
+  async setWindowChromeAppearance(appearance: WindowChromeAppearance): Promise<void> {
+    return this.api.setWindowChromeAppearance(appearance);
+  }
+
   onFullScreenChange(callback: (isFullScreen: boolean) => void): () => void {
     return this.api.onFullScreenChange(callback);
   }
@@ -411,6 +420,16 @@ class ElectronAdapter implements FullDesktopAPI {
     }
     // 浏览器 fallback：使用打包期已知的版本常量
     return APP.VERSION;
+  }
+
+  async coverCacheInfo(): Promise<CoverCacheInfo> {
+    if (typeof this.api.coverCacheInfo === 'function') return this.api.coverCacheInfo();
+    return { entries: 0, bytes: 0 };
+  }
+
+  async clearCoverCache(): Promise<CoverCacheInfo> {
+    if (typeof this.api.clearCoverCache !== 'function') throw new Error('Cover cache is unavailable');
+    return this.api.clearCoverCache();
   }
 
   onUpdaterEvent(cb: (state: UpdaterState) => void): void {

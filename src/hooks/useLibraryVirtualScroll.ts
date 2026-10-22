@@ -91,7 +91,12 @@ export function useLibraryVirtualScroll({
     if (nextHeight > 0 && nextHeight !== rowHeight) {
       setRowHeight(nextHeight);
     }
-  }, [rowHeight]);
+    // The gap is read with the row: the list mounts after the tracks arrive, too
+    // late for the effect below, and a stale gap shifts every computed row top.
+    const parent = node.parentElement;
+    const gapValue = parent ? parseFloat(window.getComputedStyle(parent).rowGap || '0') : NaN;
+    if (!Number.isNaN(gapValue) && gapValue !== rowGap) setRowGap(gapValue);
+  }, [rowHeight, rowGap]);
 
   // Initialize viewport size
   useEffect(() => {
