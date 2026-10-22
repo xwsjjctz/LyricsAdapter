@@ -328,6 +328,12 @@
   transform: translateX(22px);
 }
 
+/* Two-action confirmation (ConfirmDialog). */
+.confirm-dialog {
+  border: 1px solid var(--theme-border-light);
+  background-color: var(--theme-background-dark);
+}
+
 /* Settings: a glass sheet floating over the poster wall. */
 .settings-sheet-backdrop {
   position: fixed;

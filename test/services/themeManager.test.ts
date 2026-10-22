@@ -180,6 +180,27 @@ describe('applyTheme', () => {
     expect(document.documentElement.style.fontFamily).toBe('');
   });
 
+  it('draws the default themes in Fluent on Windows only', () => {
+    const root = document.documentElement;
+    themeManager.applyTheme(getDefaultTheme());
+    expect(root.dataset['designLanguage']).toBeUndefined();
+
+    const electron = window.electron;
+    Object.assign(window, { electron: { ...electron, platform: 'win32' } });
+    try {
+      themeManager.applyTheme(getDefaultTheme());
+      expect(root.dataset['designLanguage']).toBe('fluent');
+      expect(root.style.getPropertyValue('--theme-control-radius')).toBe('4px');
+      expect(themeManager.getCurrentTheme().designLanguage).toBe('fluent');
+
+      themeManager.applyTheme(themeManager.getAllThemes().find(t => t.id === THEME_IDS.BRUTALIST)!);
+      expect(root.dataset['designLanguage']).toBeUndefined();
+    } finally {
+      Object.assign(window, { electron });
+      themeManager.applyTheme(getDefaultTheme());
+    }
+  });
+
   it('should toggle theme-dark / theme-light class based on isDark', () => {
     const darkTheme = getDefaultTheme();
     // The default theme is probably dark — test the light case

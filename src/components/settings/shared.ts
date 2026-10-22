@@ -30,6 +30,9 @@ export interface SettingsTheme {
 export function useSettingsTheme(theme: ThemeConfig): SettingsTheme {
   const colors = theme.colors;
   const isBrutalistTheme = theme.id === THEME_IDS.BRUTALIST;
+  // Fluent text boxes: a strong bottom stroke at rest, the accent under focus.
+  const fluent = theme.designLanguage === 'fluent';
+  const restShadow = fluent ? 'inset 0 -1px 0 var(--fluent-input-underline)' : 'none';
 
   const rangeClassName = isBrutalistTheme
     ? 'retro-range'
@@ -37,21 +40,23 @@ export function useSettingsTheme(theme: ThemeConfig): SettingsTheme {
   const rangeStyle = (progress: number): React.CSSProperties =>
     isBrutalistTheme
       ? ({ '--retro-range-progress': `${progress}%` } as React.CSSProperties)
-      : { background: `linear-gradient(to right, ${colors.primary} ${progress}%, ${colors.borderLight} ${progress}%)` };
+      : { background: `linear-gradient(to right, ${colors.primary} ${progress}%, ${fluent ? 'var(--theme-control-slider-track)' : colors.borderLight} ${progress}%)` };
 
+  const restBackground = fluent ? 'var(--theme-control-input-bg)' : colors.backgroundCard;
   const inputStyle: React.CSSProperties = {
-    backgroundColor: colors.backgroundCard,
-    border: `1px solid ${colors.borderLight}`,
+    backgroundColor: restBackground,
+    border: `1px solid ${fluent ? 'var(--theme-control-input-border)' : colors.borderLight}`,
     color: colors.textPrimary,
     borderRadius: 'var(--theme-control-radius)',
+    boxShadow: restShadow,
   };
   const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.currentTarget.style.backgroundColor = colors.backgroundCardHover;
-    e.currentTarget.style.boxShadow = `0 0 15px ${colors.glowColor}`;
+    e.currentTarget.style.backgroundColor = fluent ? 'var(--fluent-input-active)' : colors.backgroundCardHover;
+    e.currentTarget.style.boxShadow = fluent ? `inset 0 -2px 0 ${colors.primary}` : `0 0 15px ${colors.glowColor}`;
   };
   const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    e.currentTarget.style.backgroundColor = colors.backgroundCard;
-    e.currentTarget.style.boxShadow = 'none';
+    e.currentTarget.style.backgroundColor = restBackground;
+    e.currentTarget.style.boxShadow = restShadow;
   };
 
   return {

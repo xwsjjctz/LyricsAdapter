@@ -1,0 +1,154 @@
+/*
+ * The floating player on Windows, in Fluent's in-app Acrylic (the material
+ * tokens live in fluent.css). Every frame below is LAPlayerControlbarHost's
+ * -layout (playerControlbar.mm) around the bar's centre line, so both
+ * platforms place every control alike; Material glyphs are sized to the SF
+ * Symbols they replace.
+ */
+
+.player-controls.windows-player {
+  border-radius: 8px;
+  gap: 6px;
+  --theme-progress-height: 4px;
+  --theme-progress-radius: 999px;
+}
+
+/* The backing is a pseudo-element, a sibling of the volume flyout, so the
+   flyout blurs the page itself instead of being trapped inside this blur. */
+.windows-player::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--acrylic-tint);
+  box-shadow: inset 0 0 0 1px var(--acrylic-stroke), var(--acrylic-shadow);
+  backdrop-filter: var(--acrylic-filter);
+  -webkit-backdrop-filter: var(--acrylic-filter);
+}
+
+.windows-player[data-controlbar-layout="full"] { padding-right: 12px; }
+.windows-player .player-primary-controls { gap: 4px; }
+.player-controls.windows-player .player-transport button { height: 32px; }
+.windows-player .player-transport button:first-child { width: 30px; }
+.player-controls.windows-player .player-transport [data-testid="main-play-button"] { height: 38px; }
+.windows-player :is(.player-transport, .macos-volume-controls) .material-symbols-rounded { font-variation-settings: 'FILL' 1; }
+.windows-player [data-testid="main-play-button"] .material-symbols-rounded { font-size: 28px; }
+.windows-player .macos-volume-button .material-symbols-rounded { font-size: 22px; }
+.windows-player .macos-volume-mode .material-symbols-rounded { font-size: 20px; }
+.windows-player .player-track-trigger { text-align: left; }
+/* AppKit labels draw from the top of their frame behind a 2px text inset: the
+   title frame spans 21..3px above the centre line, the artist 1..17px below. */
+.windows-player .player-track-text { padding-bottom: 4px; }
+.windows-player .player-track-title { height: 18px; padding-inline: 2px; font-size: 12.5px; line-height: 15px; font-weight: 600; }
+.windows-player .player-track-artist { height: 16px; margin-top: 4px; padding-inline: 2px; font-size: 10.5px; line-height: 13px; font-weight: 400; }
+.windows-player .player-progress-controls { gap: 2px; }
+.windows-player .player-progress-controls > span { width: 36px; height: 14px; line-height: 12px; font-weight: 400; text-align: center; }
+.windows-player .player-progress-controls > span:last-child { width: 38px; margin-left: 2px; }
+.windows-player .macos-volume-controls { flex-basis: 64px; margin-left: -2px; }
+.windows-player .macos-volume-disclosure { width: 32px; }
+.windows-player .macos-volume-button { top: 4px; width: 32px; height: 32px; }
+.windows-player[data-controlbar-layout="compact"] .player-primary-controls { gap: 0; }
+.player-controls.windows-player[data-controlbar-layout="compact"] { padding-inline: 14px; gap: 10px; }
+.windows-player[data-controlbar-layout="compact"] .player-track-trigger { gap: 12px; }
+.windows-player[data-controlbar-layout="compact"] .player-transport button:first-child { width: 32px; }
+
+/* Fluent subtle buttons: no fill at rest, a faint layer on hover and press. */
+.windows-player :is(.player-transport button, .macos-volume-button, .macos-volume-mode button) {
+  border-radius: 4px;
+  transition: background-color 83ms linear;
+}
+.windows-player :is(.player-transport button, .macos-volume-button, .macos-volume-mode button):hover:enabled {
+  background: var(--acrylic-subtle-hover);
+  color: var(--acrylic-fg);
+}
+.windows-player :is(.player-transport button, .macos-volume-button, .macos-volume-mode button):active:enabled {
+  background: var(--acrylic-subtle-pressed);
+}
+
+/* The play button is the accent-filled circle of the Windows Media Player transport. */
+.player-controls.windows-player [data-testid="main-play-button"] {
+  border-radius: 50%;
+  background: var(--theme-primary);
+  color: var(--theme-on-primary);
+}
+.player-controls.windows-player [data-testid="main-play-button"]:hover:enabled {
+  background: color-mix(in srgb, var(--theme-primary) 90%, transparent);
+  color: var(--theme-on-primary);
+}
+.player-controls.windows-player [data-testid="main-play-button"]:active:enabled {
+  background: color-mix(in srgb, var(--theme-primary) 80%, transparent);
+}
+.player-controls.windows-player [data-testid="main-play-button"]:disabled {
+  background: var(--acrylic-subtle-hover);
+  color: var(--acrylic-muted);
+  opacity: 1;
+}
+
+/* Fluent slider: the thumb always shows while the slider can move. */
+.windows-player .player-slider-track { background: var(--acrylic-slider-track); }
+.windows-player .player-slider-fill { background: var(--theme-primary); }
+.windows-player .player-slider-thumb {
+  --thumb-dot: 6px;
+  left: clamp(10px, var(--slider-progress), calc(100% - 10px));
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, var(--theme-primary) 0 var(--thumb-dot), var(--acrylic-thumb) calc(var(--thumb-dot) + .5px));
+  box-shadow: 0 0 0 1px var(--acrylic-stroke), 0 1px 2px rgba(0, 0, 0, .2);
+  transition: opacity 140ms ease;
+}
+.windows-player .player-slider:has(input:enabled) .player-slider-thumb { opacity: 1; }
+.windows-player .player-slider:has(input:enabled):hover .player-slider-thumb { --thumb-dot: 7px; }
+.windows-player .player-slider:has(input:enabled:active) .player-slider-thumb { --thumb-dot: 5px; }
+
+/* The volume flyout: Acrylic around a vertical Fluent slider. */
+.windows-player .macos-volume-slider-shell {
+  left: -6px;
+  bottom: calc(100% + 24px);
+  border: 0;
+  border-radius: 8px;
+  background: var(--acrylic-tint);
+  box-shadow: inset 0 0 0 1px var(--acrylic-stroke), var(--acrylic-shadow);
+  backdrop-filter: var(--acrylic-filter);
+  -webkit-backdrop-filter: var(--acrylic-filter);
+}
+.windows-player .macos-volume-value { line-height: 13px; font-weight: 400; color: var(--acrylic-muted); }
+.windows-player .macos-volume-slider { border-radius: 0; }
+.windows-player .macos-volume-slider .player-slider-track {
+  inset: 0 auto;
+  left: calc(50% - 2px);
+  width: 4px;
+  border-radius: 2px;
+  background: var(--acrylic-slider-track);
+}
+.windows-player .macos-volume-slider .player-slider-fill {
+  border-radius: 2px;
+  background: var(--theme-primary);
+}
+.windows-player .macos-volume-slider .player-slider-thumb {
+  display: block;
+  top: auto;
+  left: 50%;
+  bottom: clamp(10px, var(--slider-progress), calc(100% - 10px));
+  transform: translate(-50%, 50%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .windows-player::before,
+  .windows-player .macos-volume-slider-shell {
+    background: var(--acrylic-fallback);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  .windows-player::before,
+  .windows-player .macos-volume-slider-shell {
+    background: Canvas;
+    box-shadow: none;
+    outline: 1px solid CanvasText;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .player-controls.windows-player [data-testid="main-play-button"] { background: ButtonText; color: ButtonFace; }
+}

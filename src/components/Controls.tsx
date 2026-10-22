@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
+import '../styles/windowsPlayer.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
 import { useVolumeDisclosure } from '../hooks/useVolumeDisclosure';
 import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
 import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { FLOATING_PLAYER_BOTTOM, FLOATING_PLAYER_HEIGHT } from '../constants/playerLayout';
-import { useLiquidGlass } from './LiquidGlass';
 
 interface ControlsProps {
   track: Track | null;
@@ -63,15 +63,12 @@ const Controls: React.FC<ControlsProps> = memo(({
   const panelRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
-  const volumeShellRef = useRef<HTMLDivElement>(null);
   const volumePanelId = useId();
 
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
   const disclosure = useVolumeDisclosure(floatingPlayer && !isFocusMode && layout === 'full');
-  const glass = useLiquidGlass(panelRef, isWindows, 'regular', 22);
-  const volumeGlass = useLiquidGlass(volumeShellRef, isWindows && layout === 'full', 'regular', 22);
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
     visible: true,
@@ -135,22 +132,19 @@ const Controls: React.FC<ControlsProps> = memo(({
   );
 
   return (
-    <>
-    {glass.filter}
-    {volumeGlass.filter}
     <div
       ref={panelRef}
       data-testid="main-controlbar"
       data-macos-floating={isMac || undefined}
       data-floating-player={floatingPlayer || undefined}
-      data-glass-material={isWindows ? 'regular' : undefined}
+      data-material={isWindows ? 'acrylic' : undefined}
       data-compact-controlbar={compact}
       data-controlbar-layout={layout}
-      className={'player-controls ' + (floatingPlayer ? `${isWindows ? 'floating-player windows-glass-player liquid-glass liquid-glass--layered' : 'macos-floating-player'} transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
+      className={'player-controls ' + (floatingPlayer ? `${isWindows ? 'floating-player windows-player' : 'macos-floating-player'} transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}` : floating
         ? `mx-2 mb-2 h-20 flex items-center justify-between px-4 z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
         : `h-24 border-t px-6 flex items-center justify-between z-40 transition-transform duration-500 ${isFocusMode ? 'translate-y-32' : 'translate-y-0'}`
       )}
-      style={isWindows ? { height: FLOATING_PLAYER_HEIGHT, bottom: FLOATING_PLAYER_BOTTOM, ...glass.style } : isMac ? {
+      style={isWindows ? { height: FLOATING_PLAYER_HEIGHT, bottom: FLOATING_PLAYER_BOTTOM } : isMac ? {
         height: FLOATING_PLAYER_HEIGHT, bottom: FLOATING_PLAYER_BOTTOM,
         backgroundColor: 'color-mix(in srgb, var(--theme-control-panel-bg-floating) 30%, transparent)',
         backdropFilter: 'blur(24px) saturate(135%)',
@@ -185,7 +179,7 @@ const Controls: React.FC<ControlsProps> = memo(({
             }}
             className="player-track-trigger flex items-center cursor-pointer group gap-3 min-w-0"
           >
-            <div className={`player-track-cover relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${floatingPlayer ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: isWindows ? '12px' : 'var(--theme-media-radius)' }}>
+            <div className={`player-track-cover relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${floatingPlayer ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: isWindows ? '4px' : 'var(--theme-media-radius)' }}>
               <img src={toCoverThumb(resolveCoverUrl(track.coverUrl), 128)} alt="" className="size-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                 <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-rounded" style={{ color: '#fff', fontSize: '20px' }} />
@@ -217,8 +211,9 @@ const Controls: React.FC<ControlsProps> = memo(({
             data-testid="main-play-button"
             onClick={onTogglePlay}
             disabled={!track}
-            className={`size-10 flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-20 ${floatingPlayer ? '' : 'shadow-lg'}`}
-            style={{
+            className={`size-10 flex items-center justify-center ${isWindows ? '' : 'hover:scale-105 transition-transform disabled:opacity-20'} ${floatingPlayer ? '' : 'shadow-lg'}`}
+            // The Windows bar draws its accent play button in windowsPlayer.css.
+            style={isWindows ? undefined : {
               backgroundColor: floatingPlayer ? 'transparent' : 'var(--theme-control-primary-button-bg)',
               color: floatingPlayer ? 'var(--theme-control-icon-fg)' : 'var(--theme-control-primary-button-fg)',
               borderRadius: 'var(--theme-button-radius)',
@@ -273,8 +268,7 @@ const Controls: React.FC<ControlsProps> = memo(({
               }}>
               <PlaybackIcon symbols={symbols} name={volume === 0 ? 'volume_off' : 'volume_up'} className="material-symbols-rounded text-xl" />
             </button>
-            <div ref={volumeShellRef} id={volumePanelId} className={`macos-volume-slider-shell${isWindows ? ' liquid-glass' : ''}`} role="group" aria-label={t('controls.volume')}
-              style={isWindows ? volumeGlass.style : undefined}
+            <div id={volumePanelId} className="macos-volume-slider-shell" role="group" aria-label={t('controls.volume')}
               aria-hidden={!disclosure.expanded || undefined}>
               <span className="macos-volume-value" aria-hidden="true">{Math.round(volume * 100)}%</span>
               <div ref={volumeRef} className="player-slider macos-volume-slider"
@@ -309,7 +303,6 @@ const Controls: React.FC<ControlsProps> = memo(({
       </div>
       )}
     </div>
-    </>
   );
 });
 

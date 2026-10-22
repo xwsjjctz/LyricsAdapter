@@ -150,6 +150,8 @@ export interface ThemeConfig {
   borderRadius: ThemeBorderRadius;
   controls?: Partial<ThemeControlStyles>;
   appearance?: Partial<ThemeAppearanceStyles>;
+  /** Set on the theme as drawn on a platform with its own design language (Windows: Fluent). */
+  designLanguage?: 'fluent';
   tags: string[];
   isDark: boolean;
 }

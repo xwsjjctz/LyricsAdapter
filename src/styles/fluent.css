@@ -1,0 +1,471 @@
+/*
+ * Windows 11 (Fluent) component layer.
+ *
+ * Colours, radii and weights already arrive through the --theme-* tokens
+ * (services/themes/fluentTheme.ts). This file changes what tokens cannot:
+ * the materials (Acrylic for transient surfaces, a solid layer for dialogs),
+ * the shapes of switches, sliders and selection, and Fluent's subtle/standard/
+ * accent button styles. Everything is scoped to [data-design-language='fluent'],
+ * which themeManager sets on Windows for the themes that take Fluent.
+ */
+
+/* ---- Materials (all Windows themes; the player bars use them too) ---- */
+
+:root.platform-windows {
+  /* AcrylicInAppFillColorDefault over a 30px blur; SurfaceStrokeColorFlyout. */
+  --acrylic-tint: rgba(44, 44, 44, .85);
+  --acrylic-fallback: #2c2c2c;
+  --acrylic-stroke: rgba(255, 255, 255, .08);
+  --acrylic-shadow: 0 8px 16px rgba(0, 0, 0, .26);
+  --acrylic-filter: blur(30px) saturate(125%);
+  --acrylic-fg: var(--theme-text-primary);
+  --acrylic-muted: var(--theme-text-secondary);
+  --acrylic-subtle-hover: rgba(255, 255, 255, .0605);
+  --acrylic-subtle-pressed: rgba(255, 255, 255, .0419);
+  --acrylic-slider-track: rgba(255, 255, 255, .545);
+  --acrylic-thumb: #454545;
+}
+:root.platform-windows.theme-light {
+  --acrylic-tint: rgba(252, 252, 252, .85);
+  --acrylic-fallback: #f9f9f9;
+  --acrylic-stroke: rgba(0, 0, 0, .0578);
+  --acrylic-shadow: 0 8px 16px rgba(0, 0, 0, .14);
+  --acrylic-subtle-hover: rgba(0, 0, 0, .0373);
+  --acrylic-subtle-pressed: rgba(0, 0, 0, .0241);
+  --acrylic-slider-track: rgba(0, 0, 0, .446);
+  --acrylic-thumb: #ffffff;
+}
+
+/* ---- Fluent control tokens ---- */
+
+:root[data-design-language='fluent'] {
+  --fluent-subtle-hover: var(--acrylic-subtle-hover);
+  --fluent-subtle-pressed: var(--acrylic-subtle-pressed);
+  --fluent-control-fill: rgba(255, 255, 255, .0605);
+  --fluent-control-fill-hover: rgba(255, 255, 255, .0837);
+  --fluent-control-fill-pressed: rgba(255, 255, 255, .0326);
+  /* ControlElevationBorder: the lower edge reads a shade apart from the rest. */
+  --fluent-control-stroke: rgba(255, 255, 255, .093);
+  --fluent-control-stroke-bottom: rgba(255, 255, 255, .0698);
+  --fluent-input-underline: rgba(255, 255, 255, .545);
+  --fluent-input-active: rgba(30, 30, 30, .7);
+  --fluent-toggle-off: rgba(0, 0, 0, .1);
+  --fluent-layer: rgba(58, 58, 58, .3);
+  --fluent-smoke: rgba(0, 0, 0, .3);
+  --fluent-dialog: #2b2b2b;
+  --fluent-dialog-footer: #202020;
+  --fluent-dialog-shadow: 0 32px 64px rgba(0, 0, 0, .37), 0 2px 21px rgba(0, 0, 0, .37);
+  --fluent-scrollbar: rgba(255, 255, 255, .545);
+  accent-color: var(--theme-primary);
+}
+:root[data-design-language='fluent'].theme-light {
+  --fluent-control-fill: rgba(255, 255, 255, .7);
+  --fluent-control-fill-hover: rgba(249, 249, 249, .5);
+  --fluent-control-fill-pressed: rgba(249, 249, 249, .3);
+  --fluent-control-stroke: rgba(0, 0, 0, .0578);
+  --fluent-control-stroke-bottom: rgba(0, 0, 0, .1622);
+  --fluent-input-underline: rgba(0, 0, 0, .446);
+  --fluent-input-active: #ffffff;
+  --fluent-toggle-off: rgba(0, 0, 0, .0241);
+  --fluent-layer: rgba(255, 255, 255, .5);
+  --fluent-dialog: #fbfbfb;
+  --fluent-dialog-footer: #f3f3f3;
+  --fluent-dialog-shadow: 0 32px 64px rgba(0, 0, 0, .1876), 0 2px 21px rgba(0, 0, 0, .1474);
+  --fluent-scrollbar: rgba(0, 0, 0, .446);
+}
+
+/* Thin scrollbars wherever a surface does not hide or draw its own. */
+:where(:root[data-design-language='fluent']) :where(*) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--fluent-scrollbar) transparent;
+}
+
+/* ---- Buttons ---- */
+
+:root[data-design-language='fluent'] .ui-btn {
+  font-weight: 400;
+  transition: background-color 83ms linear, color 83ms linear, border-color 83ms linear;
+}
+:root[data-design-language='fluent'] .ui-btn--md { height: 32px; padding: 0 12px; font-size: 14px; }
+:root[data-design-language='fluent'] .ui-btn--sm { height: 28px; padding: 0 10px; font-size: 13px; }
+
+/* Accent button. */
+:root[data-design-language='fluent'] .ui-btn--primary {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 -1px 0 rgba(0, 0, 0, .14);
+}
+:root[data-design-language='fluent'] .ui-btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-primary) 90%, transparent);
+}
+:root[data-design-language='fluent'] .ui-btn--primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-primary) 80%, transparent);
+  color: color-mix(in srgb, var(--theme-on-primary) 78%, transparent);
+  transform: none;
+}
+
+/* Standard button. */
+:root[data-design-language='fluent'] .ui-btn--secondary {
+  border: 1px solid var(--fluent-control-stroke);
+  border-bottom-color: var(--fluent-control-stroke-bottom);
+  background: var(--fluent-control-fill);
+}
+:root[data-design-language='fluent'] .ui-btn--secondary:hover:not(:disabled) {
+  border-color: var(--fluent-control-stroke);
+  border-bottom-color: var(--fluent-control-stroke-bottom);
+  background: var(--fluent-control-fill-hover);
+}
+:root[data-design-language='fluent'] .ui-btn--secondary:active:not(:disabled) {
+  background: var(--fluent-control-fill-pressed);
+  color: var(--theme-text-secondary);
+}
+
+/* Subtle button. */
+:root[data-design-language='fluent'] .ui-btn--ghost { color: var(--theme-text-primary); }
+:root[data-design-language='fluent'] .ui-btn--ghost:hover:not(:disabled) { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] :is(.ui-btn--ghost, .ui-btn--danger):active:not(:disabled) { background: var(--fluent-subtle-pressed); }
+
+:root[data-design-language='fluent'] .ui-icon-btn { transition: background-color 83ms linear, color 83ms linear; }
+:root[data-design-language='fluent'] .ui-icon-btn--ghost:hover:not(:disabled) { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .ui-icon-btn--ghost:active:not(:disabled) { background: var(--fluent-subtle-pressed); }
+:root[data-design-language='fluent'] .ui-icon-btn--active { background: var(--fluent-subtle-hover); }
+
+/* ---- Toggle switch: 40×20, a 12px knob that grows to 14px under the pointer ---- */
+
+:root[data-design-language='fluent'] .ui-switch {
+  width: 40px;
+  height: 20px;
+  border: 1px solid var(--theme-text-secondary);
+  background: var(--fluent-toggle-off);
+  transition: background-color 83ms linear, border-color 83ms linear;
+}
+:root[data-design-language='fluent'] .ui-switch:hover:enabled { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .ui-switch__thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--theme-text-secondary);
+  box-shadow: none;
+  transform: translateX(3px);
+  transition: transform 167ms cubic-bezier(.55, .55, 0, 1), width 83ms linear, height 83ms linear;
+}
+:root[data-design-language='fluent'] .ui-switch:hover:enabled .ui-switch__thumb { width: 14px; height: 14px; transform: translateX(2px); }
+:root[data-design-language='fluent'] .ui-switch--checked { border-color: var(--theme-primary); background: var(--theme-primary); }
+:root[data-design-language='fluent'] .ui-switch--checked:hover:enabled {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--theme-primary) 90%, transparent);
+}
+:root[data-design-language='fluent'] .ui-switch--checked .ui-switch__thumb { background: var(--theme-on-primary); transform: translateX(23px); }
+:root[data-design-language='fluent'] .ui-switch--checked:hover:enabled .ui-switch__thumb { transform: translateX(22px); }
+
+/* ---- Slider thumb for range inputs (settings): an accent dot in a ring ---- */
+
+:root[data-design-language='fluent'] input[type='range']:not(.retro-range)::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--theme-primary) 0 6px, var(--acrylic-thumb) 6.5px);
+  box-shadow: 0 0 0 1px var(--fluent-control-stroke), 0 1px 2px rgba(0, 0, 0, .2);
+  cursor: pointer;
+}
+:root[data-design-language='fluent'] input[type='range']:not(.retro-range):hover::-webkit-slider-thumb {
+  background: radial-gradient(circle, var(--theme-primary) 0 7px, var(--acrylic-thumb) 7.5px);
+}
+:root[data-design-language='fluent'] input[type='range']:not(.retro-range):active::-webkit-slider-thumb {
+  background: radial-gradient(circle, var(--theme-primary) 0 5px, var(--acrylic-thumb) 5.5px);
+}
+
+/* ---- Text boxes and combo boxes ---- */
+
+:root[data-design-language='fluent'] :is(.settings-field, .metadata-editor__input, .settings-select) {
+  border: 1px solid var(--fluent-control-stroke);
+  border-radius: 4px;
+  background: var(--fluent-control-fill);
+  box-shadow: inset 0 -1px 0 var(--fluent-input-underline);
+}
+:root[data-design-language='fluent'] :is(.settings-field, .metadata-editor__input):hover:not(:focus) {
+  border-color: var(--fluent-control-stroke);
+  background: var(--fluent-control-fill-hover);
+}
+:root[data-design-language='fluent'] :is(.settings-field, .metadata-editor__input):focus {
+  border-color: var(--fluent-control-stroke);
+  background: var(--fluent-input-active);
+  box-shadow: inset 0 -2px 0 var(--theme-primary) !important;
+}
+:root[data-design-language='fluent'] .metadata-editor__input[aria-invalid='true'] {
+  box-shadow: inset 0 -2px 0 var(--theme-error);
+}
+:root[data-design-language='fluent'] select:is(.settings-field, .settings-select) { min-height: 32px; }
+
+/* ---- Flyouts: menus, the command palette, the playlist switcher ---- */
+
+:root[data-design-language='fluent'] :is(.library-track-menu, .command-palette, .playlist-switcher) {
+  border: 0;
+  border-radius: 8px;
+  background: var(--acrylic-tint);
+  box-shadow: inset 0 0 0 1px var(--acrylic-stroke), var(--acrylic-shadow);
+  backdrop-filter: var(--acrylic-filter);
+  -webkit-backdrop-filter: var(--acrylic-filter);
+}
+:root[data-design-language='fluent'] .library-track-menu { padding: 4px; }
+:root[data-design-language='fluent'] .library-menu-item {
+  min-height: 32px;
+  padding: 6px 11px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background-color 83ms linear;
+}
+:root[data-design-language='fluent'] :is(.library-menu-item:hover, .library-menu-item:focus-visible) { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .library-menu-item:active { background: var(--fluent-subtle-pressed); }
+:root[data-design-language='fluent'] .library-menu-label { padding: 8px 11px 4px; font-size: 12px; letter-spacing: 0; }
+
+/* A list selection: the subtle fill and Fluent's 3×16 accent pill at the start. */
+:root[data-design-language='fluent'] .command-palette__item { position: relative; }
+:root[data-design-language='fluent'] :is(.command-palette__item[aria-selected='true'], .library-view .library-track-row[data-current])::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(50% - 8px);
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--theme-primary);
+  pointer-events: none;
+}
+
+/* Command palette: SelectorBar modes and ListView rows. */
+:root[data-design-language='fluent'] .command-palette__modes { gap: 4px; padding: 0; border-radius: 0; background: transparent; }
+:root[data-design-language='fluent'] .command-palette__mode {
+  position: relative;
+  padding: 5px 12px 7px;
+  border-radius: 4px;
+  color: var(--theme-text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+}
+:root[data-design-language='fluent'] .command-palette__mode:hover { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .command-palette__mode[aria-selected='true'] {
+  background: transparent;
+  color: var(--theme-text-primary);
+  font-weight: 600;
+}
+:root[data-design-language='fluent'] .command-palette__mode[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 8px);
+  bottom: 0;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--theme-primary);
+}
+:root[data-design-language='fluent'] .command-palette__search { border-bottom-color: var(--theme-border-light); }
+:root[data-design-language='fluent'] .command-palette__input { font-size: 16px; }
+:root[data-design-language='fluent'] .command-palette__list { padding: 4px; }
+:root[data-design-language='fluent'] .command-palette__section { padding: 12px 12px 4px; color: var(--theme-text-secondary); font-size: 12px; font-weight: 600; letter-spacing: 0; }
+:root[data-design-language='fluent'] .command-palette__item { padding: 5px 12px; border-radius: 4px; }
+:root[data-design-language='fluent'] .command-palette__item:hover { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .command-palette__item[aria-selected='true'] { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .command-palette__title { font-weight: 400; }
+:root[data-design-language='fluent'] .command-palette__icon { border-radius: 4px; background: var(--fluent-control-fill); }
+:root[data-design-language='fluent'] .command-palette__kbd {
+  border-color: var(--fluent-control-stroke);
+  border-radius: 4px;
+  background: var(--fluent-control-fill);
+}
+:root[data-design-language='fluent'] .command-palette__add { border-radius: 4px; }
+:root[data-design-language='fluent'] .command-palette__add:hover:not(:disabled) { background: var(--fluent-subtle-hover); }
+
+/* Playlist switcher: GridView items, selected by an accent ring. */
+:root[data-design-language='fluent'] .playlist-switcher__items button {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  transition: background-color 83ms linear;
+}
+:root[data-design-language='fluent'] .playlist-switcher__items button:hover { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .playlist-switcher__items button[aria-selected='true'] {
+  border-color: var(--theme-primary);
+  background: var(--fluent-subtle-hover);
+}
+:root[data-design-language='fluent'] .playlist-switcher__artwork { border-radius: 4px; box-shadow: none; }
+
+/* ---- Dialogs: a solid layer over the smoke, with a footer band for the actions ---- */
+
+:root[data-design-language='fluent'] :is(.settings-sheet-backdrop, .metadata-editor-backdrop) {
+  background: var(--fluent-smoke);
+  backdrop-filter: none;
+}
+:root[data-design-language='fluent'] :is(.settings-sheet, .metadata-editor, .confirm-dialog) {
+  border: 1px solid var(--acrylic-stroke);
+  border-radius: 8px;
+  background: var(--fluent-dialog);
+  box-shadow: var(--fluent-dialog-shadow);
+  backdrop-filter: none;
+}
+:root[data-design-language='fluent'] :is(.settings-sheet__title, .metadata-editor__title) { font-size: 20px; line-height: 28px; font-weight: 600; }
+:root[data-design-language='fluent'] .confirm-dialog h3 { font-size: 20px; line-height: 28px; }
+:root[data-design-language='fluent'] .confirm-dialog__actions {
+  margin: 8px -24px -24px;
+  padding: 24px;
+  border-top: 1px solid var(--theme-border-light);
+  border-radius: 0 0 8px 8px;
+  background: var(--fluent-dialog-footer);
+}
+:root[data-design-language='fluent'] .confirm-dialog__actions > * { flex: 1 1 0; }
+:root[data-design-language='fluent'] .metadata-editor__footer { padding: 24px; background: var(--fluent-dialog-footer); }
+
+/* Settings sections: a SelectorBar with the accent pill under the current one. */
+:root[data-design-language='fluent'] .settings-sheet__tabs { gap: 4px; }
+:root[data-design-language='fluent'] .settings-sheet__tab {
+  position: relative;
+  padding: 5px 12px 7px;
+  border-radius: 4px;
+  color: var(--theme-text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+}
+:root[data-design-language='fluent'] .settings-sheet__tab:hover { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .settings-sheet__tab[aria-current='location'] {
+  background: transparent;
+  color: var(--theme-text-primary);
+  font-weight: 600;
+}
+:root[data-design-language='fluent'] .settings-sheet__tab[aria-current='location']::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 8px);
+  bottom: 0;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--theme-primary);
+}
+:root[data-design-language='fluent'] .settings-section__title { font-size: 14px; font-weight: 600; }
+:root[data-design-language='fluent'] .settings-row__label { font-size: 14px; }
+
+/* ---- Song list: ListView rows on a layer over Mica ---- */
+
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] {
+  --library-surface: var(--fluent-layer);
+  --library-text: var(--theme-text-primary);
+  --library-text-secondary: var(--theme-text-secondary);
+  --library-text-muted: var(--theme-text-secondary);
+  --library-divider: var(--theme-border-light);
+  --library-hover: var(--fluent-subtle-hover);
+  --library-selected: var(--fluent-subtle-hover);
+  --library-accent: var(--theme-primary);
+  --library-row-radius: 4px;
+  --library-title-weight: 400;
+}
+/* Rows stand apart by their fills, not by hairlines. */
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row::after { display: none; }
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row:active { background-color: var(--fluent-subtle-pressed); }
+/* The playing row: selected like a ListView item, its title in the accent. */
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row[data-current],
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row[data-current]:hover {
+  background-color: var(--fluent-subtle-hover);
+}
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__title {
+  color: var(--theme-primary);
+  font-weight: 600;
+}
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__subtitle {
+  color: var(--library-text-secondary);
+}
+:root[data-design-language='fluent'] .library-view[data-row-style='floating'] .library-track-row[data-current] .library-track-row__time {
+  color: var(--library-text-muted);
+}
+
+/* Fluent's overlay scrollbar: a 2px line that widens to 6px under the pointer. */
+:root[data-design-language='fluent'] .library-overlay-scrollbar__thumb {
+  width: 2px;
+  background: var(--fluent-scrollbar);
+  box-shadow: none;
+}
+:root[data-design-language='fluent'] :is(.library-overlay-scrollbar:hover, .library-overlay-scrollbar.is-dragging) .library-overlay-scrollbar__thumb { width: 6px; }
+
+/* ---- Floating bars over the poster wall: CommandBar flyouts ---- */
+
+:root[data-design-language='fluent'] .wall-float {
+  border: 0;
+  border-radius: 8px;
+  background: var(--acrylic-tint);
+  box-shadow: inset 0 0 0 1px var(--acrylic-stroke), var(--acrylic-shadow);
+  backdrop-filter: var(--acrylic-filter);
+  -webkit-backdrop-filter: var(--acrylic-filter);
+}
+:root[data-design-language='fluent'] .wall-status-pill--error { box-shadow: inset 0 0 0 1px var(--theme-error), var(--acrylic-shadow); }
+:root[data-design-language='fluent'] .wall-selection-bar { padding: 4px 4px 4px 16px; }
+:root[data-design-language='fluent'] .wall-float__button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  transition: background-color 83ms linear;
+}
+:root[data-design-language='fluent'] .wall-float__button:hover:not(:disabled) { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .wall-float__button:active:not(:disabled) { background: var(--fluent-subtle-pressed); }
+/* The bar's one primary action is an accent button. */
+:root[data-design-language='fluent'] .wall-float__button--primary { background: var(--theme-primary); color: var(--theme-on-primary); }
+:root[data-design-language='fluent'] .wall-float__button--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--theme-primary) 90%, transparent); }
+:root[data-design-language='fluent'] .wall-float__button--primary:active:not(:disabled) { background: color-mix(in srgb, var(--theme-primary) 80%, transparent); }
+:root[data-design-language='fluent'] .wall-download-badge { border-radius: 8px; }
+:root[data-design-language='fluent'] .wall-tile__download--compact .wall-download-badge { border-radius: 4px; }
+:root[data-design-language='fluent'] .wall-welcome kbd { border-radius: 4px; }
+
+/* ---- FocusMode's portrait transport: Media Player's full-screen controls ---- */
+
+:root[data-design-language='fluent'] .focus-portrait-controls button {
+  border-radius: 4px;
+  transition: background-color 83ms linear;
+}
+:root[data-design-language='fluent'] .focus-portrait-controls button:hover:enabled { background: rgba(255, 255, 255, .0605); }
+:root[data-design-language='fluent'] .focus-portrait-controls button:active:enabled { background: rgba(255, 255, 255, .0419); }
+:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button'] {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--theme-primary);
+  color: var(--theme-on-primary);
+}
+:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button']:hover:enabled { background: color-mix(in srgb, var(--theme-primary) 90%, transparent); }
+:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button']:active:enabled { background: color-mix(in srgb, var(--theme-primary) 80%, transparent); }
+:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button'] .material-symbols-rounded { font-size: 40px; }
+/* A Fluent slider keeps its 4px track while dragging instead of swelling. */
+:root[data-design-language='fluent'] .focus-portrait-controls .player-slider,
+:root[data-design-language='fluent'] .focus-portrait-controls .player-slider:has(input:active) {
+  --theme-progress-height: 4px;
+  --theme-progress-radius: 2px;
+  --theme-control-slider-track: rgba(255, 255, 255, .545);
+  --theme-control-slider-fill: var(--theme-primary);
+}
+
+/* ---- Search box and other single-line inputs on the library ---- */
+
+:root[data-design-language='fluent'] .global-search-surface {
+  --search-background: var(--acrylic-tint);
+  --search-border: var(--acrylic-stroke);
+  --search-shadow: var(--acrylic-shadow);
+}
+:root[data-design-language='fluent'] :is(.global-search-bar, .global-search-results) {
+  backdrop-filter: var(--acrylic-filter);
+  -webkit-backdrop-filter: var(--acrylic-filter);
+}
+:root[data-design-language='fluent'] .global-search-bar__close { border-radius: 4px; }
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-design-language='fluent'] :is(.library-track-menu, .command-palette, .playlist-switcher, .wall-float, .global-search-bar, .global-search-results) {
+    background: var(--acrylic-fallback);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  :root[data-design-language='fluent'] :is(.library-track-menu, .command-palette, .playlist-switcher, .wall-float, .settings-sheet, .metadata-editor, .confirm-dialog) {
+    background: Canvas;
+    box-shadow: none;
+    outline: 1px solid CanvasText;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

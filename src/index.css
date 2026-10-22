@@ -2,6 +2,7 @@
 @import "./styles/ui.css";
 @import "./styles/wall.css";
 @import "./styles/palette.css";
+@import "./styles/fluent.css";
 @import "tailwindcss";
 
 @theme {
@@ -785,6 +786,12 @@ textarea:focus-visible {
 }
 
 /* Song actions use the same visible menu for mouse and keyboard. */
+.library-track-menu {
+  border: 1px solid var(--theme-border-light);
+  border-radius: var(--theme-surface-radius);
+  background-color: var(--theme-background-sidebar);
+  color: var(--theme-text-primary);
+}
 .library-track-row:hover { background-color: var(--theme-background-card-hover); }
 
 /* Song list palette. Inline-highlight (brutalist) themes keep the theme's own
