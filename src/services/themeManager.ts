@@ -37,7 +37,7 @@ function predefinedTheme(themeId: ThemeId): ThemeConfig {
 }
 
 /** Write a theme's CSS custom properties and light/dark marker to an element. */
-function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
+export function applyThemeVarsToElement(el: HTMLElement, theme: ThemeConfig): void {
   const colors = theme.colors;
   const radius = theme.borderRadius;
   const controls = resolveThemeControls(theme);
@@ -206,6 +206,11 @@ class ThemeManagerClass {
 
   getCurrentThemeId(): ThemeId {
     return this.currentThemeId;
+  }
+
+  /** The current theme as defined, without the platform's design-language layer. */
+  getBaseTheme(): ThemeConfig {
+    return predefinedTheme(this.currentThemeId);
   }
 
   getCurrentTheme(): ThemeConfig {

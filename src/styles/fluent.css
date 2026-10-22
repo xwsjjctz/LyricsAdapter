@@ -9,7 +9,7 @@
  * which themeManager sets on Windows for the themes that take Fluent.
  */
 
-/* ---- Materials (all Windows themes; the player bars use them too) ---- */
+/* ---- Materials (all Windows themes; FocusMode's bar has its own copy) ---- */
 
 :root.platform-windows {
   /* AcrylicInAppFillColorDefault over a 30px blur; SurfaceStrokeColorFlyout. */
@@ -123,10 +123,11 @@
 :root[data-design-language='fluent'] .ui-btn--ghost:hover:not(:disabled) { background: var(--fluent-subtle-hover); }
 :root[data-design-language='fluent'] :is(.ui-btn--ghost, .ui-btn--danger):active:not(:disabled) { background: var(--fluent-subtle-pressed); }
 
-:root[data-design-language='fluent'] .ui-icon-btn { transition: background-color 83ms linear, color 83ms linear; }
-:root[data-design-language='fluent'] .ui-icon-btn--ghost:hover:not(:disabled) { background: var(--fluent-subtle-hover); }
-:root[data-design-language='fluent'] .ui-icon-btn--ghost:active:not(:disabled) { background: var(--fluent-subtle-pressed); }
-:root[data-design-language='fluent'] .ui-icon-btn--active { background: var(--fluent-subtle-hover); }
+/* The Windows glass player keeps its own buttons. */
+:root[data-design-language='fluent'] .ui-icon-btn:not(.windows-glass-player *) { transition: background-color 83ms linear, color 83ms linear; }
+:root[data-design-language='fluent'] .ui-icon-btn--ghost:not(.windows-glass-player *):hover:not(:disabled) { background: var(--fluent-subtle-hover); }
+:root[data-design-language='fluent'] .ui-icon-btn--ghost:not(.windows-glass-player *):active:not(:disabled) { background: var(--fluent-subtle-pressed); }
+:root[data-design-language='fluent'] .ui-icon-btn--active:not(.windows-glass-player *) { background: var(--fluent-subtle-hover); }
 
 /* ---- Toggle switch: 40×20, a 12px knob that grows to 14px under the pointer ---- */
 
@@ -412,33 +413,6 @@
 :root[data-design-language='fluent'] .wall-download-badge { border-radius: 8px; }
 :root[data-design-language='fluent'] .wall-tile__download--compact .wall-download-badge { border-radius: 4px; }
 :root[data-design-language='fluent'] .wall-welcome kbd { border-radius: 4px; }
-
-/* ---- FocusMode's portrait transport: Media Player's full-screen controls ---- */
-
-:root[data-design-language='fluent'] .focus-portrait-controls button {
-  border-radius: 4px;
-  transition: background-color 83ms linear;
-}
-:root[data-design-language='fluent'] .focus-portrait-controls button:hover:enabled { background: rgba(255, 255, 255, .0605); }
-:root[data-design-language='fluent'] .focus-portrait-controls button:active:enabled { background: rgba(255, 255, 255, .0419); }
-:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button'] {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--theme-primary);
-  color: var(--theme-on-primary);
-}
-:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button']:hover:enabled { background: color-mix(in srgb, var(--theme-primary) 90%, transparent); }
-:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button']:active:enabled { background: color-mix(in srgb, var(--theme-primary) 80%, transparent); }
-:root[data-design-language='fluent'] .focus-portrait-transport [data-testid='focus-play-button'] .material-symbols-rounded { font-size: 40px; }
-/* A Fluent slider keeps its 4px track while dragging instead of swelling. */
-:root[data-design-language='fluent'] .focus-portrait-controls .player-slider,
-:root[data-design-language='fluent'] .focus-portrait-controls .player-slider:has(input:active) {
-  --theme-progress-height: 4px;
-  --theme-progress-radius: 2px;
-  --theme-control-slider-track: rgba(255, 255, 255, .545);
-  --theme-control-slider-fill: var(--theme-primary);
-}
 
 /* ---- Search box and other single-line inputs on the library ---- */
 

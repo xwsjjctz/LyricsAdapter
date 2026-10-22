@@ -6,10 +6,10 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 const repo = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
-test('Windows Acrylic bars keep native proportions and route both bars to the player', async ({}, testInfo) => {
-  test.skip(process.platform !== 'win32', 'Windows Fluent materials');
+test('Windows glass samples the live page, keeps native proportions and routes both bars to the player', async ({}, testInfo) => {
+  test.skip(process.platform !== 'win32', 'Windows SVG glass renderer');
   test.setTimeout(90_000);
-  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-windows-acrylic-')));
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-windows-glass-')));
   const isolatedHome = path.join(root, 'home'), userData = path.join(root, 'data');
   await mkdir(path.join(isolatedHome, '.la'), { recursive: true });
   await mkdir(path.join(userData, 'covers'), { recursive: true });
@@ -51,9 +51,9 @@ test('Windows Acrylic bars keep native proportions and route both bars to the pl
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
     const audioState = () => page.locator('audio').evaluate((node: HTMLAudioElement) => ({ paused: node.paused, time: node.currentTime, volume: node.volume }));
     const main = page.getByTestId('main-controlbar');
-    await expect(main).toHaveAttribute('data-material', 'acrylic');
-    await expect(main).toHaveCSS('border-radius', '8px');
-    expect(await main.evaluate(node => getComputedStyle(node, '::before').backdropFilter)).toMatch(/^blur\(30px\) saturate\(/);
+    await expect(main).toHaveAttribute('data-glass-material', 'regular');
+    await expect(main).toHaveCSS('border-radius', '22px');
+    await expect.poll(() => main.evaluate(node => getComputedStyle(node, '::before').backdropFilter)).toContain('url(');
     const bounds = (await main.boundingBox())!;
     expect(bounds.width).toBe(720); expect(bounds.height).toBe(72);
     // [x, y, width, height] from the bar's top-left, in the bar's own unscaled points.
@@ -78,15 +78,53 @@ test('Windows Acrylic bars keep native proportions and route both bars to the pl
     });
     await expect(main.locator('.player-progress-controls > span').first()).toHaveCSS('text-align', 'center');
     await expect(main.locator('.player-transport .material-symbols-rounded').first()).toHaveCSS('font-variation-settings', '"FILL" 1');
-    // The play button is an accent-filled circle, as in Windows Media Player.
-    await expect(main.getByTestId('main-play-button')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-    await expect(main.getByTestId('main-play-button')).toHaveCSS('border-radius', '50%');
-    await page.screenshot({ path: testInfo.outputPath('windows-player.png') });
+    await expect(main.getByTestId('main-play-button')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    // The bar and its popup keep the night tint in the light default theme.
+    expect(await main.evaluate(node => getComputedStyle(node).getPropertyValue('--glass-tint').trim())).toBe('rgba(0, 0, 0, .3)');
+    // The rim starts from LAGlassHighlightView's top stop.
+    expect(await main.evaluate(node => getComputedStyle(node, '::after').backgroundImage)).toContain('rgba(255, 255, 255, 0.24)');
+    await page.screenshot({ path: testInfo.outputPath('windows-regular.png') });
+
+    const filterId = await main.evaluate(node => getComputedStyle(node, '::before').backdropFilter.match(/#([^"\)]+)/)![1]!);
+    const originalMap = await page.locator(`[id="${filterId}"] feImage`).getAttribute('href');
+    await page.evaluate(() => {
+      const bar = document.querySelector('[data-testid="main-controlbar"]')!;
+      const background = document.createElement('div'); background.id = 'glass-test-background';
+      Object.assign(background.style, { position: 'absolute', inset: '0', zIndex: '30', background: 'rgb(240, 32, 48)', pointerEvents: 'none' });
+      bar.parentElement!.insertBefore(background, bar);
+    });
+    const sample = async (x = bounds.x + 360, y = bounds.y + 12) => {
+      await page.waitForTimeout(100);
+      const screenshot = await page.screenshot({ scale: 'css' });
+      return app!.evaluate(({ nativeImage }, args) => {
+        const image = nativeImage.createFromBuffer(Buffer.from(args.png, 'base64'));
+        const offset = (args.y * image.getSize().width + args.x) * 4;
+        const bitmap = image.toBitmap();
+        return [bitmap[offset + 2]!, bitmap[offset + 1]!, bitmap[offset]!];
+      }, { png: screenshot.toString('base64'), x: Math.round(x), y: Math.round(y) });
+    };
+    // The dark material dims the backdrop, so the colour differences are smaller than the raw page's.
+    const red = await sample();
+    expect(red[0]! - red[2]!).toBeGreaterThan(50);
+    // A reversible diagnostic matrix proves that the SVG receives the backdrop,
+    // rather than merely checking whether the CSS URL parses.
+    const backdropMatrix = page.locator(`[id="${filterId}"] feColorMatrix`).first();
+    const saturation = (await backdropMatrix.getAttribute('values'))!;
+    await backdropMatrix.evaluate(node => {
+      node.setAttribute('type', 'matrix'); node.setAttribute('values', '-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0');
+    });
+    const inverted = await sample();
+    expect(red[0]! - inverted[0]!).toBeGreaterThan(50);
+    await backdropMatrix.evaluate((node, values) => { node.setAttribute('type', 'saturate'); node.setAttribute('values', values); }, saturation);
+    await page.locator('#glass-test-background').evaluate(node => { (node as HTMLElement).style.background = 'rgb(32, 80, 224)'; });
+    const blue = await sample();
+    expect(blue[2]! - blue[0]!).toBeGreaterThan(50);
+    await page.locator('#glass-test-background').evaluate(node => node.remove());
+    await testInfo.attach('live-backdrop-pixels', { body: JSON.stringify({ red, inverted, blue }), contentType: 'application/json' });
     await main.getByTestId('main-volume-button').hover();
     const popup = page.locator('.macos-volume-slider-shell');
     await expect(popup).toBeVisible(); await expect(popup).toHaveCSS('opacity', '1');
-    await expect(popup).toHaveCSS('backdrop-filter', /^blur\(30px\) saturate\(/);
-    await expect(popup).toHaveCSS('border-radius', '8px');
+    await expect(popup).toHaveCSS('backdrop-filter', /url\(/);
     const popupBounds = (await popup.boundingBox())!;
     expect(popupBounds.width).toBe(44); expect(popupBounds.height).toBe(149);
     // Centred over the speaker, floating 8px above the bar.
@@ -95,6 +133,8 @@ test('Windows Acrylic bars keep native proportions and route both bars to the pl
     await page.keyboard.press('Escape');
     await main.getByTestId('main-play-button').click();
     await expect.poll(async () => (await audioState()).paused).toBe(false);
+    await page.waitForTimeout(400);
+    await expect(page.locator(`[id="${filterId}"] feImage`)).toHaveAttribute('href', originalMap!);
     await main.getByTestId('main-play-button').click();
     await expect.poll(async () => (await audioState()).paused).toBe(true);
 
@@ -149,6 +189,14 @@ test('Windows Acrylic bars keep native proportions and route both bars to the pl
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setContentSize(1200, 800));
     await page.keyboard.press('ControlOrMeta+Enter');
     await expect(main).toHaveClass(/translate-y-0/);
+    await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);
+    // Acrylic needs no SVG lens, so FocusMode adds no filter definitions.
+    for (let cycle = 0; cycle < 2; cycle++) {
+      await page.keyboard.press('ControlOrMeta+Enter');
+      await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);
+      await page.keyboard.press('ControlOrMeta+Enter');
+      await expect(page.locator('.liquid-glass-definitions')).toHaveCount(2);
+    }
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await main.getByTestId('main-volume-button').hover();
     await expect(popup).toHaveCSS('transition-duration', '0s');

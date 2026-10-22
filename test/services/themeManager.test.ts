@@ -192,6 +192,8 @@ describe('applyTheme', () => {
       expect(root.dataset['designLanguage']).toBe('fluent');
       expect(root.style.getPropertyValue('--theme-control-radius')).toBe('4px');
       expect(themeManager.getCurrentTheme().designLanguage).toBe('fluent');
+      // The Windows glass player redeclares the theme's own tokens.
+      expect(themeManager.getBaseTheme().designLanguage).toBeUndefined();
 
       themeManager.applyTheme(themeManager.getAllThemes().find(t => t.id === THEME_IDS.BRUTALIST)!);
       expect(root.dataset['designLanguage']).toBeUndefined();
