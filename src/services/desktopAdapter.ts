@@ -543,6 +543,10 @@ class ElectronAdapter implements FullDesktopAPI {
     if (!this.api.pluginTranslate) throw new Error('Plugin platform is unavailable');
     return this.api.pluginTranslate(call);
   }
+  async pluginClearTranslation(call: PluginTranslationCall): Promise<void> {
+    if (!this.api.pluginClearTranslation) throw new Error('Plugin platform is unavailable');
+    return this.api.pluginClearTranslation(call);
+  }
   pluginCancel(requestId: string): void { this.api.pluginCancel?.(requestId); }
   async pluginConfiguration(id: string): Promise<Record<string, string | boolean | number>> { return this.api.pluginConfiguration?.(id) ?? {}; }
   async pluginSetConfiguration(id: string, key: string, value: string | boolean | number): Promise<void> {

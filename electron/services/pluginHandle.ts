@@ -25,6 +25,7 @@ export interface PluginHandle {
   invoke(action: string, args: unknown[]): Promise<unknown>;
   streamHeaders(cookie: string): Promise<Record<string, string>>;
   translate(providerId: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult>;
+  clearTranslation(providerId: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<void>;
   /** The main process wrote new configuration; run the plugin's change listeners. */
   configurationChanged(): void;
   dispose(reason?: Error): void;
@@ -81,6 +82,7 @@ class InlineLegacyHandle implements PluginHandle {
   async invoke(action: string, args: unknown[]): Promise<unknown> { return this.loaded().invoke(action, args); }
   async streamHeaders(cookie: string): Promise<Record<string, string>> { return this.loaded().streamHeaders(cookie); }
   async translate(): Promise<TranslationResult> { throw new Error('Translation provider is unavailable'); }
+  async clearTranslation(): Promise<void> { throw new Error('Translation provider is unavailable'); }
   configurationChanged(): void {}
   dispose(): void {}
 }
@@ -98,6 +100,9 @@ class InlinePlatformHandle implements PluginHandle {
   streamHeaders(cookie: string): Promise<Record<string, string>> { return this.runtime.callMusic(async plugin => plugin.streamHeaders(cookie)); }
   translate(providerId: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult> {
     return this.runtime.translate(providerId, request, signal, requestId);
+  }
+  clearTranslation(providerId: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<void> {
+    return this.runtime.clearTranslation(providerId, request, signal, requestId);
   }
   configurationChanged(): void { this.runtime.notifyConfigurationChanged(); }
   dispose(reason?: Error): void { this.runtime.dispose(reason); }

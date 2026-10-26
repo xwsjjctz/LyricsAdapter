@@ -30,7 +30,7 @@ npm run plugin-sdk:build
 npm pack ./packages/plugin-sdk --pack-destination /tmp
 ```
 
-在插件仓库安装 `/tmp/lyrics-adapter-plugin-sdk-1.2.0.tgz` 作为开发依赖，然后导入公共类型：
+在插件仓库安装 `/tmp/lyrics-adapter-plugin-sdk-1.4.0.tgz` 作为开发依赖，然后导入公共类型：
 
 ```ts
 import type { PluginContext, LyricsTranslationProvider } from '@lyrics-adapter/plugin-sdk';

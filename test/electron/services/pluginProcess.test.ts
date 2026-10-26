@@ -193,3 +193,26 @@ describe('ProcessPluginHandle supervision', () => {
     handle.dispose();
   });
 });
+
+
+describe('isolated translation cache control', () => {
+ it('forwards reload and clear through the real guest protocol', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'la-translation-control-')); roots.push(root);
+  const directory = path.join(root, 'installed', 'translator'); fs.mkdirSync(directory, { recursive: true });
+  const manifest: PluginManifest = { ...platformManifest, extensionApis: { 'lyrics.translation': '^1.3.0' }, contributes: { providers: [{ type: 'lyrics.translation', id: 'default', name: 'Translation', cacheControl: true }] } };
+  fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify(manifest));
+  fs.writeFileSync(path.join(directory, 'index.cjs'), `exports.activate = c => c.extensions.register('lyrics.translation', 'default', {
+   translate: async r => ({documentId:r.document.id,documentRevision:r.document.revision,targetLanguage:r.targetLanguage,lines:[{lineId:'line-0',text:r.cacheMode || 'normal'}]}),
+   clearTranslation: async r => c.logger.info('cleared',r.document.trackId,r.targetLanguage)
+  });`);
+  const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const { spawn } = inMemorySpawn();
+  const registry = new MusicPluginRegistry({ installedDirectory:path.join(root,'installed'), spawn,
+   host:() => ({ logger,readSecret:()=>'',writeSecrets:vi.fn() }), isEnabled:()=>true,setEnabled:()=>{} });
+  const result = await registry.translate('translator:default', { ...request, cacheMode:'reload' }, new AbortController().signal, 'reload');
+  expect(result.lines[0]?.text).toBe('reload');
+  await registry.clearTranslation('translator:default', request, new AbortController().signal, 'clear');
+  expect(logger.info).toHaveBeenCalledWith('cleared','t','zh');
+  registry.dispose();
+ });
+});

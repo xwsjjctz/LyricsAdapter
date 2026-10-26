@@ -11,7 +11,7 @@ export interface PluginDataSnapshot {
   settings: Record<string, string>;
 }
 
-export type PluginOperation = 'load' | 'call' | 'invoke' | 'streamHeaders' | 'translate';
+export type PluginOperation = 'load' | 'call' | 'invoke' | 'streamHeaders' | 'translate' | 'clearTranslation';
 
 export type HostToGuest =
   | { type: 'init'; spec: PluginHandleSpec; snapshot: PluginDataSnapshot }

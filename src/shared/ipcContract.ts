@@ -202,6 +202,7 @@ export interface IpcInvokeContract {
   'plugin-set-update-source': [[id: string, source: PluginUpdateSource | null], PluginUpdateInfo[]];
   'plugin-providers': [[type: ExtensionType], PluginProviderInfo[]];
   'plugin-translate': [[call: PluginTranslationCall], TranslationResult];
+  'plugin-clear-translation': [[call: PluginTranslationCall], void];
   'plugin-configuration': [[id: string], Record<string, PluginConfigurationValue>];
   'plugin-set-configuration': [[id: string, key: string, value: PluginConfigurationValue], void];
   'plugin-data-info': [[id: string], PluginDataInfo];

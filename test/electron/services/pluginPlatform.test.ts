@@ -54,7 +54,7 @@ describe('public plugin API negotiation and compatibility', () => {
   const {registry,logger} = fixture(code,selected);
   expect(registry.providers('lyrics.translation')).toHaveLength(1);
   await translate(registry);
-  expect(logger.info).toHaveBeenCalledWith('activate',expect.objectContaining({coreApi:'1.1.0',extensionApis:{'lyrics.translation':'1.2.0'}}));
+  expect(logger.info).toHaveBeenCalledWith('activate',expect.objectContaining({coreApi:'1.1.0',extensionApis:{'lyrics.translation':'1.3.0'}}));
  });
  it('lazily activates once, cleans up on disable, reactivates with preserved private data and respects config validation', async () => {
   const {registry,logger,data,options} = fixture();
@@ -232,5 +232,30 @@ describe('lyrics.translation 1.2 provider languages and deadlines', () => {
   const {registry} = fixture(code.replace("signal.throwIfAborted();", "await new Promise(() => {});"),declared({timeoutSeconds:20}));
   const result = translate(registry); const assertion = expect(result).rejects.toThrow('timed out');
   await vi.advanceTimersByTimeAsync(20_000); await assertion;
+ });
+});
+
+
+describe('translation cache-control API', () => {
+ it('forwards reload and clear to capable providers and validates cache mode', async () => {
+  const selected: PluginManifest = { ...manifest, extensionApis: { 'lyrics.translation': '^1.3.0' }, contributes: { ...manifest.contributes,
+   providers: [{ type: 'lyrics.translation', id: 'default', name: 'Translation', cacheControl: true }] } };
+  const source = `exports.activate = c => c.extensions.register('lyrics.translation', 'default', {
+   translate: async r => { c.logger.info('mode', r.cacheMode); return { documentId:r.document.id,documentRevision:r.document.revision,targetLanguage:r.targetLanguage,lines:[] }; },
+   clearTranslation: async (r, {signal}) => { signal.throwIfAborted(); c.logger.info('clear', r.document.trackId, r.targetLanguage); }
+  });`;
+  const { registry, logger } = fixture(source, selected);
+  expect(registry.providers('lyrics.translation')[0]?.cacheControl).toBe(true);
+  await registry.translate('translator:default', { ...request, cacheMode: 'reload' }, new AbortController().signal, 'reload');
+  expect(logger.info).toHaveBeenCalledWith('mode', 'reload');
+  await registry.clearTranslation('translator:default', request, new AbortController().signal, 'clear');
+  expect(logger.info).toHaveBeenCalledWith('clear', 'opaque', 'zh');
+  await expect(registry.translate('translator:default', { ...request, cacheMode: 'invalid' } as unknown as TranslationRequest, new AbortController().signal, 'bad')).rejects.toThrow();
+ });
+ it('rejects unsupported actions without silently serving cached results or disabling the provider', async () => {
+  const { registry } = fixture();
+  await expect(registry.translate('translator:default', { ...request, cacheMode: 'reload' }, new AbortController().signal, 'reload')).rejects.toThrow('does not support');
+  await expect(registry.clearTranslation('translator:default', request, new AbortController().signal, 'clear')).rejects.toThrow('does not support');
+  expect(registry.providers('lyrics.translation')).toHaveLength(1);
  });
 });

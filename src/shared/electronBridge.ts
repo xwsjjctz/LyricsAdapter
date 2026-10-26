@@ -53,6 +53,7 @@ export interface ElectronBridge {
   onPluginUpdatesChanged(callback: (updates: PluginUpdateInfo[]) => void): Unsubscribe;
   pluginProviders: IpcInvoker<'plugin-providers'>;
   pluginTranslate: IpcInvoker<'plugin-translate'>;
+  pluginClearTranslation: IpcInvoker<'plugin-clear-translation'>;
   pluginCancel(requestId: string): void;
   pluginConfiguration: IpcInvoker<'plugin-configuration'>;
   pluginSetConfiguration: IpcInvoker<'plugin-set-configuration'>;

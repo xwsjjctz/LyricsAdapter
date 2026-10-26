@@ -65,28 +65,70 @@ export function setTranslationRequested(key: string, value: boolean): void {
 }
 
 const cache = new Map<string, TranslationResult>();
-const pending = new Map<string, { promise: Promise<TranslationResult>; requestId: string; references: number }>();
-/** Lease shared work; the final consumer cancels its IPC request when no result is cached. */
-export function acquireTranslation(provider: PluginProviderInfo, document: LyricDocument, targetLanguage: string, scope: string) {
+const pending = new Map<string, { promise: Promise<TranslationResult>; requestId: string; references: number; reload: boolean }>();
+const clearing = new Map<string, Promise<void>>();
+const translationScope = (providerKey: string, documentId: string, language: string) => JSON.stringify([providerKey, documentId, language.toLowerCase()]);
+const matchesScope = (key: string, providerKey: string, documentId: string, language: string) => {
+  const [provider, , document, , target] = JSON.parse(key) as string[];
+  return provider === providerKey && document === documentId && target?.toLowerCase() === language.toLowerCase();
+};
+
+function cancelPending(providerKey: string, documentId: string, language: string): void {
+  for (const [key, entry] of pending) {
+    if (!matchesScope(key, providerKey, documentId, language)) continue;
+    pending.delete(key);
+    getDesktopAPI()?.pluginCancel?.(entry.requestId);
+  }
+}
+function evictResults(providerKey: string, documentId: string, language: string): void {
+  for (const key of cache.keys()) if (matchesScope(key, providerKey, documentId, language)) cache.delete(key);
+}
+
+/** Remove this track/language across revisions and configuration scopes, without starting a translation. */
+export function clearTranslation(provider: PluginProviderInfo, document: LyricDocument, targetLanguage: string): Promise<void> {
+  const scope = translationScope(provider.key, document.id, targetLanguage);
+  const existing = clearing.get(scope);
+  if (existing) return existing;
+  cancelPending(provider.key, document.id, targetLanguage);
+  evictResults(provider.key, document.id, targetLanguage);
+  const operation = Promise.resolve().then(async () => {
+    const api = getDesktopAPI();
+    if (!provider.cacheControl || !api?.pluginClearTranslation) throw new Error('Translation provider does not support clearing translations');
+    await api.pluginClearTranslation({ requestId: crypto.randomUUID(), providerKey: provider.key, request: { document, targetLanguage } });
+  }).finally(() => { if (clearing.get(scope) === operation) clearing.delete(scope); });
+  clearing.set(scope, operation);
+  return operation;
+}
+
+/** Lease shared work; reload keeps the last successful result until a replacement succeeds. */
+export function acquireTranslation(provider: PluginProviderInfo, document: LyricDocument, targetLanguage: string, scope: string, reload = false) {
   const key = JSON.stringify([provider.key, provider.version, document.id, document.revision, targetLanguage, scope]);
-  const cached = cache.get(key);
-  if (cached) return { promise: Promise.resolve(cached), release: () => {} };
+  const barrier = clearing.get(translationScope(provider.key, document.id, targetLanguage));
   let entry = pending.get(key);
+  if (reload && !entry?.reload) {
+    cancelPending(provider.key, document.id, targetLanguage);
+    entry = undefined;
+  }
+  const cached = cache.get(key);
+  if (!reload && !barrier && !entry?.reload && cached) return { promise: Promise.resolve(cached), release: () => {} };
   if (!entry) {
     const requestId = crypto.randomUUID();
-    const request = { document, targetLanguage };
+    const request = { document, targetLanguage, ...(reload ? { cacheMode: 'reload' as const } : {}) };
     const api = getDesktopAPI();
     const promise = Promise.resolve().then(async () => {
+      if (barrier) await barrier;
       if (pending.get(key)?.requestId !== requestId) throw new Error('Translation request cancelled');
+      if (reload && !provider.cacheControl) throw new Error('Translation provider does not support reload');
       if (!api?.pluginTranslate) throw new Error('Plugin platform is unavailable');
       const result = validateTranslationResult(await api.pluginTranslate({ requestId, providerKey: provider.key, request }), request);
-      // A cancelled lease must not populate the cache even if the provider ignores cancellation.
+      // A cancelled lease must not populate any cache even if the provider ignores cancellation.
       if (pending.get(key)?.requestId === requestId) {
+        evictResults(provider.key, document.id, targetLanguage);
         cache.set(key, result); while (cache.size > 32) cache.delete(cache.keys().next().value!);
       }
       return result;
     }).finally(() => { if (pending.get(key)?.requestId === requestId) pending.delete(key); });
-    entry = { promise, requestId, references: 0 }; pending.set(key, entry);
+    entry = { promise, requestId, references: 0, reload }; pending.set(key, entry);
   }
   entry.references++;
   let released = false;

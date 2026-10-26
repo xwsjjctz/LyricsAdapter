@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `manifestVersion` | 1 | 清单解析和包语义；不兼容结构才增加版本 |
 | `coreApi` | 1.1.0 | 生命周期和基础服务；插件声明要求范围 |
-| `extensionApis[type]` | music.source 1.0.0 / lyrics.translation 1.2.0 | 每个扩展独立演进，音乐变化不强迫翻译插件升级 |
+| `extensionApis[type]` | music.source 1.0.0 / lyrics.translation 1.3.0 | 每个扩展独立演进，音乐变化不强迫翻译插件升级 |
 | 插件 `version` / SDK 包版本 | 插件自行维护 / SDK 1.3.0 | 插件发布版本、开发工具版本；不能代替宿主能力判断 |
 | 更新清单 `schemaVersion` | 1 | 分发信息独立演进，不改变已有运行时 API |
 
@@ -89,3 +89,5 @@ export function activate(context: PluginContext) {
 - SDK 包 1.2.0：导出上述类型（`PluginCache`、`PluginFetchOptions`、`LyricTrackMetadata`、`PluginDataInfo`）。首个使用这些能力的示例是 [llm-translation](../../examples/plugins/llm-translation/README.md)。
 - lyrics.translation 1.2.0：翻译提供者声明可选 `languages`（插件设置中按它列出目标语言，不支持的偏好回退到声明的语言）和 `timeoutSeconds`（整次调用期限 20–600 秒，默认仍为 180）；`callContext.timeoutMs` 告诉提供者剩余时间。旧宿主忽略这两个声明字段，声明 `^1.1.0` 的插件行为不变。
 - SDK 包 1.3.0：导出 `ProviderContribution`，`ProviderCallContext.timeoutMs` 与 `PluginProviderInfo.languages`。
+
+- lyrics.translation 1.3.0：声明 `cacheControl: true` 的提供者支持 `TranslationRequest.cacheMode: 'reload'` 和 `clearTranslation`；单曲重译成功后才替换，清除以歌曲和目标语言为范围取消任务并移除全部变体。SDK 包 1.4.0 导出这些类型；旧提供者继续可用。

@@ -100,7 +100,7 @@ interface PluginCache {
 
 宿主内存中的 32 项译文缓存仍然存在，重启后清空；需要跨重启保留的结果由插件写入 `context.cache`。
 
-## `lyrics.translation@1.2.0`
+## `lyrics.translation@1.3.0`
 
 提供者方法：`translate(request, callContext): Promise<TranslationResult>`。callContext 含 `requestId` 和 `signal: AbortSignal`，每次调用独立；信号由宿主在插件进程内创建，不通过 IPC 传递 AbortSignal 对象。1.2 起 callContext 还含 `timeoutMs`：调用提供者时距宿主放弃这次请求还剩的毫秒数（已扣除激活耗时）。需要多次请求外部服务的插件应据此缩短单次超时，剩余时间不够时直接报错，而不是发出注定会被中止的请求；旧宿主不提供该字段，按 180 秒处理。
 
@@ -136,6 +136,7 @@ interface TranslationRequest {
     }[];
   };
   targetLanguage: string;
+  cacheMode?: 'reload'; // 1.3：跳过缓存，成功后才替换已有译文
 }
 interface TranslationResult {
   documentId: string;
@@ -150,6 +151,23 @@ interface TranslationResult {
 输出必须回显文档 ID、revision、目标语言，只允许输入中出现的 lineId，每个 ID 最多一次。可以返回部分行和空行列表；未返回的行只显示原文。每行文本上限 16,384 字符，最多 5,000 行，解析后的请求/响应 JSON 最多 1,000,000 字符；不接受 NaN/Infinity、重复输入行 ID。结果按 ID 对齐，不能按文本、时间戳或返回数组顺序匹配。宿主显示译文为文本，不执行 HTML。词级时间可保留用于服务理解，但翻译结果当前没有逐词时间。
 
 宿主只在用户点击专注模式播放控件中的「翻译」按钮后才发出请求，加载歌词本身不会触发翻译。这次点击在本次会话内对该歌曲、提供者和目标语言保留：重新打开专注模式或回到这首歌时直接复用结果，插件状态（如配置）变化时按新状态重新请求；再次点击按钮只隐藏译文。专注模式隐藏、切歌、改变语言/提供者/配置、停用或卸载插件时，旧响应不会覆盖新视图。请求按文档 revision、提供者版本、目标语言和当前插件状态共享；最后一个消费者离开时取消。成功结果在当前渲染窗口内缓存，最多 32 项，不写入原歌词/音频标签或媒体库。缓存重启后清空。目标语言按上文 `languages` 的规则选择，请求中的 `targetLanguage` 总是提供者声明列表中的一项（未声明时为默认四种之一）。
+
+### 单曲重译与清除（1.3）
+
+提供者在清单中声明 `cacheControl: true`，并实现
+`clearTranslation(request, callContext): Promise<void>`。这项能力依赖 1.3 行为，应声明
+`"lyrics.translation": "^1.3.0"`；宿主在激活时检查清除方法，在提供者信息中返回能力标志。
+未声明能力的提供者继续使用原有翻译按钮，不显示单曲管理入口。
+
+- 重译使用 `translate({ ...request, cacheMode: 'reload' }, callContext)`。提供者必须跳过缓存，
+  完整生成成功后再替换对应版本；失败不删除已有译文。宿主也跳过内存缓存，在生成期间和失败后继续显示旧译文。
+- 清除以 `document.trackId + targetLanguage` 为范围，移除该歌曲该语言的所有风格／提示词缓存，
+  不影响其他歌曲或语言，不调用模型。提供者须中止该范围内的旧任务，并保证迟到结果和进行中的缓存写入不能恢复已清除数据。
+- 歌曲列表和封面墙的歌曲右键菜单提供「重新翻译本曲」和「清除本曲译文」（仅显示于已有歌词且启用插件支持管理的歌曲）。操作归属于选中的歌曲，菜单关闭和切歌不取消操作；通过现有通知报告结果。专注模式保持原有页面和翻译按钮。
+  清除立即切回原文、取消当前会话的显示请求并失效相关内存缓存；切歌回来或重新打开专注模式均不会自动生成。
+  只有再次主动点击翻译或重译才请求模型。清除失败显示错误，可手动重试；清除期间不能发起新的界面翻译操作。
+- 清除调用同样使用独立 requestId / signal，执行期限为 20 秒；它只接收不透明歌曲标识与歌词文档，
+  不授予插件音频文件访问权，也不修改原歌词和音频标签。
 
 ## `music.source@1.0.0`
 
@@ -170,7 +188,7 @@ context.extensions.register('music.source', 'default', {
 
 ## 宿主桥接（应用内部）
 
-`pluginHostInfo()` 返回全宿主版本表；`pluginProviders(type)` 返回启用且无加载错误的清单声明。`pluginTranslate({ requestId, providerKey, request })` 调用翻译；`pluginCancel(requestId)` 取消同一窗口拥有的请求。requestId 匹配 `^[\w-]{1,128}$`，同窗口不能重复；主进程总计最多 64 个等待请求，窗口关闭自动取消。
+`pluginHostInfo()` 返回全宿主版本表；`pluginProviders(type)` 返回启用且无加载错误的清单声明。`pluginTranslate({ requestId, providerKey, request })` 调用翻译；`pluginClearTranslation({ requestId, providerKey, request })` 清除单曲当前语言的译文；`pluginCancel(requestId)` 取消同一窗口拥有的翻译或清除请求。requestId 匹配 `^[\w-]{1,128}$`，同窗口不能重复；主进程总计最多 64 个等待请求，窗口关闭自动取消。
 
 `pluginConfiguration(id)` 和 `pluginSetConfiguration(id, key, value)` 供宿主设置页面使用，第三方插件使用 context.configuration。`pluginConfiguration` 对 `secret` 字段只返回空字符串；`pluginSetConfiguration` 写入 `secret` 字段时转存为该插件凭据。`pluginDataInfo(id)` 返回 `{ configuredSecrets, cacheEntries, cacheBytes }`，`pluginClearCache(id)` 清空该插件的缓存目录。管理插件的旧 `musicPlugin*` 桥接名称暂时保留，同一列表/安装器同时支持两种格式。它们不属于可供第三方任意调用的公开 SDK。
 

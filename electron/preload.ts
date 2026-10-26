@@ -193,6 +193,7 @@ const bridge = {
   onPluginUpdatesChanged: callback => listen('plugin-updates-changed', callback),
   pluginProviders: invoker('plugin-providers'),
   pluginTranslate: invoker('plugin-translate'),
+  pluginClearTranslation: invoker('plugin-clear-translation'),
   pluginCancel: (requestId: string) => send('plugin-cancel', requestId),
   pluginConfiguration: invoker('plugin-configuration'),
   pluginSetConfiguration: invoker('plugin-set-configuration'),

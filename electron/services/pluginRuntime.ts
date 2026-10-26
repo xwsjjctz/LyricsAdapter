@@ -146,6 +146,8 @@ export class PluginRuntime {
         const key = `${type}:${id}`;
         if (this.providers.has(key)) throw new Error('Provider is already registered');
         if (type === 'lyrics.translation' && typeof (provider as ExtensionProviders['lyrics.translation'])?.translate !== 'function') throw new Error('Invalid translation provider');
+        if (type === 'lyrics.translation' && this.manifest.contributes.providers.find(p => p.type === type && p.id === id)?.cacheControl
+          && typeof (provider as ExtensionProviders['lyrics.translation']).clearTranslation !== 'function') throw new Error('Cache control requires clearTranslation');
         if (type === 'music.source') validateMusicSource(provider as MusicSourceProvider, this.manifest.id);
         this.providers.set(key, provider);
         return this.disposable(() => this.providers.delete(key));
@@ -239,10 +241,30 @@ export class PluginRuntime {
         if (callSignal.aborted) throw callSignal.reason;
         const provider = this.providers.get(`lyrics.translation:${id}`) as ExtensionProviders['lyrics.translation'] | undefined;
         if (!provider) throw new Error('Translation provider is unavailable');
+        if (request.cacheMode === 'reload' && !this.manifest.contributes.providers.find(p => p.type === 'lyrics.translation' && p.id === id)?.cacheControl) throw new Error('Translation provider does not support reload');
         const result = await provider.translate(request, { requestId, signal: callSignal, timeoutMs: Math.max(0, deadline - Date.now()) });
         if (callSignal.aborted) throw callSignal.reason;
         return validateTranslationResult(result, request);
       }, AbortSignal.any([signal, this.lifetime.signal]), timeout);
+    } finally { this.activeCalls--; }
+  }
+  async clearTranslation(id: string, requestValue: TranslationRequest, signal: AbortSignal, requestId: string): Promise<void> {
+    const request = validateTranslationRequest(requestValue);
+    this.ensureLive();
+    if (this.activeCalls >= 4) throw new Error('Plugin request concurrency limit reached');
+    if (!this.manifest.contributes.providers.find(p => p.type === 'lyrics.translation' && p.id === id)?.cacheControl) {
+      throw new Error('Translation provider does not support clearing translations');
+    }
+    this.activeCalls++;
+    try {
+      await withDeadline(async callSignal => {
+        await this.activate();
+        callSignal.throwIfAborted();
+        const provider = this.providers.get(`lyrics.translation:${id}`) as ExtensionProviders['lyrics.translation'] | undefined;
+        if (!provider?.clearTranslation) throw new Error('Translation provider does not support clearing translations');
+        await provider.clearTranslation(request, { requestId, signal: callSignal });
+        callSignal.throwIfAborted();
+      }, AbortSignal.any([signal, this.lifetime.signal]));
     } finally { this.activeCalls--; }
   }
   dispose(reason = new Error('Plugin is inactive')): void {

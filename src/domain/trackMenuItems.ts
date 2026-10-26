@@ -8,6 +8,8 @@ export type TrackMenuActionId =
   | 'edit'
   | 'select'
   | 'remove'
+  | 'translation:reload'
+  | 'translation:clear'
   | `download:${TrackDownloadQuality}`;
 
 export type TrackMenuItem =
@@ -40,6 +42,8 @@ interface TrackMenuContext {
   canEdit: boolean;
   /** The track resolves to an online provider song. */
   canDownload: boolean;
+  canTranslate?: boolean;
+  translationAction?: 'reload' | 'clear' | undefined;
 }
 
 const QUALITY_LABELS: Record<TrackDownloadQuality, string> = {
@@ -52,9 +56,10 @@ const QUALITY_LABELS: Record<TrackDownloadQuality, string> = {
  * Decides which song actions a list offers. Local and online-queue lists are
  * managed by the library, but only local files offer metadata editing; platform
  * playlists and search results are play-only, so they only get download. Cloud
- * lists are managed by their remote source.
+ * lists are managed by their remote source. Translation actions operate on the
+ * selected song independently of source ownership; they never edit its metadata.
  */
-export function buildTrackMenuItems({ dataSource, canEdit, canDownload }: TrackMenuContext): TrackMenuItem[] {
+export function buildTrackMenuItems({ dataSource, canEdit, canDownload, canTranslate = false, translationAction }: TrackMenuContext): TrackMenuItem[] {
   const groups: TrackMenuItem[][] = [];
   if (canDownload && dataSource !== 'local' && dataSource !== 'cloud') {
     groups.push([
@@ -65,6 +70,15 @@ export function buildTrackMenuItems({ dataSource, canEdit, canDownload }: TrackM
         label: QUALITY_LABELS[quality],
         groupLabelKey: 'browse.download',
       })),
+    ]);
+  }
+  if (canTranslate) {
+    groups.push([
+      { kind: 'label', labelKey: 'plugins.translationActions' },
+      ...(translationAction === 'reload' ? [{ kind: 'label' as const, labelKey: 'plugins.retranslatingTrack' }]
+        : translationAction === 'clear' ? [{ kind: 'label' as const, labelKey: 'plugins.clearingTranslation' }]
+        : [{ kind: 'action' as const, id: 'translation:reload' as const, labelKey: 'plugins.retranslateTrack' }]),
+      ...(translationAction === 'clear' ? [] : [{ kind: 'action' as const, id: 'translation:clear' as const, labelKey: 'plugins.clearTrackTranslation' }]),
     ]);
   }
   if (dataSource === 'local' || dataSource === 'online') {

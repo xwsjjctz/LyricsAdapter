@@ -5,7 +5,7 @@ export type { PluginUpdateInfo, PluginUpdateSource, PluginUpdateChannel, PluginU
 import type { OnlineMusicProvider, PlaylistInfo } from './onlineMusic.js';
 
 export const PLUGIN_CORE_API = '1.1.0';
-export const PLUGIN_EXTENSION_APIS = { 'music.source': '1.0.0', 'lyrics.translation': '1.2.0' } as const;
+export const PLUGIN_EXTENSION_APIS = { 'music.source': '1.0.0', 'lyrics.translation': '1.3.0' } as const;
 export type ExtensionType = keyof typeof PLUGIN_EXTENSION_APIS;
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export interface Disposable { dispose(): void }
@@ -53,6 +53,8 @@ export interface ProviderContribution {
   languages?: readonly string[];
   /** lyrics.translation 1.2: deadline for one whole translation call, 20–600 seconds (default 180). */
   timeoutSeconds?: number;
+  /** lyrics.translation 1.3: supports reload and clearing this track/language. */
+  cacheControl?: boolean;
 }
 export interface PluginHostInfo {
   coreApi: string;
@@ -78,7 +80,12 @@ export interface LyricDocument {
   metadata?: LyricTrackMetadata;
   lines: readonly LyricLine[];
 }
-export interface TranslationRequest { document: LyricDocument; targetLanguage: string }
+export interface TranslationRequest {
+  document: LyricDocument;
+  targetLanguage: string;
+  /** lyrics.translation 1.3: bypass cached results; replace them only after success. */
+  cacheMode?: 'reload';
+}
 export interface TranslationResult {
   documentId: string;
   documentRevision: string;
@@ -96,6 +103,8 @@ export interface ProviderCallContext {
 }
 export interface LyricsTranslationProvider {
   translate(request: TranslationRequest, context: ProviderCallContext): Promise<TranslationResult>;
+  /** lyrics.translation 1.3: cancel pending work and remove every cached variant for this track/language. */
+  clearTranslation?(request: TranslationRequest, context: ProviderCallContext): Promise<void>;
 }
 /** Existing music DTOs with open source IDs; UI integration of custom sources is separate. */
 export type MusicSourceProvider = Omit<MusicPlugin, 'provider'> & {
@@ -155,6 +164,7 @@ export interface PluginProviderInfo {
   key: string; pluginId: string; id: string; type: ExtensionType; name: string; version: string;
   /** A translation provider's declared target languages. */
   languages?: readonly string[];
+  cacheControl?: boolean;
 }
 export interface PluginTranslationCall { requestId: string; providerKey: string; request: TranslationRequest }
 export interface PluginElectronAPI {
@@ -166,6 +176,7 @@ export interface PluginElectronAPI {
   pluginHostInfo?: () => Promise<PluginHostInfo>;
   pluginProviders?: (type: ExtensionType) => Promise<PluginProviderInfo[]>;
   pluginTranslate?: (call: PluginTranslationCall) => Promise<TranslationResult>;
+  pluginClearTranslation?: (call: PluginTranslationCall) => Promise<void>;
   pluginCancel?: (requestId: string) => void;
   pluginConfiguration?: (id: string) => Promise<Record<string, string | boolean | number>>;
   pluginSetConfiguration?: (id: string, key: string, value: string | boolean | number) => Promise<void>;

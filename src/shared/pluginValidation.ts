@@ -16,7 +16,7 @@ const documentSchema = z.object({
   })).min(1).max(5000),
 });
 export function validateTranslationRequest(value: unknown): TranslationRequest {
-  const request = z.object({ document: documentSchema, targetLanguage: language }).parse(value);
+  const request = z.object({ document: documentSchema, targetLanguage: language, cacheMode: z.literal('reload').optional() }).parse(value);
   if (JSON.stringify(request).length > 1_000_000 || new Set(request.document.lines.map(line => line.id)).size !== request.document.lines.length) {
     throw new Error('Invalid lyric document size or duplicate line ids');
   }
