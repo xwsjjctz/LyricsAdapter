@@ -174,6 +174,9 @@ export class ProcessPluginHandle implements PluginHandle {
       ?? (spec.kind === 'platform' ? translationTimeoutMs(spec.manifest as PluginManifest, providerId) : DEFAULT_TRANSLATION_TIMEOUT_MS) + 5_000;
     return await this.request('translate', [providerId, request, requestId], signal, timeoutMs) as TranslationResult;
   }
+  async clearTranslation(providerId: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<void> {
+    await this.request('clearTranslation', [providerId, request, requestId], signal);
+  }
   configurationChanged(): void {
     this.channel?.post({ type: 'configurationChanged', snapshot: this.options.snapshot() });
   }

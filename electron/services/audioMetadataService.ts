@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { parseLrc, parseQrc, parseYrc, type LyricLine } from '@applemusic-like-lyrics/lyric';
-import { readWordLyrics, writeWordLyrics } from './wordLyricsTagService';
+import { readWordLyrics, restoreWordLyrics, snapshotWordLyrics, writeWordLyrics } from './wordLyricsTagService';
 import { logger } from '../logger';
 
 // ── Native binding ───────────────────────────────────────────────────────
@@ -317,11 +317,15 @@ export async function writeAudioMetadata(
     }
   }
 
+  const storedWordLyrics = snapshotWordLyrics(resolved);
   await file.save();
 
-  // Persist QRC/YRC into the custom tag *after* the main tag write so a
-  // failure here never undoes title/artist/album/lyrics/cover. writeWordLyrics
-  // swallows errors itself; we just log success.
+  // The save drops FLAC's QRC/YRC fields, so put back the ones this write
+  // does not replace. QRC/YRC go into the custom tag *after* the main tag
+  // write so a failure here never undoes title/artist/album/lyrics/cover;
+  // both helpers swallow errors themselves.
+  const replacedFormat = metadata.wordLyrics !== undefined ? metadata.wordLyricsFormat : undefined;
+  restoreWordLyrics(resolved, storedWordLyrics, replacedFormat);
   if (metadata.wordLyrics !== undefined && metadata.wordLyricsFormat) {
     writeWordLyrics(resolved, metadata.wordLyrics, metadata.wordLyricsFormat);
   }

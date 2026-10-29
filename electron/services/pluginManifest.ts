@@ -50,11 +50,12 @@ export const DEFAULT_TRANSLATION_TIMEOUT_MS = 180_000;
 const MIN_TRANSLATION_TIMEOUT_SECONDS = 20;
 const MAX_TRANSLATION_TIMEOUT_SECONDS = 600;
 const MAX_TRANSLATION_LANGUAGES = 32;
-/** lyrics.translation 1.2 provider fields: target languages and the whole-call deadline. */
+/** Translation provider options: languages/deadline (1.2) and cache control (1.3). */
 function validTranslationOptions(item: Record<string, unknown>): boolean {
-  const { languages, timeoutSeconds } = item;
-  if (item['type'] !== 'lyrics.translation') return languages === undefined && timeoutSeconds === undefined;
-  return (languages === undefined || (Array.isArray(languages) && languages.length > 0 && languages.length <= MAX_TRANSLATION_LANGUAGES
+  const { languages, timeoutSeconds, cacheControl } = item;
+  if (item['type'] !== 'lyrics.translation') return languages === undefined && timeoutSeconds === undefined && cacheControl === undefined;
+  return (cacheControl === undefined || typeof cacheControl === 'boolean')
+    && (languages === undefined || (Array.isArray(languages) && languages.length > 0 && languages.length <= MAX_TRANSLATION_LANGUAGES
       && languages.every(tag => typeof tag === 'string' && tag.length <= 64 && LANGUAGE_TAG.test(tag))
       && new Set(languages.map(tag => (tag as string).toLowerCase())).size === languages.length))
     && (timeoutSeconds === undefined || (typeof timeoutSeconds === 'number' && Number.isInteger(timeoutSeconds)

@@ -72,3 +72,23 @@ describe('downloadQualityOf', () => {
     expect(downloadQualityOf('remove')).toBeNull();
   });
 });
+
+
+describe('song translation menu entries', () => {
+  it('offers reload and clear independently of metadata editing', () => {
+    const items = buildTrackMenuItems({ dataSource: 'cloud', canEdit: false, canDownload: false, canTranslate: true });
+    expect(actionIds(items)).toEqual(['translation:reload', 'translation:clear']);
+    expect(downloadQualityOf('translation:reload')).toBeNull();
+  });
+  it('allows clearing a running reload and suppresses duplicate reload commands', () => {
+    const items = buildTrackMenuItems({ dataSource: 'local', canEdit: true, canDownload: false, canTranslate: true, translationAction: 'reload' });
+    expect(actionIds(items)).toContain('translation:clear');
+    expect(actionIds(items)).not.toContain('translation:reload');
+    expect(items).toContainEqual({ kind: 'label', labelKey: 'plugins.retranslatingTrack' });
+  });
+  it('offers neither action while clearing and leaves existing song actions available', () => {
+    const items = buildTrackMenuItems({ dataSource: 'local', canEdit: true, canDownload: false, canTranslate: true, translationAction: 'clear' });
+    expect(actionIds(items)).toEqual(['edit', 'select', 'remove']);
+    expect(items).toContainEqual({ kind: 'label', labelKey: 'plugins.clearingTranslation' });
+  });
+});

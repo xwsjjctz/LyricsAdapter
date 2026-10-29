@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SlotId, Track } from '../types';
 import { logger } from '../services/logger';
 import { trackToOnlineSong } from '../domain/trackFactory';
+import { useTrackTranslationActions } from './useTrackTranslationActions';
 import {
   buildTrackMenuItems,
   downloadQualityOf,
@@ -68,6 +69,7 @@ export function useLibraryTrackActions({
   onUpdateTrack,
   onDownloadTrack,
 }: UseLibraryTrackActionsOptions): LibraryTrackActions {
+  const translation = useTrackTranslationActions();
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [trackMenu, setTrackMenu] = useState<TrackMenuPosition | null>(null);
@@ -134,14 +136,17 @@ export function useLibraryTrackActions({
     dataSource,
     canEdit: !!onUpdateTrack,
     canDownload: !!onDownloadTrack && trackToOnlineSong(track) !== null,
-  }), [dataSource, onUpdateTrack, onDownloadTrack]);
+    ...translation.contextFor(track),
+  }), [dataSource, onUpdateTrack, onDownloadTrack, translation.contextFor]);
 
   const openTrackMenu = useCallback((track: Track, x: number, y: number, trigger: HTMLElement) => {
     setTrackMenu({ trackId: track.id, x, y, trigger });
   }, []);
 
   const handleTrackMenuAction = useCallback((track: Track, id: TrackMenuActionId) => {
-    if (id === 'edit') {
+    if (id === 'translation:reload' || id === 'translation:clear') {
+      void translation.run(track, id === 'translation:reload' ? 'reload' : 'clear');
+    } else if (id === 'edit') {
       setEditingTrack(track);
       setIsMetadataEditorOpen(true);
     } else if (id === 'select') {
@@ -155,7 +160,7 @@ export function useLibraryTrackActions({
       const quality = downloadQualityOf(id);
       if (quality) onDownloadTrack?.(track, quality);
     }
-  }, [onDownloadTrack]);
+  }, [onDownloadTrack, translation.run]);
 
   const requestBatchDelete = useCallback(() => {
     setRemovalError(false);

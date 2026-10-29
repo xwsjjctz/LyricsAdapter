@@ -25,7 +25,7 @@ test('platform packages install, configure and translate in both Focus renderers
   app=await electron.launch({cwd:root,args:[...(process.platform==='linux'?['--no-sandbox']:[]),`--user-data-dir=${userData}`,repo],env});
   const page=await app.firstWindow();await page.waitForFunction(()=>Boolean((window as unknown as { electron?: Bridge }).electron?.pluginHostInfo));
   await app.evaluate(({BrowserWindow,net})=>{BrowserWindow.getAllWindows().find(w => !w.getParentWindow())?.focus();const originalFetch=net.fetch.bind(net);net.fetch=async(input,init)=>String(input).includes('LyricsAdapter-Music-Plugins')?new Response(JSON.stringify({apiVersion:1,plugins:[]})):originalFetch(input,init);});
-  expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginHostInfo())).toMatchObject({coreApi:'1.1.0',legacyMusicApi:1,extensionApis:{'lyrics.translation':'1.2.0'}});
+  expect(await page.evaluate(()=>((window as unknown as { electron: Bridge }).electron).pluginHostInfo())).toMatchObject({coreApi:'1.1.0',legacyMusicApi:1,extensionApis:{'lyrics.translation':'1.3.0'}});
   await expect(page.locator('.poster-wall')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+K');const palette=page.locator('.command-palette__input');await palette.click();await page.keyboard.press('Shift+Tab');await palette.fill('settings');await page.keyboard.press('Enter');
   await page.getByRole('link',{name:'Plugins',exact:true}).click();

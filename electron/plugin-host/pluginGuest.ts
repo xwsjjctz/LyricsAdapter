@@ -45,11 +45,12 @@ export function startPluginGuest(port: MessageChannelEnd<GuestToHost, HostToGues
       case 'call': return handle.call(args[0] as string, args[1] as unknown[]);
       case 'invoke': return handle.invoke(args[0] as string, args[1] as unknown[]);
       case 'streamHeaders': return handle.streamHeaders(args[0] as string);
-      case 'translate': {
+      case 'translate':
+      case 'clearTranslation': {
         const controller = new AbortController();
         cancels.set(requestId, controller);
         try {
-          return await handle.translate(args[0] as string, args[1] as TranslationRequest, controller.signal, args[2] as string);
+          return await handle[op](args[0] as string, args[1] as TranslationRequest, controller.signal, args[2] as string);
         } finally { cancels.delete(requestId); }
       }
       default: throw new Error(`Unknown plugin operation: ${op}`);

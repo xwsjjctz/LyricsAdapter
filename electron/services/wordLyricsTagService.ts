@@ -15,14 +15,22 @@
  *  - QQ QRC: decrypted `<QrcInfos>` XML (decryptQrc output).
  *  - NetEase YRC: plaintext YRC text.
  * Both round-trip back through `parseLyrics(..., wordLyrics, format)` cleanly.
+ *
+ * A music-tag-native save removes the FLAC fields, so metadata writes take a
+ * snapshotWordLyrics before saving and restoreWordLyrics after.
  */
 import fs from 'fs';
 import path from 'path';
 import NodeID3 from 'node-id3';
-import { readVorbisField, writeVorbisField } from './flacVorbisWriter';
+import { readVorbisField, readVorbisFields, writeVorbisField } from './flacVorbisWriter';
 import { logger } from '../logger';
 
 export type WordLyricsFormat = 'qrc' | 'yrc';
+
+/** Every word-lyrics payload stored in a file, by format. */
+export type StoredWordLyrics = Partial<Record<WordLyricsFormat, string>>;
+
+const WORD_LYRICS_FORMATS: readonly WordLyricsFormat[] = ['qrc', 'yrc'];
 
 /** The single field name for a given format, uppercase on disk. */
 function fieldName(format: WordLyricsFormat): 'QRC' | 'YRC' {
@@ -58,6 +66,36 @@ export function readWordLyrics(filePath: string): {
     return {};
   }
   return {};
+}
+
+/** Both payloads as stored: readWordLyrics picks one, but a save must keep both. */
+export function snapshotWordLyrics(filePath: string): StoredWordLyrics {
+  const ext = extOf(filePath);
+  const fields: Record<string, string> = ext === '.flac'
+    ? readVorbisFields(filePath, WORD_LYRICS_FORMATS.map(fieldName))
+    : ext === '.mp3' ? readMp3UserDefinedText(filePath) : {};
+  const stored: StoredWordLyrics = {};
+  for (const format of WORD_LYRICS_FORMATS) {
+    const value = fields[fieldName(format)];
+    if (value) stored[format] = value;
+  }
+  return stored;
+}
+
+/**
+ * Write back the stored payloads a metadata save removed, except `replaced`,
+ * which the caller writes itself. music-tag-native saves through lofty's
+ * generic tag, which for FLAC drops every Vorbis comment lofty has no key
+ * for, QRC/YRC included. MP3 keeps its TXXX frames, so nothing is rewritten.
+ */
+export function restoreWordLyrics(filePath: string, stored: StoredWordLyrics, replaced?: WordLyricsFormat): void {
+  const present = snapshotWordLyrics(filePath);
+  for (const format of WORD_LYRICS_FORMATS) {
+    const value = stored[format];
+    if (format !== replaced && value && !present[format]) {
+      writeWordLyrics(filePath, value, format);
+    }
+  }
 }
 
 /**

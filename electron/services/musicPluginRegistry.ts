@@ -158,14 +158,20 @@ export class MusicPluginRegistry {
       const versions = negotiateExtensions(info.platform);
       return info.platform.contributes.providers.filter(p => p.type === type && versions[type])
         .map(p => ({ key: `${info.id}:${p.id}`, pluginId: info.id, id: p.id, type, name: p.name, version: info.version,
-          ...(p.languages ? { languages: [...p.languages] } : {}) }));
+          ...(p.languages ? { languages: [...p.languages] } : {}), ...(p.cacheControl ? { cacheControl: true } : {}) }));
     });
   }
   async translate(key: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<TranslationResult> {
     const provider = this.providers('lyrics.translation').find(p => p.key === key);
     if (!provider) throw new Error('Translation provider is unavailable');
+    if (request.cacheMode === 'reload' && !provider.cacheControl) throw new Error('Translation provider does not support reload');
     // Request failures do not disable a provider; an activation failure does.
     return this.run(provider.pluginId, handle => handle.translate(provider.id, request, signal, requestId));
+  }
+  async clearTranslation(key: string, request: TranslationRequest, signal: AbortSignal, requestId: string): Promise<void> {
+    const provider = this.providers('lyrics.translation').find(p => p.key === key);
+    if (!provider?.cacheControl) throw new Error('Translation provider does not support clearing translations');
+    return this.run(provider.pluginId, handle => handle.clearTranslation(provider.id, request, signal, requestId));
   }
   private platformManifest(id: string) {
     const platform = this.record(id).info.platform;

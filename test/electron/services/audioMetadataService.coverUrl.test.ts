@@ -12,6 +12,8 @@ vi.mock('@applemusic-like-lyrics/lyric', () => ({
 }));
 vi.mock('../../../electron/services/wordLyricsTagService', () => ({
   readWordLyrics: vi.fn(() => ({})),
+  snapshotWordLyrics: vi.fn(() => ({})),
+  restoreWordLyrics: vi.fn(),
   writeWordLyrics: vi.fn(),
 }));
 vi.mock('../../../electron/logger', () => ({

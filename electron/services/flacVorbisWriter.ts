@@ -136,25 +136,40 @@ function getFieldValue(comments: string[], field: string): string | undefined {
 }
 
 /**
+ * Read case-insensitive Vorbis fields from a FLAC file in one pass, keyed by
+ * the requested names. Fields that are missing, or all of them when the file
+ * has no VORBIS_COMMENT block, are left out.
+ */
+export function readVorbisFields(filePath: string, fields: readonly string[]): Record<string, string> {
+  try {
+    const buf = fs.readFileSync(filePath);
+    if (buf.length < FLAC_MAGIC.length || buf.subarray(0, FLAC_MAGIC.length).equals(FLAC_MAGIC) === false) {
+      return {};
+    }
+    const blocks = parseMetadataBlocks(buf);
+    const vorbis = blocks.find((b) => b.type === BLOCK_VORBIS_COMMENT);
+    if (!vorbis) return {};
+    const body = buf.subarray(vorbis.bodyOffset, vorbis.bodyOffset + vorbis.length);
+    const decoded = decodeVorbisComment(body);
+    if (!decoded) return {};
+    const values: Record<string, string> = {};
+    for (const field of fields) {
+      const value = getFieldValue(decoded.comments, field);
+      if (value !== undefined) values[field] = value;
+    }
+    return values;
+  } catch (e) {
+    logger.warn(`[FlacVorbis] readVorbisFields(${fields.join(', ')}) failed:`, e);
+    return {};
+  }
+}
+
+/**
  * Read a single case-insensitive Vorbis field from a FLAC file.
  * Returns undefined if the file has no VORBIS_COMMENT block or no such field.
  */
 export function readVorbisField(filePath: string, field: string): string | undefined {
-  try {
-    const buf = fs.readFileSync(filePath);
-    if (buf.length < FLAC_MAGIC.length || buf.subarray(0, FLAC_MAGIC.length).equals(FLAC_MAGIC) === false) {
-      return undefined;
-    }
-    const blocks = parseMetadataBlocks(buf);
-    const vorbis = blocks.find((b) => b.type === BLOCK_VORBIS_COMMENT);
-    if (!vorbis) return undefined;
-    const body = buf.subarray(vorbis.bodyOffset, vorbis.bodyOffset + vorbis.length);
-    const decoded = decodeVorbisComment(body);
-    return decoded ? getFieldValue(decoded.comments, field) : undefined;
-  } catch (e) {
-    logger.warn(`[FlacVorbis] readVorbisField('${field}') failed:`, e);
-    return undefined;
-  }
+  return readVorbisFields(filePath, [field])[field];
 }
 
 /**

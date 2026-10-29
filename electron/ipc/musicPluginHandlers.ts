@@ -125,7 +125,7 @@ export function registerMusicPluginHandlers(): void {
   handleIpc('plugin-clear-cache', async (_event, id: string) => { await registry.clearCache(id); changed(); });
   const requests = new Map<string, AbortController>();
   const watched = new Set<number>();
-  handleIpc('plugin-translate', async (event, call: PluginTranslationCall) => {
+  const translationCall = async <T>(event: import('electron').IpcMainInvokeEvent, call: PluginTranslationCall, work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
     if (!call || typeof call.requestId !== 'string' || !/^[\w-]{1,128}$/.test(call.requestId) || typeof call.providerKey !== 'string') throw new Error('Invalid plugin request');
     const key = `${event.sender.id}:${call.requestId}`;
     if (requests.has(key) || requests.size >= 64) throw new Error('Duplicate or excessive plugin request');
@@ -137,10 +137,12 @@ export function registerMusicPluginHandlers(): void {
       });
     }
     const controller = new AbortController(); requests.set(key, controller);
-    try { return await registry.translate(call.providerKey, call.request, controller.signal, call.requestId); }
+    try { return await work(controller.signal); }
     catch (error) { changed(); throw error; }
     finally { requests.delete(key); }
-  });
+  };
+  handleIpc('plugin-translate', (event, call) => translationCall(event, call, signal => registry.translate(call.providerKey, call.request, signal, call.requestId)));
+  handleIpc('plugin-clear-translation', (event, call) => translationCall(event, call, signal => registry.clearTranslation(call.providerKey, call.request, signal, call.requestId)));
   onIpc('plugin-cancel', (event, requestId: string) => requests.get(`${event.sender.id}:${requestId}`)?.abort(new Error('Plugin request cancelled')));
   handleIpc('music-plugin-call', async (_event, id: string, method: string, args: unknown[]) => {
     const result = await registry.call(id, method, args);

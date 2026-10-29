@@ -1,5 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+const translation = vi.hoisted(() => ({ contextFor: vi.fn(() => ({ canTranslate: true })), run: vi.fn(async () => {}) }));
+vi.mock('@/hooks/useTrackTranslationActions', () => ({ useTrackTranslationActions: () => translation }));
+
 import { useLibraryTrackActions } from '@/hooks/useLibraryTrackActions';
 import type { Track } from '@/types';
 
@@ -57,5 +60,19 @@ describe('useLibraryTrackActions', () => {
       categorySelection: null, onRemoveTrack: vi.fn(), onRemoveMultipleTracks: vi.fn(),
     });
     expect([...result.current.selectedIds]).toEqual(['a', 'b']);
+  });
+});
+
+
+describe('library song translation routing', () => {
+  it('targets the right-clicked song and keeps playback and selection unchanged', () => {
+    const { result, onRemoveTrack } = setup();
+    act(() => result.current.handleTrackMenuAction(tracks[1]!, 'translation:reload'));
+    expect(translation.run).toHaveBeenCalledWith(tracks[1], 'reload');
+    act(() => result.current.handleTrackMenuAction(tracks[2]!, 'translation:clear'));
+    expect(translation.run).toHaveBeenCalledWith(tracks[2], 'clear');
+    expect(result.current.isSelecting).toBe(false);
+    expect(result.current.editingTrack).toBeNull();
+    expect(onRemoveTrack).not.toHaveBeenCalled();
   });
 });

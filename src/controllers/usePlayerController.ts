@@ -54,6 +54,17 @@ function startsWithTracks(tracks: Track[], head: Track[]): boolean {
   return head.length <= tracks.length && head.every((track, index) => tracks[index]!.id === track.id);
 }
 
+/** Providers may drop songs from a page, so a short page ends paging only at the playlist's song count. */
+function playlistHasMore(count: number, nextOffset: number, totalTrackCount: number | null): boolean {
+  return count === PLAYLIST_PAGE_SIZE || (count > 0 && totalTrackCount !== null && nextOffset < totalTrackCount);
+}
+
+/** A cached list that stopped short of the playlist's song count can still load more. */
+function withResumablePaging(entry: CachedPlaylistTracks, totalTrackCount: number): CachedPlaylistTracks {
+  const total = entry.totalTrackCount ?? totalTrackCount;
+  return entry.hasMore || entry.nextOffset >= total ? entry : { ...entry, hasMore: true };
+}
+
 function hasLyrics(track: Track): boolean {
   return Boolean(track.lyrics || track.syncedLyrics?.length);
 }
@@ -491,8 +502,9 @@ export function usePlayerController(options: PlayerControllerOptions) {
     };
 
     // Show the cached pages at once; a fresh cache skips the network entirely.
-    const cached = await loadCachedPlaylistTracks(source, playlistId);
+    const stored = await loadCachedPlaylistTracks(source, playlistId);
     if (generation !== libraryGenerationRef.current) return;
+    const cached = stored && withResumablePaging(stored, totalTrackCount);
     const showCached = (entry: CachedPlaylistTracks, isLoading: boolean) => {
       setLibraryBrowsingTracks(entry.tracks);
       setLibraryPlaylistLoadState({
@@ -527,7 +539,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
       const loaded = {
         tracks: page.tracks,
         nextOffset: page.count,
-        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        hasMore: playlistHasMore(page.count, page.count, totalTrackCount),
         totalTrackCount,
       };
       setLibraryBrowsingTracks(loaded.tracks);
@@ -571,7 +583,7 @@ export function usePlayerController(options: PlayerControllerOptions) {
       const loaded = {
         tracks: appendUniqueTracks(libraryBrowsingTracks, page.tracks),
         nextOffset: nextOffset + page.count,
-        hasMore: page.count === PLAYLIST_PAGE_SIZE,
+        hasMore: playlistHasMore(page.count, nextOffset + page.count, totalTrackCount),
         totalTrackCount,
       };
       setLibraryBrowsingTracks(loaded.tracks);
