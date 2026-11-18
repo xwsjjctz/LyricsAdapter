@@ -31,8 +31,8 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('electron', () => ({ ipcMain: mocks.ipcMain }));
-vi.mock('../../../electron/services/settingsStore', () => ({ settingsStore: mocks.settingsStore }));
-vi.mock('../../../electron/services/userDataStore', () => ({ userDataStore: mocks.userDataStore }));
+vi.mock('../../../electron/services/persistence/settingsStore', () => ({ settingsStore: mocks.settingsStore }));
+vi.mock('../../../electron/services/persistence/userDataStore', () => ({ userDataStore: mocks.userDataStore }));
 vi.mock('../../../electron/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));

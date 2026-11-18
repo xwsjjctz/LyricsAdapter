@@ -30,10 +30,10 @@
 | --- | --- |
 | 宿主合同与 manifest 类型 | [src/shared/musicPlugin.ts](../../src/shared/musicPlugin.ts) |
 | 歌曲、歌单、音质和 provider 合同 | [src/shared/onlineMusic.ts](../../src/shared/onlineMusic.ts) |
-| 安装、加载、校验及调用白名单 | [musicPluginRegistry.ts](../../electron/services/musicPluginRegistry.ts) |
+| 安装、加载、校验及调用白名单 | [musicPluginRegistry.ts](../../electron/services/plugins/musicPluginRegistry.ts) |
 | 凭据、IPC 和登录兼容通道 | [musicPluginHandlers.ts](../../electron/ipc/musicPluginHandlers.ts) |
 | 流媒体代理 | [streamProtocol.ts](../../electron/protocols/streamProtocol.ts) |
-| 官方目录和下载校验 | [musicPluginCatalog.ts](../../electron/services/musicPluginCatalog.ts) |
+| 官方目录和下载校验 | [musicPluginCatalog.ts](../../electron/services/plugins/musicPluginCatalog.ts) |
 | 界面来源筛选 | [musicPluginStore.ts](../../src/stores/musicPluginStore.ts) |
 | renderer 的 provider 与凭据选择 | [onlineMusicProvider.ts](../../src/services/online/onlineMusicProvider.ts) |
 | 官方插件 SDK | [固定版本 src/sdk.ts](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins/blob/fa3a3a6e2f1731e1ec0709412121330b06cb3820/src/sdk.ts) |
@@ -216,7 +216,7 @@ node --test test/plugin.test.cjs
 node scripts/package.mjs
 ```
 
-然后在开发应用的设置 → 插件中安装 `dist/demo-source.laplugin`。安装后应出现在已安装列表；没有在线音乐来源入口是当前的预期行为。主进程加载器集成可参照 [musicPluginCatalog.test.ts](../../test/electron/services/musicPluginCatalog.test.ts)，使用临时目录实例化 `MusicPluginRegistry`，通过 `installPackage` 和 `call` 验证它。
+然后在开发应用的设置 → 插件中安装 `dist/demo-source.laplugin`。安装后应出现在已安装列表；没有在线音乐来源入口是当前的预期行为。主进程加载器集成可参照 [musicPluginCatalog.test.ts](../../test/electron/services/plugins/musicPluginCatalog.test.ts)，使用临时目录实例化 `MusicPluginRegistry`，通过 `installPackage` 和 `call` 验证它。
 
 ## 安装、更新与分发
 

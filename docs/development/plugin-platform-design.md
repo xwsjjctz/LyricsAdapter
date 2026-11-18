@@ -21,7 +21,7 @@
 | 运行环境 | 可信 Node 插件可运行 | 超时、取消、清理、故障隔离；限制权限需要实际执行边界 |
 | 第三方分发 | 官方安装包目录 | 作者信任、兼容筛选、第三方目录和更新规则 |
 
-依据：[MusicPluginRegistry](../../electron/services/musicPluginRegistry.ts)、[PlayerViewModel](../../src/viewmodels/usePlayerViewModel.ts)、[FocusLyrics](../../src/components/focus-mode/FocusLyrics.tsx)、[AML 转换](../../src/components/focus-mode/amllLyrics.ts)、[现有歌词类型](../../src/types.ts)。当前内部歌词时间以秒表示，AML 转换成毫秒；`translatedLyric` 已接入插件译文，`romanLyric` 当前仍为空字符串。
+依据：[MusicPluginRegistry](../../electron/services/plugins/musicPluginRegistry.ts)、[PlayerViewModel](../../src/viewmodels/usePlayerViewModel.ts)、[FocusLyrics](../../src/components/focus-mode/FocusLyrics.tsx)、[AML 转换](../../src/components/focus-mode/amllLyrics.ts)、[现有歌词类型](../../src/types.ts)。当前内部歌词时间以秒表示，AML 转换成毫秒；`translatedLyric` 已接入插件译文，`romanLyric` 当前仍为空字符串。
 
 ## 三类公共接口
 
@@ -229,5 +229,5 @@ SDK 注释生成方法参考，人工文档解释业务约束和完整流程。�
 - 已提供宿主保存来源、兼容版本检查和手动在线更新；更新清单 schemaVersion 1 与运行时 API 独立演进。GitHub/HTTPS 分发规则见[插件更新与分发](../plugins/updates.md)。通用插件市场仍未实现。
 - 已接入两种 Focus 歌词渲染器，提供稳定文档/行身份、请求取消、响应校验和窗口内有界缓存。
 - 新旧包共用安装目录与管理页面，旧包仍由 createPlugin 兼容入口执行。
-- 插件已运行在独立 utilityProcess 中（`electron/services/pluginProcess.ts`），但尚无权限沙箱；未开放 player/library/context/events/commands 或任意 UI 注入。
+- 插件已运行在独立 utilityProcess 中（`electron/services/plugins/pluginProcess.ts`），但尚无权限沙箱；未开放 player/library/context/events/commands 或任意 UI 注入。
 - 开发脚本和主项目 CI 已脱离被移除的子模块；官方插件仓库继续独立发布。

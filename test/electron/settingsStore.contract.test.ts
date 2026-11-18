@@ -15,12 +15,12 @@ const mocks = vi.hoisted(() => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('../../electron/services/userStateRepository', () => ({
+vi.mock('../../electron/services/persistence/userStateRepository', () => ({
   userStateRepository: mocks.repository,
 }));
 vi.mock('../../electron/logger', () => ({ logger: mocks.logger }));
 
-import { SettingsStore, settingsStore } from '../../electron/services/settingsStore';
+import { SettingsStore, settingsStore } from '../../electron/services/persistence/settingsStore';
 
 describe('SettingsStore SQLite compatibility facade', () => {
   beforeEach(() => {

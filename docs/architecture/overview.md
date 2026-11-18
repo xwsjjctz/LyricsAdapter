@@ -96,12 +96,12 @@ flowchart TB
 | `electron/ipc/typedHandlers.ts` | typed IPC: 文件选择/读取、library index、WebDAV，带 payload 校验 |
 | `electron/ipc/fileHandlers.ts`、`coverHandlers.ts`、`windowHandlers.ts` 等 | 文件校验、封面、窗口、下载等位置参数通道，按领域分别注册 |
 | `electron/ipc/musicPluginHandlers.ts` | 音乐源与翻译调用、安装/启停/更新、凭据变更事件，以及 QQ/网易登录的兼容通道 |
-| `electron/services/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
-| `electron/services/pluginProcess.ts`、`electron/plugin-host/`、`electron/pluginHost.ts` | 每个插件一个 utilityProcess：主进程侧 RPC 与监管（超时、卡死检测、崩溃重启），子进程侧以快照提供同步 host 接口 |
-| `electron/services/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
-| `electron/services/persistenceRepository.ts`、`persistenceCommitService.ts` | 聚合启动读取与关闭最终提交；区分用户状态和缓存结果 |
-| `electron/ipc/metadataHandlers.ts`、`services/audioMetadataService.ts` | 通过 `music-tag-native` 读取、刷新和写入音频标签 |
-| `electron/services/systemLyricsCoordinator.ts` | 协调 macOS 菜单栏歌词与 Windows 任务栏歌词的生命周期和操作回传 |
+| `electron/services/plugins/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
+| `electron/services/plugins/pluginProcess.ts`、`electron/plugin-host/`、`electron/plugin-host/pluginHost.ts` | 每个插件一个 utilityProcess：主进程侧 RPC 与监管（超时、卡死检测、崩溃重启），子进程侧以快照提供同步 host 接口 |
+| `electron/services/persistence/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
+| `electron/services/persistence/persistenceRepository.ts`、`persistenceCommitService.ts` | 聚合启动读取与关闭最终提交；区分用户状态和缓存结果 |
+| `electron/ipc/metadataHandlers.ts`、`services/metadata/audioMetadataService.ts` | 通过 `music-tag-native` 读取、刷新和写入音频标签 |
+| `electron/services/system-lyrics/systemLyricsCoordinator.ts` | 协调 macOS 菜单栏歌词与 Windows 任务栏歌词的生命周期和操作回传 |
 
 主进程也维护音频路径 allowlist。用户通过文件选择或拖拽授权后的音频路径才允许通过 IPC 读取；app-managed `userData/audio` 也被视为可读范围。
 
@@ -443,7 +443,7 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 
 ## 元数据
 
-桌面端默认通过 `electron/ipc/metadataHandlers.ts` 调用 `electron/services/audioMetadataService.ts`，由 `music-tag-native` 读取本地文件标签。浏览器模式、桌面兼容回退和 WebDAV 部分读取仍使用 renderer 解析路径：
+桌面端默认通过 `electron/ipc/metadataHandlers.ts` 调用 `electron/services/metadata/audioMetadataService.ts`，由 `music-tag-native` 读取本地文件标签。浏览器模式、桌面兼容回退和 WebDAV 部分读取仍使用 renderer 解析路径：
 
 - `metadataService.parseAudioFile(file)` 优先使用 `services/metadata/metadataWorker.ts`，失败时回到主线程 parser。
 - 支持 MP3 ID3v2、FLAC metadata block/VORBIS_COMMENT/PICTURE、M4A/MP4 atoms。
@@ -452,7 +452,7 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 
 主进程写入：
 
-- `electron/services/audioMetadataService.ts` 的 `writeAudioMetadata()` 通过 `music-tag-native` 保存通用标签。
+- `electron/services/metadata/audioMetadataService.ts` 的 `writeAudioMetadata()` 通过 `music-tag-native` 保存通用标签。
 - `wordLyricsTagService` 在通用标签保存后处理 QRC/YRC 自定义标签，其中 MP3 逐字标签通过 `node-id3` 读写。
 - coverUrl 可来自 data URL、`cover://` 或远程 http(s)。
 

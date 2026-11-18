@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MusicPluginRegistry } from '../../../electron/services/musicPluginRegistry';
-import { supportsApi } from '../../../electron/services/pluginManifest';
-import { withDeadline, PluginRuntime } from '../../../electron/services/pluginRuntime';
+import { MusicPluginRegistry } from '../../../electron/services/plugins/musicPluginRegistry';
+import { supportsApi } from '../../../electron/services/plugins/pluginManifest';
+import { withDeadline, PluginRuntime } from '../../../electron/services/plugins/pluginRuntime';
 import type { PluginManifest, TranslationRequest } from '../../../src/shared/plugin';
 import { validateTranslationResult } from '../../../src/shared/pluginValidation';
 

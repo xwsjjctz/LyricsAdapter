@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(), set: vi.fn(), warn: vi.fn(),
   primary: vi.fn(), matching: vi.fn(),
 }));
-vi.mock('../../electron/services/settingsStore', () => ({ settingsStore: { get: mocks.get, set: mocks.set } }));
+vi.mock('../../electron/services/persistence/settingsStore', () => ({ settingsStore: { get: mocks.get, set: mocks.set } }));
 vi.mock('../../electron/logger', () => ({ logger: { warn: mocks.warn } }));
 vi.mock('electron', () => ({ screen: { getPrimaryDisplay: mocks.primary, getDisplayMatching: mocks.matching } }));
 
