@@ -90,7 +90,15 @@ Focus Mode shows album artwork, an artwork-based background, and scrolling lyric
 - **Word-synced lyrics**: Songs with QRC/YRC or similar word timing highlight each word.
 - **Display options**: In **Settings → Focus Mode**, turn on the Apple Music–style **Flowing Background**, or adjust background opacity, background blur, lyric font size, and line spacing. Windows also offers a **New FocusMode Font** switch.
 
-A message appears when no lyrics are available. You can add lyrics with **Edit song information** on a local track; synchronized scrolling requires timestamps.
+Lyrics for a local song come from, in this order:
+
+1. The lyrics embedded in the audio file.
+2. An `.lrc` file with the same name as the audio file, such as `Song.lrc` next to `Song.flac`.
+3. An automatic match when neither exists: first a search in the enabled music source plugins (signed-in ones first; NetEase Cloud Music works without signing in, QQ Music needs a sign-in), then the [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) community collection of word-by-word lyrics.
+
+Matching runs in the background after an import, and songs imported earlier are looked up when you play them. A result is used only when title, artist, and duration agree; the lyrics are saved in the app's library and the audio file is left unchanged. To turn this off, use **Find Lyrics Automatically** in the command palette's **Features** mode.
+
+A message appears when there are still no lyrics. You can add lyrics with **Edit song information** on a local track; synchronized scrolling requires timestamps.
 
 ![Focus Mode settings](docs/images/settings.webp)
 
@@ -192,4 +200,4 @@ npm run electron:dev
 
 ## License and credits
 
-The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](assets/app-icon/LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.
+The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](assets/app-icon/LICENSE). Some automatically matched word-by-word lyrics come from [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) and its contributors. See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.

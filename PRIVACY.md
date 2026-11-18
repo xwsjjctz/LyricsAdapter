@@ -1,6 +1,6 @@
 # 隐私政策 · Privacy Policy
 
-最后更新 / Last updated: 2026-10-15
+最后更新 / Last updated: 2026-11-18
 
 [中文](#中文) · [English](#english)
 
@@ -26,9 +26,11 @@ LyricsAdapter 不包含统计、遥测、广告或崩溃上报功能。开发者
 
 LyricsAdapter 只在以下情况下联网。这些服务会收到常规的网络请求信息（例如 IP 地址），并适用各自的隐私政策：
 
-- **GitHub**：检查和下载应用更新，获取官方插件目录并下载、更新插件。
-- **音乐源插件对应的服务**：例如 QQ 音乐、网易云音乐。只有在你安装并使用相应插件时才会访问，用于搜索、播放、下载歌曲和获取歌词、封面。
+- **GitHub**：检查和下载应用更新，获取官方插件目录并下载、更新插件。为没有歌词的本地歌曲自动匹配歌词时，还会从 GitHub 下载 [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) 社区歌词库的索引和匹配到的歌词文件；歌名在本机与索引比对，请求中只包含匹配到的歌曲 ID。
+- **音乐源插件对应的服务**：例如 QQ 音乐、网易云音乐。只有在你安装并启用相应插件后才会访问，用于搜索、播放、下载歌曲和获取歌词、封面。为没有歌词的本地歌曲自动匹配歌词时，会把歌名和歌手作为搜索词发送给这些服务。
 - **你自己配置的 WebDAV 服务器**：只有在你填写 WebDAV 地址后才会连接，用于同步和播放云端曲库。
+
+自动匹配歌词可以在命令面板的「功能」中关闭；关闭后不再为此发起上述请求。
 
 ### 第三方插件
 
@@ -60,9 +62,11 @@ Uninstalling the app and deleting its data directory removes all of it.
 
 LyricsAdapter only goes online in the cases below. Each service receives ordinary request information, such as your IP address, and is governed by its own privacy policy:
 
-- **GitHub**, to check for and download app updates, and to fetch the official plugin catalog and download or update plugins.
-- **Services behind music-source plugins**, such as QQ Music or NetEase Cloud Music, only when you install and use that plugin, to search, play and download songs and to fetch lyrics and covers.
+- **GitHub**, to check for and download app updates, and to fetch the official plugin catalog and download or update plugins. When the app looks up lyrics for a local song that has none, it also downloads the index of the [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) community lyrics collection and the lyric files of matched songs from GitHub; titles are compared with the index on your computer, and a request only carries the id of a matched song.
+- **Services behind music-source plugins**, such as QQ Music or NetEase Cloud Music, only after you install and enable that plugin, to search, play and download songs and to fetch lyrics and covers. When the app looks up lyrics for a local song that has none, it sends the song's title and artist to these services as a search.
 - **A WebDAV server you configure yourself**, only after you enter its address, to sync and play your cloud library.
+
+Automatic lyrics lookup can be turned off in the command palette's Features mode; the app then makes none of the lookup requests above.
 
 ### Third-party plugins
 

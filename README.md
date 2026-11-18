@@ -90,7 +90,15 @@
 - **逐字歌词**：歌曲提供 QRC／YRC 等逐字时间信息时，显示逐字高亮。
 - **显示调整**：在「设置 → 专注模式」中开启 Apple Music 风格的「动态流光背景」，或调节背景不透明度、背景模糊、歌词字号和行间距。Windows 还提供「新版 FocusMode 字体」开关。
 
-没有歌词时会显示相应提示。可以在本地曲目的「编辑歌曲信息」中补充歌词；同步滚动需要歌词包含时间标签。
+本地歌曲的歌词按以下顺序取得：
+
+1. 音频内嵌的歌词。
+2. 与音频同名的 `.lrc` 文件，例如 `歌名.flac` 旁边的 `歌名.lrc`。
+3. 两者都没有时自动匹配：先在已启用的音乐源插件里搜索（已登录的优先；网易云音乐不登录也可以，QQ 音乐需要登录），再到 [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) 社区逐词歌词库里查找。
+
+自动匹配在导入后于后台进行，更早导入的歌曲在播放时补查。只有歌名、歌手和时长对得上的结果才会采用；歌词保存在应用的曲库里，不会改动音频文件。不需要时，可以在命令面板的「功能」中关闭「自动匹配歌词」。
+
+仍然没有歌词时会显示相应提示。可以在本地曲目的「编辑歌曲信息」中补充歌词；同步滚动需要歌词包含时间标签。
 
 ![专注模式设置](docs/images/settings.webp)
 
@@ -192,4 +200,4 @@ npm run electron:dev
 
 ## 许可与致谢
 
-项目使用 [GPLv3 许可证](LICENSE)，应用图标使用 [CC BY 4.0 许可证](assets/app-icon/LICENSE)。第三方组件与设计来源见[第三方声明](docs/THIRD_PARTY_NOTICES.md)。隐私说明见[隐私政策](PRIVACY.md)。
+项目使用 [GPLv3 许可证](LICENSE)，应用图标使用 [CC BY 4.0 许可证](assets/app-icon/LICENSE)。第三方组件与设计来源见[第三方声明](docs/THIRD_PARTY_NOTICES.md)。自动匹配到的逐词歌词部分来自 [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) 及其贡献者。隐私说明见[隐私政策](PRIVACY.md)。
