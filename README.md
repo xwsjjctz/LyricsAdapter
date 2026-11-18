@@ -16,13 +16,13 @@
 
 ## 开始使用
 
-从 [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases) 下载适合设备的安装包。当前发布配置提供 macOS Apple Silicon 的 `.dmg` 和 Windows x64 的 `.exe` 安装包。
+从 [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases) 下载适合设备的安装包。当前发布配置提供 macOS Apple Silicon 的 `.dmg` 和 Windows x64 的 `.exe` 安装包。安卓版（预览）在 [LyricsAdapter-Android](https://github.com/xwsjjctz/LyricsAdapter-Android) 单独发布。
 
 > **Windows 首次安装提示**：安装包暂未进行代码签名，运行时 Microsoft Defender SmartScreen 可能会显示「Windows 已保护你的电脑」，发布者为「未知发布者」。确认安装包来自本仓库的 Releases 后，点击「更多信息」，再点击「仍要运行」即可继续安装。
 >
-> **macOS 首次打开提示**：应用暂未进行 Apple 公证，首次打开时 macOS 可能提示无法验证开发者。将应用拖入「应用程序」文件夹并尝试打开一次后，前往「系统设置 → 隐私与安全性」，在页面下方点击「仍要打开」并确认。如果提示应用「已损坏，无法打开」，请在终端运行 `xattr -dr com.apple.quarantine /Applications/LyricsAdapter.app` 后重新打开。
+> **macOS**：安装包已签名并通过 Apple 公证，拖入「应用程序」文件夹后可以直接打开，也支持应用内更新。
 
-1. 打开应用，按 `⌘ / Ctrl` + `I` 选择 **MP3 或 FLAC** 文件，或者直接把音频文件拖进窗口。曲库为空时，也可以点击中间的「导入文件」。
+1. 打开应用，按 `⌘ / Ctrl` + `I` 选择 **MP3 或 FLAC** 文件，或者直接把音频文件、整个文件夹拖进窗口。曲库为空时，也可以点击中间的「导入文件」或「导入文件夹」；文件夹会连同子文件夹一起扫描。
 2. 点击封面开始播放，用底部的悬浮播放栏控制播放。
 3. 点击专注模式按钮，或按 `⌘ / Ctrl` + `Enter`，查看同步歌词。macOS 上这个按钮是窗口左上角红绿灯旁的蓝色圆点，Windows 上在标题栏右侧。
 
@@ -60,7 +60,7 @@
 按 `⌘ / Ctrl` + `K` 打开命令面板，按 `Tab` 在「音乐库」和「功能」两种模式之间切换。
 
 - **音乐库**：搜索歌曲、歌手、专辑或歌单，同时查找本地与已加载的云端曲目，支持中文拼音和拼音首字母。启用音乐源插件后，结果中还会显示在线歌曲：点击即可播放，点击右侧的 `+` 加入在线播放记录，右键可选择音质下载。
-- **功能**：切换曲库、打开或管理歌单、导入文件、批量选择、刷新云端曲库、播放全部、随机播放、定位到当前播放、切换外观与语言、打开设置的各个页面等。
+- **功能**：切换曲库、打开或管理歌单、导入文件或文件夹、批量选择、刷新云端曲库、播放全部、随机播放、定位到当前播放、切换外观与语言、打开设置的各个页面等。
 
 ![命令面板：搜索](docs/images/palette.webp)
 

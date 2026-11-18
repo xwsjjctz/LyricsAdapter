@@ -16,13 +16,13 @@ Listen to your own collection, connect a WebDAV library, or add QQ Music and Net
 
 ## Get started
 
-Download the installer for your device from [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases). The current release configuration provides a `.dmg` for Apple Silicon Macs and an `.exe` installer for Windows x64.
+Download the installer for your device from [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases). The current release configuration provides a `.dmg` for Apple Silicon Macs and an `.exe` installer for Windows x64. The Android app (preview) is released separately at [LyricsAdapter-Android](https://github.com/xwsjjctz/LyricsAdapter-Android).
 
 > **First install on Windows**: The installer is not code-signed yet, so Microsoft Defender SmartScreen may show **Windows protected your PC** with an unknown publisher. After confirming the installer came from this repository's Releases, select **More info**, then **Run anyway** to continue.
 >
-> **First launch on macOS**: The app is not notarized by Apple yet, so macOS may say it cannot verify the developer. Drag the app into **Applications** and try to open it once, then go to **System Settings → Privacy & Security**, select **Open Anyway** near the bottom, and confirm. If macOS says the app **is damaged and can't be opened**, run `xattr -dr com.apple.quarantine /Applications/LyricsAdapter.app` in Terminal and open it again.
+> **macOS**: The app is signed and notarized by Apple. Drag it into **Applications** and open it directly; it also updates itself in the app.
 
-1. Open the app and press `⌘ / Ctrl` + `I` to select **MP3 or FLAC** files, or drag audio files into the window. While the library is empty, you can also use **Import Files** in the middle of the window.
+1. Open the app and press `⌘ / Ctrl` + `I` to select **MP3 or FLAC** files, or drag audio files or whole folders into the window. While the library is empty, you can also use **Import Files** or **Import Folder** in the middle of the window; a folder is scanned together with its sub-folders.
 2. Click a cover to play it, and use the floating player at the bottom to control playback.
 3. Use the Focus Mode button, or press `⌘ / Ctrl` + `Enter`, to view synchronized lyrics. On macOS the button is the blue dot next to the window controls at the top left; on Windows it sits on the right of the title bar.
 
@@ -60,7 +60,7 @@ The app remembers the current library, track, playback position, volume, and rel
 Press `⌘ / Ctrl` + `K` to open the command palette, and press `Tab` to switch between its **Library** and **Features** modes.
 
 - **Library** searches songs, artists, albums, and playlists across your local tracks and loaded cloud tracks, with support for Chinese pinyin and pinyin initials. With a music source plugin enabled, online songs appear too: click one to play it, click `+` to add it to your online history, or right-click to download it at a chosen quality.
-- **Features** switches libraries, opens or manages playlists, imports files, starts multi-select, refreshes the cloud library, plays all or shuffles, locates the current song, changes the appearance and language, and opens each settings page.
+- **Features** switches libraries, opens or manages playlists, imports files or folders, starts multi-select, refreshes the cloud library, plays all or shuffles, locates the current song, changes the appearance and language, and opens each settings page.
 
 ![Command palette: search](docs/images/palette.webp)
 
