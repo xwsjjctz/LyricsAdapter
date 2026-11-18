@@ -225,8 +225,25 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 | 文件 | 作用 |
 | --- | --- |
-| `stores/libraryState.ts` | 曲库领域状态：四个 slot、`activeSlotId`、`viewSlot`。实例由 `AppContent` 创建并经 `LibraryStateProvider` 提供；组件用 `useLibraryState(selector)` 读取所需切片，写入只经 `useLibrarySlots` 与 controllers。更新立即生效，`getSlots()` 能读到尚未渲染的最新值 |
+| `stores/libraryState.ts` | 曲库领域状态：四个 slot、`activeSlotId`、`viewSlot`。实例由 `AppContent` 创建并经 `LibraryStateProvider` 提供；组件用 `useLibraryState(selector)` 读取所需切片，写入函数由 `useLibrarySlots` 定义（写入方见下文）。更新立即生效，`getSlots()` 能读到尚未渲染的最新值 |
 | `stores/musicPluginStore.ts`、`stores/pluginTranslationStore.ts` | 插件列表与歌词翻译偏好的订阅 |
+
+#### 曲库状态的写入方
+
+写入函数（`updateSlot`、`updateLocalTracks`、`loadCloudTracks`、`mergeCloudTracks` 等）由 `useLibrarySlots` 定义，经 `useLibraryStore` 交给 `AppContent`，再分发给下列写入方。组件只读不写。
+
+| 写入方 | 写入内容 |
+| --- | --- |
+| `usePlayerController` | 跨 slot 选歌、在线播放写入 `online`、歌单播放写入 `playlist`、歌词补全 |
+| `useLibraryController` | 删除、批量删除、重排、元数据更新、下载完成后加入 `local` |
+| `useImport`（经 `useImportStore`） | 本地导入写入 `local`；云端导入上传后合并进 `cloud` |
+| `useLibraryCloudSync` | WebDAV 扫描的全量或增量结果写入 `cloud` |
+| `useOnlineMusicIntegration` | 在线歌曲上传 WebDAV 后合并进 `cloud` |
+| `useLibraryActions` | 重新载入文件后写回当前播放 slot |
+| `useLibraryLoad` | 启动时恢复四个 slot |
+| `usePlayback` | 回写正在播放曲目的时长、懒加载的 `audioUrl` 与缓存歌词 |
+
+前两项是约定的所有者。其余是既有流程直接持有写入函数的例外：新增曲库变更应放进 controller，不再增加新的写入方。
 
 组合 hook 位于 `src/hooks/`：
 
@@ -444,7 +461,7 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 当前架构已经有清晰的跨进程边界和 slot 模型，但还有一些需要重构时特别留意的点：
 
 - `AppContent` 仍直接编排持久化快照和孤儿缓存清理；若继续增长，应按领域边界下沉，而不是按行数机械拆文件。
-- `useLibraryActions` 目前仍保留文件重载入口，曲库 mutation 则由 `useLibraryController` 统一持有。
+- 导入、云同步、在线上传、文件重载仍直接持有曲库写入函数，没有经过 `useLibraryController`（见“曲库状态的写入方”）。
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
 - `useLibraryCloudSync` 由 `AppShell` 触发云同步，UI 组件仍承载这一业务副作用入口。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。

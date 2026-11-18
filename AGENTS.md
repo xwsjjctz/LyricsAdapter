@@ -69,12 +69,19 @@ LyricsAdapter is an Electron + React 18 + Vite music player. `@/` maps to `src/`
   direct `window.electron` access belongs to the bridge or tests verifying it.
 - Keep `App.tsx` and extracted composition roots focused on wiring. Put domain behavior
   in controllers, hooks, or services according to ownership, not file-length limits.
-- UI emits intent through callbacks. The player controller owns playback mutations;
-  the library controller owns imports, removals, metadata changes and slot mutations.
-  UI and online providers do not bypass those owners or call `updateSlot` directly.
-  Providers fetch/normalize data and resolve streams/downloads for the controllers.
+- UI emits intent through callbacks. The player controller owns cross-slot selection,
+  online/playlist play contexts and their lyrics; the library controller owns removals,
+  reordering, metadata edits and adding finished downloads. UI and online providers do
+  not bypass those owners or call `updateSlot` directly. Providers fetch/normalize data
+  and resolve streams/downloads for the controllers.
 - Slot state lives in the `src/stores/libraryState.ts` store; components read it with
-  `useLibraryState(selector)`, and only `useLibrarySlots` and the controllers write it.
+  `useLibraryState(selector)`. `useLibrarySlots` defines the writers and the controllers
+  use them. These existing flows also receive writers from `AppContent` and write
+  directly: `useImport` (local import, cloud upload), `useLibraryCloudSync` (WebDAV
+  scan results), `useOnlineMusicIntegration` (merging uploads into `cloud`),
+  `useLibraryActions` (file reload), `useLibraryLoad` (startup restore) and
+  `usePlayback` (duration, lazily loaded `audioUrl`, cached lyrics on the playing
+  track). Do not add writers outside the controllers; components never write slots.
 - `useLibrarySlots.ts` maintains `local`, `cloud`, `online`, and play-only `playlist`
   contexts. Preserve per-slot tracks, selection, time, volume, mode, filters and scroll
   state; switching contexts restores state paused unless the requested feature changes
