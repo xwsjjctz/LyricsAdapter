@@ -19,7 +19,9 @@ import { expect, test, _electron as electron, type ElectronApplication, type Pag
  * one-frame delta far larger than a 1000ms cross-fade can.
  */
 
-const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+// path.resolve drops the trailing separator: on Windows a trailing backslash escapes the
+// closing quote of the launch argument and Electron exits before opening a window.
+const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 function silentWav(seconds: number): Buffer {
   const sampleRate = 8_000;
@@ -225,6 +227,10 @@ test('interrupting a Focus Mode track change keeps the backdrop pixels continuou
 
     const nextButton = focusOverlay.locator('button', { hasText: 'skip_next' });
     await expect(nextButton).toHaveCount(1);
+    // Focus controls stay hidden and disabled until the pointer rests on them. The pointer
+    // then stays over the controls for the later clicks, which keeps them shown.
+    await nextButton.hover();
+    await expect(nextButton).toBeEnabled();
 
     // First switch runs to completion so the probe starts from a settled cover.
     await nextButton.click();
