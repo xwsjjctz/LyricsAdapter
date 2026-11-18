@@ -215,7 +215,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 | 概念 | 所属 | 含义 |
 | --- | --- | --- |
 | `activeSlotId` | `stores/libraryState.ts`（由 `useLibrarySlots` 写入） | 当前真正的播放上下文，`usePlayback` 使用 `slots[activeSlotId]` |
-| `viewSlot` | `stores/libraryState.ts`（由 `useLibraryStore` 写入） | 当前曲库面板正在浏览的 slot |
+| `viewSlot` | `stores/libraryState.ts`（由 `useLibraryWorkspace` 写入） | 当前曲库面板正在浏览的 slot |
 
 这两个值可以不同。例如用户正在播放 `playlist` slot 中的在线歌单，同时曲库面板仍显示 `local` 或 Playlists 视图。删除、重排、导入这类库操作应面向 `viewSlot`，播放控制应面向 `activeSlotId`。
 
@@ -230,13 +230,13 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 #### 曲库状态的写入方
 
-写入函数（`updateSlot`、`updateLocalTracks`、`loadCloudTracks`、`mergeCloudTracks` 等）由 `useLibrarySlots` 定义，经 `useLibraryStore` 交给 `AppContent`，再分发给下列写入方。组件只读不写。
+写入函数（`updateSlot`、`updateLocalTracks`、`loadCloudTracks`、`mergeCloudTracks` 等）由 `useLibrarySlots` 定义，经 `useLibraryWorkspace` 交给 `AppContent`，再分发给下列写入方。组件只读不写。
 
 | 写入方 | 写入内容 |
 | --- | --- |
 | `usePlayerController` | 跨 slot 选歌、在线播放写入 `online`、歌单播放写入 `playlist`、歌词补全 |
 | `useLibraryController` | 删除、批量删除、重排、元数据更新、下载完成后加入 `local` |
-| `useImport`（经 `useImportStore`） | 本地导入写入 `local`；云端导入上传后合并进 `cloud` |
+| `useImport`（经 `useImportRouting`） | 本地导入写入 `local`；云端导入上传后合并进 `cloud` |
 | `useLibraryCloudSync` | WebDAV 扫描的全量或增量结果写入 `cloud` |
 | `useOnlineMusicIntegration` | 在线歌曲上传 WebDAV 后合并进 `cloud` |
 | `useLibraryActions` | 重新载入文件后写回当前播放 slot |
@@ -245,14 +245,14 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 前两项是约定的所有者。其余是既有流程直接持有写入函数的例外：新增曲库变更应放进 controller，不再增加新的写入方。
 
-组合 hook 位于 `src/hooks/`：
+组合 hook 位于 `src/hooks/`。它们只把多个 hook 组装起来，本身不是 store；外部状态容器只放在 `src/stores/`。
 
 | 文件 | 作用 |
 | --- | --- |
-| `hooks/useLibraryStore.ts` | 包装 `useLibrarySlots`，增加 slot 切换动画、云端可写性检测、滚动位置和分类选择 |
-| `hooks/usePlayerStore.ts` | 包装 `usePlayback` 与 `useBlobUrls`。音量和播放模式是全局状态，不再镜像进 slot；持久化快照把实时值写到 active slot |
-| `hooks/useImportStore.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
-| `hooks/useUIStore.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
+| `hooks/useLibraryWorkspace.ts` | 包装 `useLibrarySlots`，增加 slot 切换动画、云端可写性检测、滚动位置和分类选择 |
+| `hooks/usePlayerRuntime.ts` | 包装 `usePlayback` 与 `useBlobUrls`。音量和播放模式是全局状态，不再镜像进 slot；持久化快照把实时值写到 active slot |
+| `hooks/useImportRouting.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
+| `hooks/useAppUI.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
 
 ## 数据持久化
 
@@ -328,7 +328,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ### 本地导入
 
-本地导入入口在 `useImport`，通过 `useImportStore` 由 `viewSlot` 路由。
+本地导入入口在 `useImport`，通过 `useImportRouting` 由 `viewSlot` 路由。
 
 桌面模式流程：
 
@@ -371,7 +371,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ## 播放架构
 
-播放由 `usePlayerStore` 包装 `usePlayback` 提供。
+播放由 `usePlayerRuntime` 包装 `usePlayback` 提供。
 
 核心职责：
 

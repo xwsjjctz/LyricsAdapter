@@ -24,9 +24,9 @@ vi.mock('@/hooks/useGsapPageTransition', () => ({
 }));
 vi.mock('@/hooks/useFloatingPanel', () => ({ useFloatingPanel: () => false }));
 
-import { useUIStore } from '@/hooks/useUIStore';
+import { useAppUI } from '@/hooks/useAppUI';
 
-describe('useUIStore home page', () => {
+describe('useAppUI home page', () => {
   beforeEach(() => {
     settings.mode = 'list';
     settings.setLibraryMode.mockClear();
@@ -34,19 +34,19 @@ describe('useUIStore home page', () => {
   });
 
   it('always opens on the poster wall, even if the list was last used', () => {
-    const { result } = renderHook(() => useUIStore());
+    const { result } = renderHook(() => useAppUI());
     expect(result.current.viewMode).toBe(ViewMode.WALL);
   });
 
   it('no longer persists a library presentation', () => {
-    const { result } = renderHook(() => useUIStore());
+    const { result } = renderHook(() => useAppUI());
     act(() => result.current.handleNavigate(ViewMode.WALL));
     expect(result.current.viewMode).toBe(ViewMode.WALL);
     expect(settings.setLibraryMode).not.toHaveBeenCalled();
   });
 
   it('shows the saved library layout and persists only an explicit switch', () => {
-    const { result } = renderHook(() => useUIStore());
+    const { result } = renderHook(() => useAppUI());
     expect(result.current.libraryLayout).toBe('list');
     act(() => result.current.setLibraryLayout('wall'));
     expect(result.current.libraryLayout).toBe('wall');
@@ -54,7 +54,7 @@ describe('useUIStore home page', () => {
   });
 
   it('opens settings as a sheet over the current wall', () => {
-    const { result } = renderHook(() => useUIStore());
+    const { result } = renderHook(() => useAppUI());
     act(() => result.current.openSettings('cloud'));
     expect(result.current.settingsSection).toBe('cloud');
     expect(result.current.viewMode).toBe(ViewMode.WALL);

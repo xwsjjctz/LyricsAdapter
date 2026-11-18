@@ -3,7 +3,7 @@ import type { RefObject } from 'react';
 /**
  * Import-facing ViewModel (Phase 4 follow-up, roadmap §6.2 import domain).
  *
- * Repackages the import surface — useImportStore (file dialog, drop handling,
+ * Repackages the import surface — useImportRouting (file dialog, drop handling,
  * progress) + reload-unavailable-files behavior into the shape consumed by
  * the application shell.
  *

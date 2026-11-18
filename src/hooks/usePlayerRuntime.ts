@@ -3,7 +3,7 @@ import type { Track } from '../types';
 import { useBlobUrls } from './useBlobUrls';
 import { usePlayback } from './usePlayback';
 
-interface PlayerStoreOptions {
+interface PlayerRuntimeOptions {
   activeTracks: Track[];
   activeTrackIndex: number;
   setActiveTracks: React.Dispatch<React.SetStateAction<Track[]>>;
@@ -11,13 +11,13 @@ interface PlayerStoreOptions {
   onTrackSwitch: () => void;
 }
 
-export function usePlayerStore({
+export function usePlayerRuntime({
   activeTracks,
   activeTrackIndex,
   setActiveTracks,
   setActiveTrackIndex,
   onTrackSwitch,
-}: PlayerStoreOptions) {
+}: PlayerRuntimeOptions) {
   const [restoreTime, setRestoreTime] = useState(0);
   const { activeBlobUrlsRef, createTrackedBlobUrl, revokeBlobUrl } = useBlobUrls();
   const playback = usePlayback({

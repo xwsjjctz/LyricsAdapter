@@ -8,7 +8,7 @@ import { commandPalette } from './useCommandPalette';
 import { useWindowFocus } from './useWindowFocus';
 import { settingsManager, type LibraryMode } from '../services/storage/settingsManager';
 
-export function useUIStore() {
+export function useAppUI() {
   useGsapButtonBounce();
 
   // The poster wall is the home page; other pages open from the command palette.

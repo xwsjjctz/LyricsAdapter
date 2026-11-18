@@ -16,7 +16,7 @@ export type LibrarySlotId = SlotId;
 // settles; slot switches and the close flush read the ref so nothing is lost.
 const SCROLL_COMMIT_DELAY_MS = 250;
 
-export function useLibraryStore(store: LibraryStateStore) {
+export function useLibraryWorkspace(store: LibraryStateStore) {
   const library = useLibrarySlots(store);
   const viewSlot = useStoreSelector(store, state => state.viewSlot);
   const setViewSlot = useCallback<Dispatch<SetStateAction<LibrarySlotId>>>(value => {

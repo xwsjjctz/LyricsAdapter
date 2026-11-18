@@ -98,7 +98,7 @@
 
 行组件有 `memo` 兜底，滚动中 props 不变，所以**行不会重渲染**（这是已经做对的部分）；但每个滚动事件仍会产生一次全树 commit + 新 `slots` 对象 + 新 `visibleTracks` 数组。Windows 上配合 125Hz 鼠标 / 高刷屏，这会变成每秒上百次 commit 与 GC 抖动。
 
-**建议**：滚动中只写已存在的 `lastScrollTopRef`（`src/stores/libraryStore.ts:19/41`），在切槽、卸载、`onScrollPositionChange` 防抖后再落库；`reorderTracksHandler` 改从 `slotsRef.current` 读，避免依赖 `slots` 身份（`src/controllers/useLibraryController.ts:208/230`）。
+**建议**：滚动中只写已存在的 `lastScrollTopRef`（`src/hooks/useLibraryWorkspace.ts:19/41`），在切槽、卸载、`onScrollPositionChange` 防抖后再落库；`reorderTracksHandler` 改从 `slotsRef.current` 读，避免依赖 `slots` 身份（`src/controllers/useLibraryController.ts:208/230`）。
 
 ### P0-5 File 导入路径把整首歌并发读进渲染进程（Web/回退路径）
 
@@ -320,7 +320,7 @@ const height = Math.max(1, Math.ceil(cssHeight * BACKDROP_RENDER_SCALE));
 | 面板重复模糊 | `src/styles/components.css` | 删除 `.app-side-panel::after` 上的第二次 `backdrop-filter` |
 | 停用的 Glass UI 契约 | `src/services/storage/settingsManager.ts` | 持久化的 `glassUI` 不再生效（恒 false），避免旧配置长期背 2 个全宽模糊层 |
 | Focus 扩边画布释放 | `src/components/focus-mode/FocusMode.tsx` | `prepareBackdrop` 后延迟 1200ms 释放两张扩边 scratch canvas 的 backing store（避开 1000ms 入场/交叉淡入的动画帧），不再持有到卸载 |
-| 滚动提交去抖 | `src/stores/libraryStore.ts`、`src/App.tsx` | 滚动只写 ref；停稳 250ms 后提交 state；切槽立即 flush 并取消失效提交；关闭落盘用 `getLiveScrollPosition()` 读实时值；新增 `test/stores/libraryStore.test.tsx` |
+| 滚动提交去抖 | `src/hooks/useLibraryWorkspace.ts`、`src/App.tsx` | 滚动只写 ref；停稳 250ms 后提交 state；切槽立即 flush 并取消失效提交；关闭落盘用 `getLiveScrollPosition()` 读实时值；新增 `test/hooks/useLibraryWorkspace.test.tsx` |
 | 元数据缓存上限 | `src/services/metadata/metadataService.ts` | worker 缓存 50 → 8（每项含封面 ArrayBuffer） |
 | 层探针工具 | `test/e2e/electron.focus-layers.spec.ts` | `FOCUS_LAYER_PROBE=1` 启用，输出层数/面积/合成原因 + GC 后各进程内存到 `test-results/memory/layer-probes/` |
 

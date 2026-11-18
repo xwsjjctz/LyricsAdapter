@@ -13,12 +13,12 @@ import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useAppClosePreparation } from './hooks/useAppClosePreparation';
-import { useImportStore } from './hooks/useImportStore';
-import { useLibraryStore } from './hooks/useLibraryStore';
+import { useImportRouting } from './hooks/useImportRouting';
+import { useLibraryWorkspace } from './hooks/useLibraryWorkspace';
 import { createLibraryState, LibraryStateProvider } from './stores/libraryState';
 import type { OnlineSource } from './services/online/onlineMusicProvider';
-import { usePlayerStore } from './hooks/usePlayerStore';
-import { useUIStore } from './hooks/useUIStore';
+import { usePlayerRuntime } from './hooks/usePlayerRuntime';
+import { useAppUI } from './hooks/useAppUI';
 import { useMusicPlugins } from './stores/musicPluginStore';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
@@ -44,7 +44,7 @@ const openPaletteMusicSearch = () => commandPalette.open('library');
 const AppContent: React.FC = () => {
   const { sources } = useMusicPlugins();
   const hasQQPlugin = sources.includes('qq');
-  const ui = useUIStore();
+  const ui = useAppUI();
   const {
     viewMode,
     transitionToView,
@@ -85,7 +85,7 @@ const AppContent: React.FC = () => {
     handleLibraryScrollPositionChange,
     handleCategoryChange,
     getLiveScrollPosition,
-  } = useLibraryStore(libraryState);
+  } = useLibraryWorkspace(libraryState);
   const {
     audioRef,
     setAudioRef,
@@ -119,7 +119,7 @@ const AppContent: React.FC = () => {
     activeBlobUrlsRef,
     createTrackedBlobUrl,
     revokeBlobUrl,
-  } = usePlayerStore({
+  } = usePlayerRuntime({
     activeTracks,
     activeTrackIndex,
     setActiveTracks,
@@ -222,7 +222,7 @@ const AppContent: React.FC = () => {
     handleImportClick,
     handleViewDropFilePaths,
     importDisabled,
-  } = useImportStore({
+  } = useImportRouting({
     localTracks: slots.local.tracks,
     updateLocalTracks,
     activeTrackIndex,

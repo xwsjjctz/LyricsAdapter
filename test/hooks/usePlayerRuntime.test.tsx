@@ -20,12 +20,12 @@ vi.mock('@/hooks/useBlobUrls', () => ({
   }),
 }));
 
-import { usePlayerStore } from '@/hooks/usePlayerStore';
+import { usePlayerRuntime } from '@/hooks/usePlayerRuntime';
 
-describe('usePlayerStore restore time', () => {
+describe('usePlayerRuntime restore time', () => {
   it('hands a restored position to playback once, then clears it', () => {
     const { result, rerender } = renderHook(
-      ({ index }: { index: number }) => usePlayerStore({
+      ({ index }: { index: number }) => usePlayerRuntime({
         activeTracks: [],
         activeTrackIndex: index,
         setActiveTracks: vi.fn(),

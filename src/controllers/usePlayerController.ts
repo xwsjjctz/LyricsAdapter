@@ -189,7 +189,7 @@ export interface PlayerControllerOptions {
   shouldAutoPlayRef: MutableRefObject<boolean>;
   selectTrack: (index: number) => void;
   setIsPlaying: (playing: boolean) => void;
-  /** From playerStore (not usePlayback). */
+  /** From usePlayerRuntime (not usePlayback). */
   setRestoreTime: (time: number) => void;
 
   /** UI store */

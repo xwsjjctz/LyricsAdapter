@@ -21,7 +21,7 @@ import type { PaletteSourceSlot } from '../commands/buildAppCommands';
 import { useWindowVisible } from '../hooks/useWindowVisible';
 import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
-import type { useUIStore } from '../hooks/useUIStore';
+import type { useAppUI } from '../hooks/useAppUI';
 import type { useLibraryViewModel } from '../viewmodels/useLibraryViewModel';
 import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
 import type { useImportViewModel } from '../viewmodels/useImportViewModel';
@@ -37,7 +37,7 @@ import type { usePlaylistViewModel } from '../viewmodels/usePlaylistViewModel';
 // the bottom, and every other entry point lives in the Cmd+K palette.
 
 interface AppShellProps {
-  ui: ReturnType<typeof useUIStore>;
+  ui: ReturnType<typeof useAppUI>;
   library: ReturnType<typeof useLibraryViewModel>;
   player: ReturnType<typeof usePlayerViewModel>;
   importVm: ReturnType<typeof useImportViewModel>;

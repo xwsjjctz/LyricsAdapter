@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import type { Track } from '../types';
 import { useImport } from './useImport';
-import type { LibrarySlotId } from './useLibraryStore';
+import type { LibrarySlotId } from './useLibraryWorkspace';
 import type { LibrarySettings } from '../services/storage/libraryStorage';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
-interface ImportStoreOptions {
+interface ImportRoutingOptions {
   localTracks: Track[];
   updateLocalTracks: React.Dispatch<React.SetStateAction<Track[]>>;
   activeTrackIndex: number;
@@ -21,7 +21,7 @@ interface ImportStoreOptions {
   cloudWritable: boolean | null;
 }
 
-export function useImportStore(options: ImportStoreOptions) {
+export function useImportRouting(options: ImportRoutingOptions) {
   const importApi = useImport({
     tracks: options.localTracks,
     setTracks: options.updateLocalTracks,

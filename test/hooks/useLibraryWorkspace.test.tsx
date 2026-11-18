@@ -21,7 +21,7 @@ vi.mock('@/services/webdav/webdavClient', () => ({
   webdavClient: { hasConfig: mocks.hasConfig },
 }));
 
-import { useLibraryStore } from '@/hooks/useLibraryStore';
+import { useLibraryWorkspace } from '@/hooks/useLibraryWorkspace';
 
 function slotWith(scrollPosition: number): LibrarySlot {
   return { ...createEmptySlot('local'), scrollPosition };
@@ -39,7 +39,7 @@ function seededStore(localPosition = 0): { store: LibraryStateStore; writes: () 
   return { store, writes: () => count };
 }
 
-describe('useLibraryStore scroll position commits', () => {
+describe('useLibraryWorkspace scroll position commits', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mocks.switchSlot.mockClear();
@@ -51,7 +51,7 @@ describe('useLibraryStore scroll position commits', () => {
 
   it('keeps scroll events in a ref and commits once after scrolling settles', () => {
     const { store, writes } = seededStore();
-    const { result } = renderHook(() => useLibraryStore(store));
+    const { result } = renderHook(() => useLibraryWorkspace(store));
 
     act(() => {
       result.current.handleLibraryScrollPositionChange(120);
@@ -77,7 +77,7 @@ describe('useLibraryStore scroll position commits', () => {
   it('does not rewrite slot state when the committed position is unchanged', () => {
     const { store, writes } = seededStore();
     const before = store.getState().slots.local;
-    const { result } = renderHook(() => useLibraryStore(store));
+    const { result } = renderHook(() => useLibraryWorkspace(store));
 
     act(() => {
       result.current.handleLibraryScrollPositionChange(0);
@@ -91,7 +91,7 @@ describe('useLibraryStore scroll position commits', () => {
 
   it('flushes the live position immediately on a slot switch and cancels the pending commit', async () => {
     const { store, writes } = seededStore();
-    const { result } = renderHook(() => useLibraryStore(store));
+    const { result } = renderHook(() => useLibraryWorkspace(store));
 
     act(() => {
       result.current.handleLibraryScrollPositionChange(512);
@@ -123,7 +123,7 @@ describe('useLibraryStore scroll position commits', () => {
 
   it('clears a pending commit when the store unmounts', () => {
     const { store, writes } = seededStore();
-    const { result, unmount } = renderHook(() => useLibraryStore(store));
+    const { result, unmount } = renderHook(() => useLibraryWorkspace(store));
 
     act(() => {
       result.current.handleLibraryScrollPositionChange(88);
@@ -137,13 +137,13 @@ describe('useLibraryStore scroll position commits', () => {
   });
 });
 
-describe('useLibraryStore restoring saved offsets at startup', () => {
+describe('useLibraryWorkspace restoring saved offsets at startup', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
   it('keeps an offset restored after mount, so an unscrolled quit does not save 0', () => {
     const { store } = seededStore();
-    const { result } = renderHook(() => useLibraryStore(store));
+    const { result } = renderHook(() => useLibraryWorkspace(store));
     act(() => {
       store.setState(state => ({ ...state, slots: { ...state.slots, local: slotWith(500) } }));
     });
@@ -152,7 +152,7 @@ describe('useLibraryStore restoring saved offsets at startup', () => {
 
   it('tracks a view slot restored without a switch, so its scrolling is saved', () => {
     const { store } = seededStore();
-    const { result } = renderHook(() => useLibraryStore(store));
+    const { result } = renderHook(() => useLibraryWorkspace(store));
     // Startup restore sets the view directly, not through handleSwitchSlot.
     act(() => { result.current.setViewSlot('cloud'); });
     expect(store.getState().viewSlot).toBe('cloud');
@@ -165,7 +165,7 @@ describe('useLibraryStore restoring saved offsets at startup', () => {
 describe('library slot writes', () => {
   it('applies updates immediately so the next read sees them before a render', () => {
     const { store } = seededStore();
-    const { result } = renderHook(() => useLibraryStore(store));
+    const { result } = renderHook(() => useLibraryWorkspace(store));
     act(() => {
       result.current.updateSlot('local', slot => ({ ...slot, currentTrackIndex: 3 }));
       expect(result.current.getSlots().local.currentTrackIndex).toBe(3);
