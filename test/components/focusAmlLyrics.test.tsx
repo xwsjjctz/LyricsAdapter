@@ -24,11 +24,24 @@ const coreCleanupMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@applemusic-like-lyrics/core', () => ({
+  LyricLineRenderMode: { SOLID: 0, GRADIENT: 1 },
   DomLyricPlayer: class MockDomLyricPlayer {
     resizeObserver = { disconnect: coreCleanupMocks.disconnect };
+    currentLyricGroups: unknown[] = [];
+    playing = true;
 
     resetScroll(): void {
       coreCleanupMocks.resetScroll();
+    }
+
+    setLyricLines(): void {}
+
+    getEnableScale(): boolean {
+      return true;
+    }
+
+    getIsPlaying(): boolean {
+      return this.playing;
     }
 
     update(): void {}
@@ -129,6 +142,30 @@ describe('FocusAmlLyrics', () => {
 
     player.updateTranslations([makeLine()]);
     expect(element.children[1]).toBeEmptyDOMElement();
+  });
+
+  it('keeps upcoming lines at their playing scale while paused', () => {
+    const makeGroup = (isActive: boolean) => ({
+      isActive,
+      mainLine: { setTransform: vi.fn() },
+      bgLine: { setTransform: vi.fn() },
+      setLineTransformations: vi.fn(),
+    });
+    const active = makeGroup(true);
+    const upcoming = makeGroup(false);
+    const player = new FocusDomLyricPlayer();
+    Object.assign(player, { currentLyricGroups: [active, upcoming], playing: false });
+
+    // AMLL 0.5.2 would draw every paused line at 100%; only the background vocals grow.
+    player.setLyricLines([]);
+    expect(active.mainLine.setTransform).toHaveBeenLastCalledWith(100, 1, 0, true, 0, 1);
+    expect(upcoming.mainLine.setTransform).toHaveBeenLastCalledWith(97, 1, 0, true, 0, 0);
+    expect(upcoming.bgLine.setTransform).toHaveBeenLastCalledWith(100, 1, 0, true, 0, 0);
+
+    Object.assign(player, { playing: true });
+    upcoming.setLineTransformations(false, 40);
+    expect(upcoming.mainLine.setTransform).toHaveBeenLastCalledWith(97, 1, 0, false, 40, 0);
+    expect(upcoming.bgLine.setTransform).toHaveBeenLastCalledWith(75, 1, 0, false, 40, 0);
   });
 
   describe('lines whose translation changed off screen', () => {
