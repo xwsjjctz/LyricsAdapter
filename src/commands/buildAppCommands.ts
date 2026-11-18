@@ -19,6 +19,8 @@ export interface AppCommandDeps {
   openPlaylist: (playlist: PlaylistInfo) => void;
   togglePlaylistHidden: (playlist: PlaylistInfo) => void;
   importFiles: () => void;
+  /** Present only where a folder can be imported: the desktop app, outside the cloud source. */
+  importFolder?: (() => void) | undefined;
   importDisabled: boolean;
   reloadFiles: () => void;
   hasUnavailableTracks: boolean;
@@ -114,6 +116,12 @@ function libraryCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
     commands.push({
       id: 'library.import', title: t('sidebar.importFiles'), icon: 'library_add', group: 'library',
       keywords: ['import', 'add', 'files'], shortcut: 'importMusic', run: deps.importFiles,
+    });
+  }
+  if (!deps.importDisabled && deps.importFolder) {
+    commands.push({
+      id: 'library.importFolder', title: t('sidebar.importFolder'), icon: 'create_new_folder', group: 'library',
+      keywords: ['import', 'add', 'folder', 'directory', 'scan', '文件夹', '目录'], run: deps.importFolder,
     });
   }
   if (deps.selectTracks) {

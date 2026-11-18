@@ -220,6 +220,7 @@ const AppContent: React.FC = () => {
     handleFileInputChange,
     importProgress,
     handleImportClick,
+    handleImportFolderClick,
     handleViewDropFilePaths,
     importDisabled,
   } = useImportRouting({
@@ -247,6 +248,7 @@ const AppContent: React.FC = () => {
     importProgress,
     importDisabled,
     importClick: handleImportClick,
+    importFolderClick: handleImportFolderClick,
     dropFiles: handleDropFiles,
     dropFilePaths: handleViewDropFilePaths,
     onFileInputChange: handleFileInputChange,

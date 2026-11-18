@@ -630,6 +630,12 @@ html[data-window-effect='mica'] .app-library-background {
   color: var(--theme-text-secondary);
 }
 
+.wall-welcome__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .wall-welcome__keys {
   width: 100%;
   margin-top: 12px;

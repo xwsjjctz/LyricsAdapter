@@ -20,6 +20,7 @@ import { useAppCommands, type AppCommandHandlers } from '../commands/useAppComma
 import type { PaletteSourceSlot } from '../commands/buildAppCommands';
 import { useWindowVisible } from '../hooks/useWindowVisible';
 import { notify } from '../services/notificationService';
+import { IMPORTABLE_AUDIO_ACCEPT } from '../shared/audioFormats';
 import { useTranslation } from 'react-i18next';
 import type { useAppUI } from '../hooks/useAppUI';
 import type { useLibraryViewModel } from '../viewmodels/useLibraryViewModel';
@@ -179,6 +180,7 @@ const AppShell: React.FC<AppShellProps> = ({
     switchSource,
     openPlaylist: openPlaylistInfo,
     importFiles: importVm.importClick,
+    importFolder: importVm.importFolderClick,
     importDisabled: importVm.importDisabled,
     reloadFiles: importVm.reloadFiles,
     hasUnavailableTracks,
@@ -194,7 +196,7 @@ const AppShell: React.FC<AppShellProps> = ({
     libraryLayout,
     setLibraryLayout: switchLibraryLayout,
   }), [
-    canManageShown, currentTrackId, hasCloudConfig, hasUnavailableTracks, locateCurrentTrack, importVm.importClick, importVm.importDisabled, importVm.reloadFiles,
+    canManageShown, currentTrackId, hasCloudConfig, hasUnavailableTracks, locateCurrentTrack, importVm.importClick, importVm.importFolderClick, importVm.importDisabled, importVm.reloadFiles,
     libraryLayout, openPlaylistInfo, openSettings, switchLibraryLayout, playShownTrack, player, refreshCloud, selectTracks,
     shownTracks.length, slots.cloud.tracks.length, slots.local.tracks.length, slots.online.tracks.length,
     switchSource, toggleFocusMode, viewSlot,
@@ -256,7 +258,7 @@ const AppShell: React.FC<AppShellProps> = ({
             type="file"
             ref={importVm.fileInputRef}
             multiple
-            accept=".flac,.mp3"
+            accept={IMPORTABLE_AUDIO_ACCEPT}
             className="hidden"
             onChange={importVm.onFileInputChange}
           />
@@ -329,6 +331,7 @@ const AppShell: React.FC<AppShellProps> = ({
                     onScrollPositionChange={handleLibraryScrollPositionChange}
                     importDisabled={importVm.importDisabled}
                     onImportClick={importVm.importClick}
+                    onImportFolderClick={importVm.importFolderClick}
                     onDropFiles={importVm.dropFiles}
                     onDropFilePaths={importVm.dropFilePaths}
                     importProgress={importVm.importProgress}
@@ -360,7 +363,7 @@ const AppShell: React.FC<AppShellProps> = ({
         {settingsSection
           ? <SettingsSurface initialSection={settingsSection} onClose={closeSettings} onPreviewWelcome={() => setWelcomePreview(true)} />
           : <NativeSettingsPrewarm />}
-        {welcomePreview && <WelcomePreview onClose={() => setWelcomePreview(false)} onImport={importVm.importClick} />}
+        {welcomePreview && <WelcomePreview onClose={() => setWelcomePreview(false)} onImport={importVm.importClick} onImportFolder={importVm.importFolderClick} />}
         <FocusMode
           track={player.currentTrack}
           isVisible={isFocusMode}

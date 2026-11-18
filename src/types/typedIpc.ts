@@ -7,6 +7,7 @@ import type { PlaylistSwitcherAction, PlaylistSwitcherState } from './playlistSw
 import type { NativeContextMenuRequest } from './nativeContextMenu';
 import type { ApplicationMenuAction } from './applicationMenu';
 import type { IpcInvoker } from '../shared/ipcContract';
+import type { AudioPathScan } from '../shared/audioFormats';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -100,6 +101,10 @@ export interface TypedElectronIPC {
   };
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
+    /** Folder picker; resolves to the importable audio beneath the chosen folders. */
+    selectAudioFolder: () => Promise<IpcResult<AudioPathScan & { canceled: boolean }>>;
+    /** Importable audio beneath dropped files and folders, admitted to the audio allowlist. */
+    expandAudioPaths: (paths: string[]) => Promise<IpcResult<AudioPathScan>>;
     readAudio: (filePath: string) => Promise<IpcResult<{ data: ArrayBuffer }>>;
     allowAudioPath: (filePath: string) => Promise<IpcResult<void>>;
   };

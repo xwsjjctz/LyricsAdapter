@@ -103,6 +103,8 @@ const typedIpc = {
   },
   file: {
     selectAudio: invoker('ipc:file:selectAudio'),
+    selectAudioFolder: invoker('ipc:file:selectAudioFolder'),
+    expandAudioPaths: async (paths: string[]) => invoke('ipc:file:expandAudioPaths', { paths }),
     readAudio: async (filePath: string) => invoke('ipc:file:readAudio', { filePath }),
     allowAudioPath: async (filePath: string) => invoke('ipc:file:allowAudioPath', { filePath }),
   },

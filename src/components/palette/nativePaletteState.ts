@@ -15,6 +15,7 @@ const SF_SYMBOLS: Readonly<Record<string, string>> = {
   checklist: 'checklist',
   cloud: 'cloud',
   cloud_download: 'icloud.and.arrow.down',
+  create_new_folder: 'folder.badge.plus',
   dark_mode: 'moon',
   expand_more: 'chevron.down',
   fullscreen: 'arrow.up.left.and.arrow.down.right',

@@ -91,6 +91,16 @@ describe('buildAppCommands', () => {
     expect(locateCurrentTrack).toHaveBeenCalledTimes(1);
   });
 
+  it('offers folder import only where a folder can be imported', () => {
+    expect(byId(buildAppCommands(deps(), t), 'library.importFolder')).toBeUndefined();
+    const importFolder = vi.fn();
+    const command = byId(buildAppCommands(deps({ importFolder }), t), 'library.importFolder');
+    expect(command?.title).toBe('sidebar.importFolder');
+    void command?.run?.();
+    expect(importFolder).toHaveBeenCalledTimes(1);
+    expect(byId(buildAppCommands(deps({ importFolder, importDisabled: true }), t), 'library.importFolder')).toBeUndefined();
+  });
+
   it('omits commands that cannot run right now', () => {
     const ids = buildAppCommands(deps({ importDisabled: true, playAll: undefined, shuffleAll: undefined }), t)
       .map(command => command.id);

@@ -51,9 +51,17 @@ const systemLyricsCoverUrlSchema = z.string().max(8192).refine(value => {
 
 const webdavCredentialsSchema = z.enum(['stored', 'none']);
 
+// Folders from one drop; each is still walked under the scan limits.
+const MAX_DROPPED_PATHS = 1000;
+// Windows extended-length paths top out here; everything else is shorter.
+const MAX_PATH_LENGTH = 32_767;
+
 export const typedIpcSchemas = {
   filePath: z.object({
     filePath: z.string().min(1),
+  }),
+  audioPaths: z.object({
+    paths: z.array(z.string().min(1).max(MAX_PATH_LENGTH)).min(1).max(MAX_DROPPED_PATHS),
   }),
   library: z.unknown(),
   webdavPropfind: z.object({

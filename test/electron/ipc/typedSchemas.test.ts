@@ -186,4 +186,13 @@ describe('typedIpcSchemas', () => {
       libraryIndex: { status: 'ready', data: null },
     }).success).toBe(false);
   });
+
+  it('bounds the folders of one drop', () => {
+    expect(typedIpcSchemas.audioPaths.safeParse({ paths: ['/Music/Album'] }).success).toBe(true);
+    expect(typedIpcSchemas.audioPaths.safeParse({ paths: [] }).success).toBe(false);
+    expect(typedIpcSchemas.audioPaths.safeParse({ paths: [''] }).success).toBe(false);
+    expect(typedIpcSchemas.audioPaths.safeParse({
+      paths: Array.from({ length: 1001 }, (_, index) => `/Music/${index}`),
+    }).success).toBe(false);
+  });
 });

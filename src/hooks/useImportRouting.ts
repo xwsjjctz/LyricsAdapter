@@ -4,6 +4,7 @@ import { useImport } from './useImport';
 import type { LibrarySlotId } from './useLibraryWorkspace';
 import type { LibrarySettings } from '../services/storage/libraryStorage';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
+import { getDesktopAPI } from '../services/desktopAdapter';
 
 interface ImportRoutingOptions {
   localTracks: Track[];
@@ -44,6 +45,10 @@ export function useImportRouting(options: ImportRoutingOptions) {
     }
   }, [importApi.handleCloudImport, importApi.handleLocalImport, options.viewSlot]);
 
+  const handleImportFolderClick = useCallback(() => {
+    void importApi.handleLocalFolderImport();
+  }, [importApi.handleLocalFolderImport]);
+
   const handleViewDropFilePaths = useCallback((filePaths: { path: string; name: string }[]) => {
     if (options.viewSlot === 'cloud') {
       importApi.handleCloudDropFilePaths(filePaths);
@@ -62,6 +67,10 @@ export function useImportRouting(options: ImportRoutingOptions) {
     ...importApi,
     handleDropFiles: handleViewDropFiles,
     handleImportClick,
+    // Folders go to the local library only, and only where the adapter offers a folder picker.
+    handleImportFolderClick: options.viewSlot !== 'cloud' && getDesktopAPI()?.selectAudioFolder
+      ? handleImportFolderClick
+      : undefined,
     handleViewDropFilePaths,
     importDisabled: options.viewSlot === 'cloud'
       && (!WEBDAV_AUDIO_UPLOAD_ENABLED || options.cloudWritable !== true),

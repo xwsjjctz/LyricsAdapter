@@ -41,6 +41,7 @@ import type {
   TranslationResult,
 } from './plugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from './pluginUpdate';
+import type { AudioPathScan } from './audioFormats';
 import type { QQCredential } from './qqCredential';
 import type { UpdaterState } from './updater';
 import type { WindowChromeAppearance } from './windowsChrome';
@@ -139,6 +140,8 @@ export interface IpcInvokeContract {
   'ipc:focusGlass:backdrop': [[payload: { source: string | null }], IpcResult<void>];
   'ipc:focusGlass:stop': [[], IpcResult<void>];
   'ipc:file:selectAudio': [[], IpcResult<{ canceled: boolean; filePaths: string[] }>];
+  'ipc:file:selectAudioFolder': [[], IpcResult<AudioPathScan & { canceled: boolean }>];
+  'ipc:file:expandAudioPaths': [[payload: { paths: string[] }], IpcResult<AudioPathScan>];
   'ipc:file:readAudio': [[payload: { filePath: string }], IpcResult<{ data: ArrayBuffer }>];
   'ipc:file:allowAudioPath': [[payload: { filePath: string }], IpcResult<void>];
   'ipc:library:loadIndex': [[], IpcResult<unknown>];

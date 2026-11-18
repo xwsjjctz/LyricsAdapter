@@ -28,6 +28,7 @@ import type { CoverCacheInfo } from '../types/coverCache';
 import type { WindowChromeAppearance } from '../shared/windowsChrome';
 import type { ElectronBridge } from '../shared/electronBridge';
 import type { PathValidationRequest, PathValidationResult, WebdavAccountProbe, WebdavCredentialMode } from '../shared/ipcContract';
+import type { AudioPathScan } from '../shared/audioFormats';
 
 declare global {
   interface Window {
@@ -66,6 +67,10 @@ export interface DesktopAPI {
   ipc?: TypedElectronIPC;
   readFile: (filePath: string) => Promise<{ success: boolean; data: ArrayBuffer; error?: string }>;
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>;
+  /** Folder picker; resolves to the importable audio beneath the chosen folders. */
+  selectAudioFolder: () => Promise<AudioPathScan & { canceled: boolean }>;
+  /** Importable audio beneath dropped folders. */
+  expandAudioPaths: (paths: string[]) => Promise<AudioPathScan>;
   loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibraryIndex: (library: unknown) => Promise<{ success: boolean; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
@@ -171,6 +176,20 @@ class ElectronAdapter implements FullDesktopAPI {
   async selectFiles(): Promise<{ canceled: boolean; filePaths: string[] }> {
     const result = await this.api.ipc!.file.selectAudio();
     return result.ok ? result.data : { canceled: true, filePaths: [] };
+  }
+
+  async selectAudioFolder(): Promise<AudioPathScan & { canceled: boolean }> {
+    const result = await this.api.ipc!.file.selectAudioFolder();
+    if (result.ok) return result.data;
+    logger.error('[ElectronAdapter] Folder selection failed:', result.error);
+    return { canceled: true, filePaths: [], truncated: false };
+  }
+
+  async expandAudioPaths(paths: string[]): Promise<AudioPathScan> {
+    const result = await this.api.ipc!.file.expandAudioPaths(paths);
+    if (result.ok) return result.data;
+    logger.error('[ElectronAdapter] Folder scan failed:', result.error);
+    return { filePaths: [], truncated: false };
   }
 
   async loadLibraryIndex(): Promise<{ success: boolean; library: any; error?: string }> {

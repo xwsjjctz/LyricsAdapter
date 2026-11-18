@@ -52,6 +52,7 @@ interface LibraryWallViewProps {
   onSwapTracks?: ((firstIndex: number, secondIndex: number) => void) | undefined;
   importDisabled?: boolean;
   onImportClick?: (() => void) | undefined;
+  onImportFolderClick?: (() => void) | undefined;
   onDropFiles?: ((files: File[]) => void) | undefined;
   onDropFilePaths?: ((filePaths: { path: string; name: string }[]) => void) | undefined;
   importProgress?: Progress;
@@ -71,7 +72,7 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
   playlistLoading = false, playlistHasMore = false, playlistLoadError = null, onLoadMorePlaylist,
   pendingLocateSlot, pendingLocateToken, onPendingLocatePrepared, autoLocateToken, locateRequest, onLocateRequestHandled,
   savedScrollPosition, onScrollPositionChange,
-  onSwapTracks, importDisabled = true, onImportClick, onDropFiles, onDropFilePaths,
+  onSwapTracks, importDisabled = true, onImportClick, onImportFolderClick, onDropFiles, onDropFilePaths,
   importProgress, loadProgress, selectionRequest,
 }) => {
   const { t } = useTranslation();
@@ -135,7 +136,12 @@ const LibraryWallView: React.FC<LibraryWallViewProps> = ({
 
   // An empty local library is the first thing a new user sees, so it greets them.
   const emptyContent = dataSource === 'local'
-    ? <WallWelcome onImport={!importDisabled && onImportClick ? onImportClick : undefined} />
+    ? (
+      <WallWelcome
+        onImport={!importDisabled && onImportClick ? onImportClick : undefined}
+        onImportFolder={!importDisabled ? onImportFolderClick : undefined}
+      />
+    )
     : undefined;
 
   return (

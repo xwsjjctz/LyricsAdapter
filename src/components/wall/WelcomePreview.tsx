@@ -5,13 +5,14 @@ import WallWelcome from './WallWelcome';
 interface WelcomePreviewProps {
   onClose: () => void;
   onImport?: (() => void) | undefined;
+  onImportFolder?: (() => void) | undefined;
 }
 
 /**
  * The empty-library welcome page shown over a library that already has songs, so it can be
  * tried after the first launch. Esc, the close button or a click outside ends it.
  */
-export default function WelcomePreview({ onClose, onImport }: WelcomePreviewProps) {
+export default function WelcomePreview({ onClose, onImport, onImportFolder }: WelcomePreviewProps) {
   const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => { panelRef.current?.focus(); }, []);
@@ -28,7 +29,10 @@ export default function WelcomePreview({ onClose, onImport }: WelcomePreviewProp
         <button type="button" className="wall-float__button welcome-preview__close" onClick={onClose} aria-label={t('welcome.closePreview')}>
           <span className="material-symbols-rounded" aria-hidden="true">close</span>
         </button>
-        <WallWelcome onImport={onImport ? () => { onClose(); onImport(); } : undefined} />
+        <WallWelcome
+          onImport={onImport ? () => { onClose(); onImport(); } : undefined}
+          onImportFolder={onImportFolder ? () => { onClose(); onImportFolder(); } : undefined}
+        />
       </div>
     </div>
   );
