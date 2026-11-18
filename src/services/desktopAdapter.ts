@@ -29,6 +29,8 @@ import type { WindowChromeAppearance } from '../shared/windowsChrome';
 import type { ElectronBridge } from '../shared/electronBridge';
 import type { PathValidationRequest, PathValidationResult, WebdavAccountProbe, WebdavCredentialMode } from '../shared/ipcContract';
 import type { AudioPathScan } from '../shared/audioFormats';
+import type { LyricsMatchQuery } from '../domain/lyricsMatch';
+import type { OnlineLyricsResult } from '../shared/onlineMusic';
 
 declare global {
   interface Window {
@@ -71,6 +73,8 @@ export interface DesktopAPI {
   selectAudioFolder: () => Promise<AudioPathScan & { canceled: boolean }>;
   /** Importable audio beneath dropped folders. */
   expandAudioPaths: (paths: string[]) => Promise<AudioPathScan>;
+  /** Lyrics from the community collection; null when it has none. Rejects when it cannot be reached. */
+  matchCommunityLyrics: (query: LyricsMatchQuery) => Promise<OnlineLyricsResult | null>;
   loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
   saveLibraryIndex: (library: unknown) => Promise<{ success: boolean; error?: string }>;
   validateFilePath: (filePath: string) => Promise<boolean>;
@@ -190,6 +194,12 @@ class ElectronAdapter implements FullDesktopAPI {
     if (result.ok) return result.data;
     logger.error('[ElectronAdapter] Folder scan failed:', result.error);
     return { filePaths: [], truncated: false };
+  }
+
+  async matchCommunityLyrics(query: LyricsMatchQuery): Promise<OnlineLyricsResult | null> {
+    const result = await this.api.ipc!.lyrics.matchCommunity(query);
+    if (result.ok) return result.data;
+    throw new Error(result.error);
   }
 
   async loadLibraryIndex(): Promise<{ success: boolean; library: any; error?: string }> {

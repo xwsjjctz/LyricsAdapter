@@ -42,6 +42,8 @@ import type {
 } from './plugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from './pluginUpdate';
 import type { AudioPathScan } from './audioFormats';
+import type { LyricsMatchQuery } from '../domain/lyricsMatch';
+import type { OnlineLyricsResult } from './onlineMusic';
 import type { QQCredential } from './qqCredential';
 import type { UpdaterState } from './updater';
 import type { WindowChromeAppearance } from './windowsChrome';
@@ -144,6 +146,7 @@ export interface IpcInvokeContract {
   'ipc:file:expandAudioPaths': [[payload: { paths: string[] }], IpcResult<AudioPathScan>];
   'ipc:file:readAudio': [[payload: { filePath: string }], IpcResult<{ data: ArrayBuffer }>];
   'ipc:file:allowAudioPath': [[payload: { filePath: string }], IpcResult<void>];
+  'ipc:lyrics:matchCommunity': [[payload: LyricsMatchQuery], IpcResult<OnlineLyricsResult | null>];
   'ipc:library:loadIndex': [[], IpcResult<unknown>];
   'ipc:library:saveIndex': [[library: unknown], IpcResult<void>];
   'ipc:webdav:propfind': [[payload: WebdavRequest & { depth: string }], IpcResult<{ xml: string }>];

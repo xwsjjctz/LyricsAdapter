@@ -126,3 +126,50 @@ describe('useLibraryController updateTrack', () => {
     expect(refreshTrackLyricsCaches).toHaveBeenCalledWith(edited);
   });
 });
+
+describe('matched lyrics', () => {
+  function setupWritable(tracks: Track[]) {
+    const slotsRef = { current: { local: slot(tracks), cloud: slot([], -1, 'cloud'),
+      online: slot([], -1, 'online'), playlist: slot([], -1, 'playlist') } };
+    const updateLocalTracks = vi.fn((next: Track[] | ((prev: Track[]) => Track[])) => {
+      const local = slotsRef.current.local;
+      slotsRef.current = { ...slotsRef.current, local: { ...local, tracks: typeof next === 'function' ? next(local.tracks) : next } };
+    });
+    const { result } = renderHook(() => useLibraryController({
+      viewSlot: 'cloud', activeSlotId: 'cloud', slots: slotsRef.current, getSlots: () => slotsRef.current,
+      updateSlot: vi.fn(), updateLocalTracks, getAppPersistenceData: () => ({}),
+      audioRef: { current: null }, setIsPlaying: vi.fn(), revokeBlobUrl: vi.fn(),
+    }));
+    return { controller: result.current, slotsRef };
+  }
+
+  it('stores word-by-word lyrics on a local track whichever library is shown', () => {
+    const { controller, slotsRef } = setupWritable([track('a'), track('b')]);
+    const yrc = '[0,1000](0,500,0)Hel(500,500,0)lo';
+
+    expect(controller.applyMatchedLyrics('b', { lyrics: '[00:00.00]Hello', wordLyrics: yrc, wordLyricsFormat: 'yrc' })).toBe(true);
+
+    const [untouched, matched] = slotsRef.current.local.tracks;
+    expect(untouched).toEqual(track('a'));
+    expect(matched).toMatchObject({ id: 'b', lyrics: 'Hello', wordLyrics: yrc, wordLyricsFormat: 'yrc' });
+    expect(matched!.syncedLyrics?.[0]?.words).toHaveLength(2);
+    expect(refreshTrackLyricsCaches).toHaveBeenCalledWith(expect.objectContaining({ id: 'b', lyrics: 'Hello' }));
+  });
+
+  it('keeps line lyrics without a word payload that did not parse', () => {
+    const { controller, slotsRef } = setupWritable([track('a')]);
+    controller.applyMatchedLyrics('a', { lyrics: '[00:01.00]第一行', wordLyrics: 'not yrc', wordLyricsFormat: 'yrc' });
+    const matched = slotsRef.current.local.tracks[0]!;
+    expect(matched.syncedLyrics).toEqual([{ time: 1, text: '第一行' }]);
+    expect(matched.wordLyrics).toBeUndefined();
+  });
+
+  it('never replaces lyrics a track already has, and ignores empty results and missing tracks', () => {
+    const { controller, slotsRef } = setupWritable([{ ...track('a'), lyrics: 'mine' }, track('b')]);
+    expect(controller.applyMatchedLyrics('a', { lyrics: '[00:01.00]theirs' })).toBe(false);
+    expect(controller.applyMatchedLyrics('b', { lyrics: '   ' })).toBe(false);
+    expect(controller.applyMatchedLyrics('gone', { lyrics: '[00:01.00]theirs' })).toBe(false);
+    expect(slotsRef.current.local.tracks).toEqual([{ ...track('a'), lyrics: 'mine' }, track('b')]);
+    expect(refreshTrackLyricsCaches).not.toHaveBeenCalled();
+  });
+});

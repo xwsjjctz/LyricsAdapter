@@ -10,6 +10,8 @@ import { buildLibraryIndexDataForSlots } from '../services/storage/librarySerial
 import { libraryStorage } from '../services/storage/libraryStorage';
 import type { LibrarySettings } from '../services/storage/libraryStorage';
 import { refreshTrackLyricsCaches } from '../services/storage/trackLyricsCaches';
+import { parseLyrics } from '../shared/lrcParser';
+import type { OnlineLyricsResult } from '../shared/onlineMusic';
 
 /**
  * Library Controller (Phase 2 of the refactor roadmap, §4).
@@ -179,6 +181,35 @@ export function useLibraryController(options: LibraryControllerOptions) {
     });
   }, [viewSlot, updateSlot]);
 
+  // Lyrics found for a local track that had none (automatic matching). They are
+  // kept in the library and the metadata cache; the audio file is left as it is.
+  // A track that has gained lyrics in the meantime keeps them.
+  const applyMatchedLyrics = useCallback((trackId: string, result: OnlineLyricsResult): boolean => {
+    const hasLyrics = (track: Track) => Boolean(track.lyrics?.trim() || track.syncedLyrics?.length);
+    const current = getSlots().local.tracks.find(track => track.id === trackId);
+    if (!current || hasLyrics(current)) return false;
+
+    const parsed = parseLyrics(result.lyrics, result.wordLyrics, result.wordLyricsFormat);
+    const lyrics = parsed.plainText || result.lyrics;
+    if (!lyrics.trim() && !parsed.syncedLyrics?.length) return false;
+    const wordTimed = Boolean(parsed.syncedLyrics?.some(line => line.words?.length));
+    const found = {
+      lyrics,
+      ...(parsed.syncedLyrics ? { syncedLyrics: parsed.syncedLyrics } : {}),
+      // The raw payload is kept only when it is what the word timing came from.
+      ...(wordTimed && result.wordLyrics && result.wordLyricsFormat
+        ? { wordLyrics: result.wordLyrics, wordLyricsFormat: result.wordLyricsFormat }
+        : {}),
+    };
+
+    updateLocalTracks(prev => prev.map(track => (track.id === trackId && !hasLyrics(track) ? { ...track, ...found } : track)));
+    void refreshTrackLyricsCaches({ ...current, ...found }).catch(error => {
+      logger.warn('[LibraryController] Failed to cache matched lyrics:', error);
+    });
+    logger.debug('[LibraryController] Matched lyrics applied to:', current.title);
+    return true;
+  }, [getSlots, updateLocalTracks]);
+
   // Add a freshly downloaded track to the local slot and save the library index
   // immediately (not debounced). Several downloads can finish together, and each
   // holds the callback from the render it started in, so nothing here may read
@@ -220,6 +251,7 @@ export function useLibraryController(options: LibraryControllerOptions) {
     reorderTracks: reorderTracksHandler,
     swapTracks: swapTracksHandler,
     updateTrack,
+    applyMatchedLyrics,
     addDownloadedTrack,
   };
 }

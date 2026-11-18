@@ -361,6 +361,7 @@
   "palette.state.on": "オン",
   "palette.state.off": "オフ",
   "palette.command.refreshCloud": "クラウドライブラリを更新",
+  "palette.command.lyricsAutoMatch": "歌詞を自動で取得",
   "search.downloading": "{{count}} 曲をダウンロード中",
   "wall.download.preparing": "準備中",
   "wall.download.downloading": "ダウンロード中",

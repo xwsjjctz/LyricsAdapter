@@ -15,11 +15,14 @@ import { buildAppCommands, type AppCommandDeps, type PlaylistEntry } from './bui
 import type { PaletteCommand } from '../types/paletteCommand';
 import { themeManager } from '../services/themes/themeManager';
 import { THEME_IDS } from '../types/theme';
+import { useSettingValue } from '../hooks/useSettingValue';
+import { settingsManager } from '../services/storage/settingsManager';
 
 /** Shell callbacks; theme, language and playlist visibility are handled here. */
 export type AppCommandHandlers = Omit<
   AppCommandDeps,
   'playlists' | 'togglePlaylistHidden' | 'isDark' | 'toggleColorMode' | 'languages' | 'currentLanguage' | 'setLanguage'
+  | 'lyricsAutoMatch' | 'toggleLyricsAutoMatch'
 >;
 
 interface AppCommands {
@@ -31,11 +34,13 @@ interface AppCommands {
 const playlistKey = (playlist: PlaylistInfo) => `${playlist.source}:${playlist.id}`;
 const subscribeTheme = (onChange: () => void) => themeManager.subscribe(onChange);
 const getIsDark = () => themeManager.getCurrentTheme().isDark;
+const readLyricsAutoMatch = () => settingsManager.getLyricsAutoMatch();
 
 export function useAppCommands(handlers: AppCommandHandlers): AppCommands {
   const { t, i18n } = useTranslation();
   const isDark = useSyncExternalStore(subscribeTheme, getIsDark);
   const { playlists } = useOnlinePlaylists();
+  const lyricsAutoMatch = useSettingValue(readLyricsAutoMatch);
   const [overrides, setOverrides] = useState<Record<string, PlaylistOverride>>({});
 
   useEffect(() => {
@@ -63,6 +68,10 @@ export function useAppCommands(handlers: AppCommandHandlers): AppCommands {
     themeManager.setTheme(getIsDark() ? THEME_IDS.DEFAULT_LIGHT : THEME_IDS.DEFAULT);
   }, []);
 
+  const toggleLyricsAutoMatch = useCallback(() => {
+    void settingsManager.setLyricsAutoMatch(!settingsManager.getLyricsAutoMatch());
+  }, []);
+
   const setLanguage = useCallback((language: Language) => {
     void i18n.changeLanguage(language);
   }, [i18n]);
@@ -76,7 +85,9 @@ export function useAppCommands(handlers: AppCommandHandlers): AppCommands {
     languages: LANGUAGE_OPTIONS,
     currentLanguage: i18n.language,
     setLanguage,
-  }, t), [handlers, i18n.language, isDark, playlistEntries, setLanguage, t, toggleColorMode, togglePlaylistHidden]);
+    lyricsAutoMatch,
+    toggleLyricsAutoMatch,
+  }, t), [handlers, i18n.language, isDark, lyricsAutoMatch, playlistEntries, setLanguage, t, toggleColorMode, toggleLyricsAutoMatch, togglePlaylistHidden]);
 
   return { commands, visiblePlaylists: visible };
 }

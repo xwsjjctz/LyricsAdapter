@@ -108,6 +108,9 @@ const typedIpc = {
     readAudio: async (filePath: string) => invoke('ipc:file:readAudio', { filePath }),
     allowAudioPath: async (filePath: string) => invoke('ipc:file:allowAudioPath', { filePath }),
   },
+  lyrics: {
+    matchCommunity: invoker('ipc:lyrics:matchCommunity'),
+  },
   library: {
     loadIndex: invoker('ipc:library:loadIndex'),
     saveIndex: invoker('ipc:library:saveIndex'),

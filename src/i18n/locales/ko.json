@@ -361,6 +361,7 @@
   "palette.state.on": "켬",
   "palette.state.off": "끔",
   "palette.command.refreshCloud": "클라우드 라이브러리 새로고침",
+  "palette.command.lyricsAutoMatch": "가사 자동 찾기",
   "search.downloading": "{{count}}곡 다운로드 중",
   "wall.download.preparing": "준비 중",
   "wall.download.downloading": "다운로드 중",

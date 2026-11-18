@@ -8,6 +8,8 @@ import type { NativeContextMenuRequest } from './nativeContextMenu';
 import type { ApplicationMenuAction } from './applicationMenu';
 import type { IpcInvoker } from '../shared/ipcContract';
 import type { AudioPathScan } from '../shared/audioFormats';
+import type { LyricsMatchQuery } from '../domain/lyricsMatch';
+import type { OnlineLyricsResult } from '../shared/onlineMusic';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -107,6 +109,10 @@ export interface TypedElectronIPC {
     expandAudioPaths: (paths: string[]) => Promise<IpcResult<AudioPathScan>>;
     readAudio: (filePath: string) => Promise<IpcResult<{ data: ArrayBuffer }>>;
     allowAudioPath: (filePath: string) => Promise<IpcResult<void>>;
+  };
+  lyrics: {
+    /** Lyrics from the community collection (AMLL TTML DB); null when it has none for the track. */
+    matchCommunity: (query: LyricsMatchQuery) => Promise<IpcResult<OnlineLyricsResult | null>>;
   };
   library: {
     loadIndex: () => Promise<IpcResult<unknown>>;

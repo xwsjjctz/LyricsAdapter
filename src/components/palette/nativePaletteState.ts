@@ -26,6 +26,7 @@ const SF_SYMBOLS: Readonly<Record<string, string>> = {
   language: 'globe',
   library_add: 'plus.rectangle.on.rectangle',
   light_mode: 'sun.max',
+  lyrics: 'quote.bubble',
   manage_search: 'text.magnifyingglass',
   music_note: 'music.note',
   my_location: 'location.fill',

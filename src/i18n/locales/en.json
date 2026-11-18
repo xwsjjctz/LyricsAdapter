@@ -361,6 +361,7 @@
   "palette.state.on": "On",
   "palette.state.off": "Off",
   "palette.command.refreshCloud": "Refresh cloud library",
+  "palette.command.lyricsAutoMatch": "Find Lyrics Automatically",
   "search.downloading": "Downloading {{count}}",
   "wall.download.preparing": "Preparing",
   "wall.download.downloading": "Downloading",

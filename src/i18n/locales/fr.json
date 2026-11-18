@@ -361,6 +361,7 @@
   "palette.state.on": "Activé",
   "palette.state.off": "Désactivé",
   "palette.command.refreshCloud": "Actualiser la bibliothèque cloud",
+  "palette.command.lyricsAutoMatch": "Trouver les paroles automatiquement",
   "search.downloading": "Téléchargement de {{count}}",
   "wall.download.preparing": "Préparation",
   "wall.download.downloading": "Téléchargement",

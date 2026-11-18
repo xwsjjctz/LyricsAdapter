@@ -51,6 +51,8 @@ const systemLyricsCoverUrlSchema = z.string().max(8192).refine(value => {
 
 const webdavCredentialsSchema = z.enum(['stored', 'none']);
 
+// Title, artist and album tags; real ones are far shorter.
+const MAX_TRACK_TEXT = 1024;
 // Folders from one drop; each is still walked under the scan limits.
 const MAX_DROPPED_PATHS = 1000;
 // Windows extended-length paths top out here; everything else is shorter.
@@ -62,6 +64,12 @@ export const typedIpcSchemas = {
   }),
   audioPaths: z.object({
     paths: z.array(z.string().min(1).max(MAX_PATH_LENGTH)).min(1).max(MAX_DROPPED_PATHS),
+  }),
+  lyricsMatchQuery: z.object({
+    title: z.string().min(1).max(MAX_TRACK_TEXT),
+    artist: z.string().max(MAX_TRACK_TEXT),
+    album: z.string().max(MAX_TRACK_TEXT).optional(),
+    duration: z.number().finite().nonnegative().optional(),
   }),
   library: z.unknown(),
   webdavPropfind: z.object({

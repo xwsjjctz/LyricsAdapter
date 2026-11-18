@@ -195,4 +195,13 @@ describe('typedIpcSchemas', () => {
       paths: Array.from({ length: 1001 }, (_, index) => `/Music/${index}`),
     }).success).toBe(false);
   });
+
+  it('bounds a lyrics lookup to plain track details', () => {
+    const query = typedIpcSchemas.lyricsMatchQuery;
+    expect(query.safeParse({ title: '晴天', artist: '周杰伦', album: '叶惠美', duration: 269.4 }).success).toBe(true);
+    expect(query.safeParse({ title: '晴天', artist: '' }).success).toBe(true);
+    expect(query.safeParse({ title: '', artist: '周杰伦' }).success).toBe(false);
+    expect(query.safeParse({ title: 'x'.repeat(1025), artist: '' }).success).toBe(false);
+    expect(query.safeParse({ title: '晴天', artist: '周杰伦', duration: -1 }).success).toBe(false);
+  });
 });

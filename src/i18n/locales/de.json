@@ -361,6 +361,7 @@
   "palette.state.on": "An",
   "palette.state.off": "Aus",
   "palette.command.refreshCloud": "Cloud-Mediathek aktualisieren",
+  "palette.command.lyricsAutoMatch": "Songtexte automatisch suchen",
   "search.downloading": "{{count}} werden geladen",
   "wall.download.preparing": "Vorbereitung",
   "wall.download.downloading": "Download läuft",
