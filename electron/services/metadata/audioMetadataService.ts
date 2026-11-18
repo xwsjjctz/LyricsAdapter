@@ -14,6 +14,7 @@ import path from 'path';
 import { app } from 'electron';
 import { parseLrc, parseQrc, parseYrc, type LyricLine } from '@applemusic-like-lyrics/lyric';
 import { readWordLyrics, restoreWordLyrics, snapshotWordLyrics, writeWordLyrics } from './wordLyricsTagService';
+import { readSidecarLyrics } from './sidecarLyrics';
 import { logger } from '../../logger';
 
 // ── Native binding ───────────────────────────────────────────────────────
@@ -251,7 +252,8 @@ export async function readAudioMetadata(filePath: string): Promise<ReadMetadataR
     coverData = Buffer.from(pic.data).toString('base64');
   }
 
-  const rawLyrics = file.lyrics || undefined;
+  // Embedded lyrics win; a lyric file beside the audio stands in when the tag has none.
+  const rawLyrics = file.lyrics || readSidecarLyrics(filePath) || undefined;
   const parsedLyrics = rawLyrics ? parseLRCLyrics(rawLyrics) : null;
 
   // QRC/YRC live in custom fields music-tag-native can't read; pull them via
