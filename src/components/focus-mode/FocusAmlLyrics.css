@@ -43,6 +43,16 @@
   line-height: inherit;
 }
 
+/* AMLL masks each word to the word's own box. With this player's tight line-height that box
+   ends above the descenders (g, y, p), so a masked word loses their tails; only static lines
+   (mask removed) showed them, which is why they reappeared after Focus Mode opened. Extend
+   the box AMLL's own way: padding cancelled by an equal negative margin keeps the layout,
+   and AMLL subtracts the padding when it sizes the mask. Emphasized words already have 1em. */
+.focus-amll-lyrics .amll-lyric-player [class*="_lyricMainLine"] > [class*="_emphasizeWrapper"] > span:not([class*="_emphasize"]) {
+  padding: 0.2em;
+  margin: -0.2em;
+}
+
 /* macOS uses the heavier glyphs by default; Windows explicitly opts in. */
 .focus-amll-lyrics--enhanced-font {
   /* Allow the system CJK fallback to synthesize a bold face when its heaviest

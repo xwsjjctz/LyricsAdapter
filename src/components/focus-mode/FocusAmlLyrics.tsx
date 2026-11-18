@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExtern
 import { LyricPlayer, type LyricPlayerRef } from '@applemusic-like-lyrics/react';
 import {
   DomLyricPlayer,
+  LyricLineRenderMode,
   type LyricLine,
   type LyricLineMouseEvent,
   type OptimizeLyricOptions,
@@ -33,11 +34,49 @@ const UNMEASURED_LINE_HEIGHT_RATIO = 1 / 5;
 const REMEASURE_ATTRIBUTE = 'data-focus-amll-remeasure';
 
 type LyricGroup = DomLyricPlayer['currentLyricGroups'][number];
+type LineRenderMode = (typeof LyricLineRenderMode)[keyof typeof LyricLineRenderMode];
+
+// AMLL 0.5.2's inactive main and background line scales (percent).
+const INACTIVE_LINE_SCALE = 97;
+const INACTIVE_BG_LINE_SCALE = 75;
+
+/** The members of AMLL 0.5.2's line group (private in its typings) that set line scales. */
+interface ScaledLyricGroup {
+  isActive: boolean;
+  mainLine: { setTransform(scale?: number, opacity?: number, blur?: number, force?: boolean, delay?: number, mode?: LineRenderMode): void };
+  bgLine?: ScaledLyricGroup['mainLine'] | undefined;
+  setLineTransformations(force: boolean, delay: number): void;
+}
 
 export class FocusDomLyricPlayer extends DomLyricPlayer {
   private readonly animationBudget = new FocusAmlAnimationBudget();
   // Groups carrying REMEASURE_ATTRIBUTE that were in the document after the last update.
   private readonly renderedStaleGroups: LyricGroup[] = [];
+
+  override setLyricLines(lines: LyricLine[], initialTime?: number): void {
+    super.setLyricLines(lines, initialTime);
+    for (const group of this.currentLyricGroups) {
+      this.keepPlayingScale(group);
+      // setLyricLines already laid the groups out once with AMLL's own rule.
+      (group as unknown as ScaledLyricGroup).setLineTransformations(true, 0);
+    }
+  }
+
+  /**
+   * AMLL 0.5.2 grows every inactive line to full size while paused, so pausing makes the
+   * upcoming lines jump larger and the opening of Focus Mode shows them oversized. Main
+   * lines keep their playing scale; background vocals still grow and slide in on pause.
+   */
+  private keepPlayingScale(target: LyricGroup): void {
+    const group = target as unknown as ScaledLyricGroup;
+    group.setLineTransformations = (force, delay) => {
+      const mode = group.isActive ? LyricLineRenderMode.GRADIENT : LyricLineRenderMode.SOLID;
+      const inactiveScale = this.getEnableScale() ? INACTIVE_LINE_SCALE : 100;
+      group.mainLine.setTransform(group.isActive ? 100 : inactiveScale, 1, 0, force, delay, mode);
+      const bgScale = !group.isActive && this.getIsPlaying() ? INACTIVE_BG_LINE_SCALE : 100;
+      group.bgLine?.setTransform(bgScale, 1, 0, force, delay, mode);
+    };
+  }
 
   override update(delta?: number): void {
     // A frame has rendered these since, so the browser remembers their translated height.
