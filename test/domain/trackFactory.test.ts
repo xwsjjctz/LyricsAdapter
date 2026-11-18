@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { onlineSongToTrack, trackToOnlineSong } from '@/domain/trackFactory';
 import type { Track } from '@/types';
-import type { OnlineSong } from '@/services/onlineMusicProvider';
+import type { OnlineSong } from '@/services/online/onlineMusicProvider';
 
 function makeSong(overrides: Partial<OnlineSong> & { songmid: string }): OnlineSong {
   return {

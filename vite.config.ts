@@ -85,8 +85,8 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            // Utility process that runs one plugin in isolation (services/pluginProcess.ts).
-            entry: 'electron/pluginHost.ts',
+            // Utility process that runs one plugin in isolation (services/plugins/pluginProcess.ts).
+            entry: 'electron/plugin-host/pluginHost.ts',
             vite: {
               build: {
                 outDir: 'dist-electron',

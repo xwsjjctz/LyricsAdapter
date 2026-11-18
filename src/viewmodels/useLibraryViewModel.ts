@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
  * implementation"). Mutations go through the controller surface only.
  *
  * Legacy-only mechanisms (filterType / categorySelection / scrollPosition /
- * autoLocateToken / the pendingSlotLocate protocol / loadCloudTracks) stay as
+ * autoLocateToken / the pendingSlotLocate protocol) stay as
  * extra props on LibraryView itself — they are presentation mechanisms the VM
  * is meant to hide, not part of the shared library contract.
  */

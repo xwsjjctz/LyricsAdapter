@@ -1,6 +1,6 @@
 import type { MusicPluginHost } from '../../src/shared/musicPlugin';
 import type { TranslationRequest } from '../../src/shared/plugin';
-import { createInlineHandle, type PluginHandle } from '../services/pluginHandle';
+import { createInlineHandle, type PluginHandle } from '../services/plugins/pluginHandle';
 import type { GuestToHost, HostToGuest, MessageChannelEnd, PluginDataSnapshot } from './protocol';
 
 /** Log arguments that cannot be cloned (functions, errors, cycles) are sent as text. */

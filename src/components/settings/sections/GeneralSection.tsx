@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Language } from '../../../i18n';
 import { getDesktopAPI, type UpdaterState } from '../../../services/desktopAdapter';
 import { logger } from '../../../services/logger';
-import { settingsManager } from '../../../services/settingsManager';
+import { settingsManager } from '../../../services/storage/settingsManager';
 import type { CoverCacheInfo } from '../../../types/coverCache';
 import { LANGUAGE_OPTIONS, type SettingsTheme } from '../shared';
 import Button from '../../ui/Button';

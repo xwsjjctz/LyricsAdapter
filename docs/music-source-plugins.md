@@ -41,7 +41,7 @@ QQ 登录续期只在插件内执行：宿主的定时续期与请求过期触�
 
 第一版继续保留 `qq` / `netease` 来源、旧歌曲 ID、Cookie 和凭据持久化键，因此不需要重写现有用户数据。新插件凭据使用 `music-plugin:<id>:secret:<name>`，按敏感数据策略加密。
 
-音乐源 ID 即插件 ID。界面按 manifest 渲染：`search` 决定是否成为音乐源，`requiresCookie` 决定是否需要先登录，`playlists` 决定是否读取歌单；其他 ID 通过设置页粘贴 Cookie 登录，凭据键为 `music-plugin:<id>:secret:cookie`。官方 QQ、网易云沿用旧的凭据键、扫码登录与歌词习惯，这些兼容规则集中在 `src/services/musicSources.ts`。
+音乐源 ID 即插件 ID。界面按 manifest 渲染：`search` 决定是否成为音乐源，`requiresCookie` 决定是否需要先登录，`playlists` 决定是否读取歌单；其他 ID 通过设置页粘贴 Cookie 登录，凭据键为 `music-plugin:<id>:secret:cookie`。官方 QQ、网易云沿用旧的凭据键、扫码登录与歌词习惯，这些兼容规则集中在 `src/services/online/musicSources.ts`。
 
 每个插件运行在独立的 Electron utilityProcess 中：插件阻塞事件循环或崩溃不会卡住主进程，请求会超时，无响应的进程会被结束并在下次调用时重启，连续崩溃的插件会被标记为失败。进程隔离不是权限沙箱：插件仍能使用 Node 的文件与网络接口，因此第三方来源的绑定和每次更新都需要用户确认。
 

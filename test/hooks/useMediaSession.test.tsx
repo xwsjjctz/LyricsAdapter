@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseMediaSessionOptions } from '@/hooks/useMediaSession';
-import { DEFAULT_COVER_ARTWORK_URL } from '@/services/coverUrl';
+import { DEFAULT_COVER_ARTWORK_URL } from '@/services/covers/coverUrl';
 import type { Track } from '@/types';
 
 const loggerMocks = vi.hoisted(() => ({

@@ -20,7 +20,7 @@
  * 而非 233 个独立封面文件。
  */
 
-import { webdavClient } from '../webdavClient';
+import { webdavClient } from './webdavClient';
 import { logger } from '../logger';
 
 /** 每个 chunk 最多多少首歌曲。持久化进 manifest，恢复时计数用 manifest 值。 */

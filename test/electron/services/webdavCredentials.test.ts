@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../electron/services/settingsStore', () => ({ settingsStore: { get: vi.fn() } }));
+vi.mock('../../../electron/services/persistence/settingsStore', () => ({ settingsStore: { get: vi.fn() } }));
 
 import { basicAuthorization, webdavAuthorization } from '../../../electron/services/webdavCredentials';
 

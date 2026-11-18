@@ -1,6 +1,6 @@
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
-import { libraryStorage } from '../services/libraryStorage';
-import type { LibraryIndexData } from '../services/libraryStorage';
+import { libraryStorage } from '../services/storage/libraryStorage';
+import type { LibraryIndexData } from '../services/storage/libraryStorage';
 import { logger } from '../services/logger';
 import type { PersistenceBootstrap, StoreRead, UserDataSnapshot } from '../types/typedIpc';
 import { libraryIndexSnapshotSchema } from '../shared/libraryIndexSchema';

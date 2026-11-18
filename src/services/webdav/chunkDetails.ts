@@ -1,6 +1,6 @@
 import type { Track } from '../../types';
 import { logger } from '../logger';
-import type { WebDAVFile } from '../webdavClient';
+import type { WebDAVFile } from './webdavClient';
 import { readLocalCoverAsDataUrl, storeCoverLocally } from './coverStore';
 import { saveMetadataCache } from './metadataCache';
 import { metadataFolderService, type ChunkEntry, type Manifest } from './metadataFolderService';

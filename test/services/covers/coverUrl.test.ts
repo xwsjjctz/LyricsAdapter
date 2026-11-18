@@ -1,0 +1,118 @@
+import { describe, expect, it } from 'vitest';
+import {
+  DEFAULT_COVER_ARTWORK_URL,
+  isPlaceholderCoverUrl,
+  parseCoverDataUrl,
+  realCoverUrl,
+  resolveCoverUrl,
+  sanitizePersistedCoverUrl,
+  toCoverThumb,
+} from '@/services/covers/coverUrl';
+
+describe('coverUrl helpers', () => {
+  it('uses the bundled app-icon cover as the shared default', () => {
+    expect(DEFAULT_COVER_ARTWORK_URL).toBe(new URL('default-cover.jpg', document.baseURI).href);
+    expect(toCoverThumb(DEFAULT_COVER_ARTWORK_URL, 128)).toBe(DEFAULT_COVER_ARTWORK_URL);
+  });
+
+  it('treats missing and legacy picsum covers as placeholders', () => {
+    const picsum = 'https://picsum.photos/seed/example-track/1000/1000';
+    expect(isPlaceholderCoverUrl(picsum)).toBe(true);
+    expect(isPlaceholderCoverUrl('cover://track/1')).toBe(false);
+    expect(isPlaceholderCoverUrl('not a url')).toBe(false);
+    expect(realCoverUrl(picsum)).toBeUndefined();
+    expect(realCoverUrl('  ')).toBeUndefined();
+    expect(realCoverUrl(' cover://track/1 ')).toBe('cover://track/1');
+    expect(resolveCoverUrl(undefined)).toBe(DEFAULT_COVER_ARTWORK_URL);
+    expect(resolveCoverUrl(picsum)).toBe(DEFAULT_COVER_ARTWORK_URL);
+    expect(resolveCoverUrl('cover://track/1')).toBe('cover://track/1');
+    expect(sanitizePersistedCoverUrl(picsum)).toBe('');
+  });
+
+  it('parses supported image data URLs', () => {
+    expect(parseCoverDataUrl('data:image/png;base64,abc123')).toEqual({
+      mime: 'image/png',
+      base64: 'abc123',
+    });
+    expect(parseCoverDataUrl('data:image/jpg;base64,abc123')).toEqual({
+      mime: 'image/jpeg',
+      base64: 'abc123',
+    });
+  });
+
+  it('rejects non-image or malformed data URLs', () => {
+    expect(parseCoverDataUrl('data:text/plain;base64,abc123')).toBeNull();
+    expect(parseCoverDataUrl('not-a-data-url')).toBeNull();
+    expect(parseCoverDataUrl(null)).toBeNull();
+  });
+
+  it('strips transient cover URLs before persistence', () => {
+    expect(sanitizePersistedCoverUrl('blob:cover')).toBe('');
+    expect(sanitizePersistedCoverUrl('file:///tmp/cover.jpg')).toBe('');
+    expect(sanitizePersistedCoverUrl('data:image/png;base64,abc123')).toBe('');
+  });
+
+  it('preserves persistent cover URLs', () => {
+    expect(sanitizePersistedCoverUrl('cover://track.jpg')).toBe('cover://track.jpg');
+    expect(sanitizePersistedCoverUrl('cover://track.jpg?v=contenthash'))
+      .toBe('cover://track.jpg?v=contenthash');
+    expect(sanitizePersistedCoverUrl('https://example.com/cover.jpg')).toBe('https://example.com/cover.jpg');
+  });
+
+  it('keeps thumbnail behavior for cover protocol URLs', () => {
+    expect(toCoverThumb('cover://track.jpg', 128)).toBe('cover://track.jpg?size=128');
+    expect(toCoverThumb('cover://track.jpg?v=contenthash', 128))
+      .toBe('cover://track.jpg?v=contenthash&size=128');
+  });
+
+  it('requests the target size from supported online cover CDNs', () => {
+    expect(toCoverThumb('https://p1.music.126.net/key/id.jpg?param=800y800', 128))
+      .toBe('https://p1.music.126.net/key/id.jpg?param=128y128');
+  });
+
+  it('snaps QQ CDN cover requests to the only sizes the CDN actually serves', () => {
+    // 实测 y.gtimg.cn 只服务 {120,150,180,300,500,800}；其余尺寸（含 128/200/256/
+    // 400/512/1024）一律 404，与 Referer / 地区无关。把任意请求向上 snap 到最近可用尺寸，
+    // 超过 800 封顶到 800（浏览器缩放显示）。
+    // 128 (无效) → 150.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 128))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R150x150M000album.jpg');
+    // 150 → 150（精确命中）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 150))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R150x150M000album.jpg');
+    // 256 (无效) → 300.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 256))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
+    // 300 → 300.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 300))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg');
+    // 512 (无效，FocusMode 大封面用的就是这个尺寸) → 800（向上 snap 到下一个可用档，
+    // 不向下取 500，保证图不会小于容器、避免视觉降级）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 512))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    // 500 → 500（精确命中，注意只向上 snap，所以 500 本身不会降到 300）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 500))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R500x500M000album.jpg');
+    // 800 → 800.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 800))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    // 超过 800 封顶到 800（不返回无效的 1024）.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T002R300x300M000album.jpg', 1024))
+      .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album.jpg');
+    // 同一 snap 规则适用于 T001 (艺人封面) 变体.
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg', 128))
+      .toBe('https://y.gtimg.cn/music/photo_new/T001R150x150M000artist.jpg');
+    expect(toCoverThumb('https://y.gtimg.cn/music/photo_new/T001R300x300M000artist.jpg', 512))
+      .toBe('https://y.gtimg.cn/music/photo_new/T001R800x800M000artist.jpg');
+  });
+
+  it('leaves unknown remote and transient URLs unchanged', () => {
+    expect(toCoverThumb('https://example.com/cover.jpg', 128)).toBe('https://example.com/cover.jpg');
+    expect(toCoverThumb('blob:cover', 128)).toBe('blob:cover');
+  });
+
+  it('does not normalize unknown signed remote URLs', () => {
+    const signed = 'https://example.com:443/art/../cover.jpg?token=a%2Fb&expires=123';
+    expect(toCoverThumb(signed, 256)).toBe(signed);
+  });
+});

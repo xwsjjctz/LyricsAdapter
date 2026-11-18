@@ -1,6 +1,6 @@
 import { useCallback, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLiquidGlass } from '../LiquidGlass';
+import { useLiquidGlass } from '../ui/LiquidGlass';
 import '../../styles/playerSliders.css';
 import type { FocusControlsProps } from './FocusControls';
 import FocusTranslateButton from './FocusTranslateButton';

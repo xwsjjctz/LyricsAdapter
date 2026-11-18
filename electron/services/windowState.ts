@@ -1,6 +1,6 @@
 import { screen, type BrowserWindow, type Size } from 'electron';
 import { z } from 'zod';
-import { settingsStore } from './settingsStore';
+import { settingsStore } from './persistence/settingsStore';
 import { logger } from '../logger';
 
 export const WINDOW_STATE_KEY = 'la_window_state';

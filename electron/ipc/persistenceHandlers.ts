@@ -1,6 +1,6 @@
 import { logger } from '../logger';
-import { persistenceRepository } from '../services/persistenceRepository';
-import { persistenceCommitService } from '../services/persistenceCommitService';
+import { persistenceRepository } from '../services/persistence/persistenceRepository';
+import { persistenceCommitService } from '../services/persistence/persistenceCommitService';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';
 import { persistenceBootstrapSchema, persistenceCloseCommitSchema } from './typedSchemas';
 import { handleIpc } from './ipcMainTyped';

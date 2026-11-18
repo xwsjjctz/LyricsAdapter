@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { logger } from '../services/logger';
-import { loadPlaylistCache, savePlaylistCache } from '../services/playlistCache';
-import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
-import { cookieStoreFor, providerFor, sourceHasCapability } from '../services/musicSources';
+import { loadPlaylistCache, savePlaylistCache } from '../services/storage/playlistCache';
+import type { OnlineSource, PlaylistInfo } from '../services/online/onlineMusicProvider';
+import { cookieStoreFor, providerFor, sourceHasCapability } from '../services/online/musicSources';
 import { useMusicPlugins } from '../stores/musicPluginStore';
 
 /**

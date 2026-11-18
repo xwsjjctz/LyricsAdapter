@@ -17,10 +17,7 @@
 - [音乐源插件安装与维护](./music-source-plugins.md)
 - [产品收敛与桌面交互规划](./development/product-direction.md)（区分已定方向、待验证方案和本次范围）
 - [命令面板交互方案](./development/command-palette-plan.md)（海报墙单入口，待实施）
-- [架构评审与整改待办（2026-10）](./development/architecture-review-2026-10.md)（依赖边界检查、旧 IPC、插件安全、状态层、沙箱）
-- [渐进式重构路线图](./development/refactor-roadmap.md)
-- [重构计划](./development/refactor-plan.md)
-- [重构待办](./development/refactor-backlog.md)
+- [重构待办](./development/refactor-backlog.md)（执行规则、已核实的未解决问题；旧计划、路线图与架构评审已归档）
 - [性能优化待办](./development/performance-optimization-todo.md)
 - [页面渲染内存优化分析（Windows 优先）](./development/render-memory-optimization-analysis.md)
 
@@ -32,10 +29,8 @@
 
 - [第三方声明](./THIRD_PARTY_NOTICES.md)
 
-## 模块参考
-
-[`reference/modules/`](./reference/modules/) 保存核心 service、hook 和类型的说明。这些文档中部分内容可能滞后于源码，修改相关模块时应同步核对。
-
 ## 历史归档
 
-[`archive/`](./archive/) 收录旧 UI 方案、迁移尝试、一次性审查和修复记录。它们用于保留上下文，不代表当前实现。
+[`archive/`](./archive/) 收录旧 UI 方案、迁移尝试、已完成的重构计划、一次性审查和修复记录。它们用于保留上下文，不代表当前实现。
+
+模块级说明以源码注释为准；原 `reference/modules/` 下的逐模块文档已严重滞后于源码，已删除，需要时可从 Git 历史查阅。

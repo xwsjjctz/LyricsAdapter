@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readableForeground } from '@/services/colorUtils';
+import { readableForeground } from '@/services/themes/colorUtils';
 import { predefinedThemes, getDefaultTheme } from '@/services/themes/predefinedThemes';
 import { supportsFluentAppearance, withFluentAppearance } from '@/services/themes/fluentTheme';
 import { THEME_IDS } from '@/types/theme';

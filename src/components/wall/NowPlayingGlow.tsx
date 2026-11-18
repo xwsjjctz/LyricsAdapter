@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
-import { realCoverUrl, toCoverThumb } from '../../services/coverUrl';
-import { getCoverPalette, type CoverPalette } from '../../services/coverPalette';
-import { retainAudioPulse, sampleAudioPulse } from '../../services/audioPulse';
-import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState, type Spring } from '../../services/audioPulseEnvelope';
+import { realCoverUrl, toCoverThumb } from '../../services/covers/coverUrl';
+import { getCoverPalette, type CoverPalette } from '../../services/covers/coverPalette';
+import { retainAudioPulse, sampleAudioPulse } from '../../services/playback/audioPulse';
+import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState, type Spring } from '../../services/playback/audioPulseEnvelope';
 
 interface NowPlayingGlowProps {
   coverUrl?: string | undefined;

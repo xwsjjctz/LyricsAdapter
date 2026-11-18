@@ -1,8 +1,8 @@
-import { appStorage } from '../services/appStorage';
+import { appStorage } from '../services/storage/appStorage';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
-import { libraryStorage, type LibraryIndexData } from '../services/libraryStorage';
+import { libraryStorage, type LibraryIndexData } from '../services/storage/libraryStorage';
 import { logger } from '../services/logger';
-import type { UserTrackRecord } from '../services/librarySerializer';
+import type { UserTrackRecord } from '../services/storage/librarySerializer';
 import type { PersistenceCloseCommitRequest } from '../types/typedIpc';
 
 export interface LibraryCloseSnapshot {

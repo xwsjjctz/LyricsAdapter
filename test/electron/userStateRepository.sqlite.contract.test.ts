@@ -26,12 +26,12 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { PersistenceCommitService } from '../../electron/services/persistenceCommitService';
-import { PersistenceRepository } from '../../electron/services/persistenceRepository';
+import { PersistenceCommitService } from '../../electron/services/persistence/persistenceCommitService';
+import { PersistenceRepository } from '../../electron/services/persistence/persistenceRepository';
 import {
   UserStateRepository,
-} from '../../electron/services/userStateRepository';
-import { SafeStorageUserStateCrypto, type UserStateCrypto } from '../../electron/services/userStateCrypto';
+} from '../../electron/services/persistence/userStateRepository';
+import { SafeStorageUserStateCrypto, type UserStateCrypto } from '../../electron/services/persistence/userStateCrypto';
 
 const sensitiveSettings = {
   'webdav-config': '{"password":"webdav-secret"}',

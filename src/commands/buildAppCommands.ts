@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { SettingsSectionId } from '../types/settingsPanel';
-import type { PlaylistInfo } from '../services/onlineMusicProvider';
+import type { PlaylistInfo } from '../services/online/onlineMusicProvider';
 import type { Language } from '../i18n';
 import type { PaletteCommand } from '../types/paletteCommand';
 

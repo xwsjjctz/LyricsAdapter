@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { appStorage } from './services/appStorage';
+import { appStorage } from './services/storage/appStorage';
 import { installInputModality } from './services/inputModality';
 import { dismissStartupScreen } from './services/startupScreen';
 import { supportsWindowsSystemBackdrop } from './shared/windowsChrome';
@@ -35,7 +35,7 @@ async function bootstrap(): Promise<void> {
   installInputModality();
   try {
     await appStorage.init();
-    const { installSettingsSync } = await import('./services/settingsSync');
+    const { installSettingsSync } = await import('./services/storage/settingsSync');
     installSettingsSync();
     const root = createRoot(rootElement);
     const { default: App } = await import('./App');

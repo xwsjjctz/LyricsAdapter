@@ -1,5 +1,5 @@
 import { useLayoutEffect, type RefObject } from 'react';
-import { applyThemeVarsToElement, themeManager } from '../services/themeManager';
+import { applyThemeVarsToElement, themeManager } from '../services/themes/themeManager';
 
 /**
  * Redeclares the current theme's own --theme-* tokens on an element, so a

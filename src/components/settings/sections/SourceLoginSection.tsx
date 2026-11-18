@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { OnlineSource } from '@/services/settingsManager';
+import type { OnlineSource } from '@/services/storage/settingsManager';
 import type { SettingsTheme } from '../shared';
 import { useSourceLogin, type SourceLogin } from '../hooks/useSourceLogin';
 import Button from '../../ui/Button';

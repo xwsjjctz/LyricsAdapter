@@ -23,8 +23,6 @@ test.py
 *.meta.json
 
 .DS_Store
-node_modules
-/dist
 /build
 /coverage
 
@@ -46,16 +44,7 @@ yarn-error.log*
 *.sw?
 
 /archive
-/archive/*
 
-/src/KgmWasm/build
-/src/KgmWasm/*.js
-/src/KgmWasm/*.wasm
-/src/QmcWasm/build
-/src/QmcWasm/*.js
-/src/QmcWasm/*.wasm
-
-*.zip
 *.tar.gz
 /sha256sum.txt
 
@@ -86,19 +75,15 @@ talk.md
 /native/windows-taskbar-host/publish/
 /native/macos-statusbar-native/build/
 /native/macos-statusbar-native/prebuilds/
-/src-tauri/target
-/src-tauri/gen/schemas
 todolist.md
 problem.md
 problems.md
 /talk
 /reserve
-/reserve/*
 
 /openspec
 /.opencode
 /binaries
-/binaries/*
 /.playwright-mcp
 /test-results
 /playwright-report

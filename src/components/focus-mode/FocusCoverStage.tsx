@@ -1,5 +1,5 @@
 import React from 'react';
-import { toCoverThumb } from '../../services/coverUrl';
+import { toCoverThumb } from '../../services/covers/coverUrl';
 
 interface FocusCoverStageProps {
   coverUrl: string | undefined;

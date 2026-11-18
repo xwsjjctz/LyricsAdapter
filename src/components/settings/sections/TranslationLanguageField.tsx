@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MusicPluginInfo } from '@/shared/musicPlugin';
-import { effectiveTranslationLanguage, languageDisplayName, translationLanguages } from '@/services/pluginTranslation';
+import { effectiveTranslationLanguage, languageDisplayName, translationLanguages } from '@/services/translation/pluginTranslation';
 import { setTranslationLanguage, useTranslationPreference } from '@/stores/pluginTranslationStore';
 import type { SettingsTheme } from '../shared';
 import SettingsMessage from '../SettingsMessage';

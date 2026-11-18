@@ -1,7 +1,7 @@
-import { indexedDBStorage } from '../indexedDBStorage';
+import { indexedDBStorage } from '../storage/indexedDBStorage';
 import { logger } from '../logger';
-import { parseCoverFromRange, parseMetadataFromBuffer, parseVorbisComment } from '../metadataService';
-import { webdavClient, type WebDAVFile } from '../webdavClient';
+import { parseCoverFromRange, parseMetadataFromBuffer, parseVorbisComment } from '../metadata/metadataService';
+import { webdavClient, type WebDAVFile } from './webdavClient';
 import { blobUrlToDataUrl, storeCoverLocally } from './coverStore';
 import type { getEffectiveConfig } from './providerConfig';
 import {

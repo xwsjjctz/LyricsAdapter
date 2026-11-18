@@ -8,7 +8,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import type { Track } from '../../types';
-import { sourcePrependsLyricsTitle } from '../../services/musicSources';
+import { sourcePrependsLyricsTitle } from '../../services/online/musicSources';
 import FocusLyricRow from './FocusLyricRow';
 
 const PRE_SCROLL_TIME_SECONDS = 0.2;

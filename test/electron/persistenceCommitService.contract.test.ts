@@ -4,20 +4,20 @@ import type {
   PersistenceCloseCommitRequest,
 } from '../../src/types/typedIpc';
 
-vi.mock('../../electron/services/settingsStore', () => ({
+vi.mock('../../electron/services/persistence/settingsStore', () => ({
   settingsStore: { set: vi.fn(), getAll: vi.fn() },
 }));
-vi.mock('../../electron/services/userDataStore', () => ({
+vi.mock('../../electron/services/persistence/userDataStore', () => ({
   userDataStore: { saveLibraryState: vi.fn() },
 }));
-vi.mock('../../electron/services/libraryIndexFiles', () => ({
+vi.mock('../../electron/services/persistence/libraryIndexFiles', () => ({
   doSaveLibraryIndex: vi.fn(),
 }));
 
 import {
   PersistenceCommitService,
   type PersistenceCommitDependencies,
-} from '../../electron/services/persistenceCommitService';
+} from '../../electron/services/persistence/persistenceCommitService';
 
 function request(
   id = 'track-1',

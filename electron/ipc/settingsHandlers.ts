@@ -7,7 +7,7 @@
  *
  * Compatible with the unified origin (app://localhost) from Plan A.
  */
-import { settingsStore } from '../services/settingsStore';
+import { settingsStore } from '../services/persistence/settingsStore';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';

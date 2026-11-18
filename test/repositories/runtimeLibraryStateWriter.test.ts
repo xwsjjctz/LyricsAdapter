@@ -10,7 +10,7 @@ vi.mock('@/services/desktopAdapter', () => ({
   isDesktop: () => mocks.desktop,
   getDesktopAPIAsync: async () => (mocks.desktop ? { userDataSaveLibraryState: mocks.saveLibraryState } : null),
 }));
-vi.mock('@/services/appStorage', () => ({ appStorage: { setItem: mocks.setItem } }));
+vi.mock('@/services/storage/appStorage', () => ({ appStorage: { setItem: mocks.setItem } }));
 
 import { createRuntimeLibraryStateWriter } from '@/repositories/runtimeLibraryStateWriter';
 

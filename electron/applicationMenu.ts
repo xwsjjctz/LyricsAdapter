@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
 import { DEFAULT_SHORTCUTS, resolveShortcutKey, type ShortcutAction } from '../src/constants/shortcuts';
 import type { ApplicationMenuAction } from '../src/types/applicationMenu';
-import { settingsStore } from './services/settingsStore';
+import { settingsStore } from './services/persistence/settingsStore';
 import { mainTranslator } from './services/mainI18n';
 import { applyWindowPreset, type WindowPreset } from './services/windowState';
 import { sendIpc } from './ipc/ipcMainTyped';

@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
  * 同时被主进程 IPC（electron/ipc/handlers.ts）和启动清理子进程（electron/cleanup.ts）
  * 引用——后者通过 `fork()` 拉起，不能 import electron，故本模块只依赖 node 内置 `crypto`。
  *
- * 算法必须与渲染端 services/webdavClient.ts 的 webdavCoverId / save-cover-thumbnail
+ * 算法必须与渲染端 services/webdav/webdavClient.ts 的 webdavCoverId / save-cover-thumbnail
  * 写盘逻辑保持一致，否则清理时会因 id 不匹配而误删 WebDAV 封面。
  */
 
@@ -26,7 +26,7 @@ export function sanitizeTrackId(trackId: string): string {
 
 /**
  * 计算 webdavPath 的稳定 hash 前缀（base36）。
- * 与渲染端 services/webdavClient.ts:webdavCoverId 使用同一 reduce 算法，保证两端一致。
+ * 与渲染端 services/webdav/webdavClient.ts:webdavCoverId 使用同一 reduce 算法，保证两端一致。
  */
 export function webdavPathHash(webdavPath: string): string {
   return Math.abs(

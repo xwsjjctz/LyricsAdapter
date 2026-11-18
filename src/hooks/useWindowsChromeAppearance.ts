@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
-import { themeManager } from '../services/themeManager';
+import { themeManager } from '../services/themes/themeManager';
 import type { WindowChromeTone } from '../shared/windowsChrome';
 
 /**

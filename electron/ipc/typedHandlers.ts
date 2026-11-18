@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../logger';
 import { typedIpcSchemas } from './typedSchemas';
-import { doLoadLibraryIndex, doSaveLibraryIndex } from '../services/libraryIndexFiles';
+import { doLoadLibraryIndex, doSaveLibraryIndex } from '../services/persistence/libraryIndexFiles';
 import { fail, ok, parsePayload } from './typedResult';
 import { basicAuthorization, webdavAuthorization } from '../services/webdavCredentials';
 import type { IpcResult } from '../../src/types/typedIpc';

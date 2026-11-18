@@ -13,11 +13,11 @@ vi.mock('@/services/desktopAdapter', () => ({
   getDesktopAPIAsync: mocks.getDesktopAPIAsync,
 }));
 
-vi.mock('@/services/appStorage', () => ({
+vi.mock('@/services/storage/appStorage', () => ({
   appStorage: { setItem: mocks.setItem },
 }));
 
-vi.mock('@/services/libraryStorage', () => ({
+vi.mock('@/services/storage/libraryStorage', () => ({
   libraryStorage: { flushPendingSave: mocks.flushPendingSave },
 }));
 

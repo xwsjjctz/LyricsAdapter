@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { availableMusicSources, musicPluginState, refreshMusicPlugins } from '../services/musicPlugins';
+import { availableMusicSources, musicPluginState, refreshMusicPlugins } from '../services/online/musicPlugins';
 
-export { availableMusicSources, refreshMusicPlugins, updateMusicPlugins } from '../services/musicPlugins';
+export { availableMusicSources, refreshMusicPlugins, updateMusicPlugins } from '../services/online/musicPlugins';
 /** The plugin list store; kept under this name for existing callers and tests. */
 export const musicPluginStore = musicPluginState;
 

@@ -1,6 +1,6 @@
 import { getDesktopAPIAsync } from '../desktopAdapter';
 import { logger } from '../logger';
-import { webdavCoverId } from '../webdavClient';
+import { webdavCoverId } from './webdavClient';
 
 /** Cover conversions for WebDAV tracks: blob → data:, data: → local cover://, cover:// → portable data:. */
 

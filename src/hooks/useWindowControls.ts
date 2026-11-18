@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
-import { requestPlaybackShutdown } from '../services/playbackShutdown';
+import { requestPlaybackShutdown } from '../services/playback/playbackShutdown';
 
 interface WindowControls {
   minimize: () => void;

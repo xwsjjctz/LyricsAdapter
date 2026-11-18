@@ -3,8 +3,8 @@
  */
 
 // Import parseAudioFile for Electron compatibility
-import { parseAudioFile as parseAudioFileSync } from './metadataService';
-import { validateMetadataMap, type ValidatedMetadata } from './dataValidator';
+import { parseAudioFile as parseAudioFileSync } from './metadata/metadataService';
+import { validateMetadataMap, type ValidatedMetadata } from './storage/dataValidator';
 import { logger } from './logger';
 import { APP } from '../constants/config';
 import type {
@@ -18,7 +18,7 @@ import type {
 import type { MusicPluginInfo, MusicPluginCatalogEntry } from '../shared/musicPlugin';
 import type { ExtensionType, PluginDataInfo, PluginHostInfo, PluginProviderInfo, PluginTranslationCall, TranslationResult } from '../shared/plugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '../shared/pluginUpdate';
-import type { OnlineMusicElectronAPI } from './onlineMusicProvider';
+import type { OnlineMusicElectronAPI } from './online/onlineMusicProvider';
 import { normalizeStoredUserDataSnapshot } from '../shared/userDataSchema';
 import type { QQCredential } from '../shared/qqCredential';
 import type { AppNotificationOptions } from '../types/notification';

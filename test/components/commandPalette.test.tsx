@@ -5,7 +5,7 @@ import type { PaletteLibrarySources } from '@/components/palette/usePaletteItems
 import type { PaletteCommand } from '@/types/paletteCommand';
 import { createCommandPaletteStore, type CommandPaletteStore } from '@/hooks/useCommandPalette';
 import type { Track } from '@/types';
-import { DEFAULT_COVER_ARTWORK_URL } from '@/services/coverUrl';
+import { DEFAULT_COVER_ARTWORK_URL } from '@/services/covers/coverUrl';
 
 const track = (id: string, title: string): Track => ({
   id, title, artist: 'Artist', album: 'Album', duration: 180, audioUrl: '', lyrics: '',

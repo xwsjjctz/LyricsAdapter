@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/services/musicSources', () => ({
+vi.mock('@/services/online/musicSources', () => ({
   cookieStoreFor: (id: string) => ({
     ensureLoaded: async () => undefined,
     hasCookie: () => mocks.loggedIn.get(id) ?? false,
@@ -38,7 +38,7 @@ vi.mock('@/services/musicSources', () => ({
   sourceHasCapability: (id: string, capability: string) => capability === 'playlists' && mocks.playlistSources.has(id),
 }));
 
-vi.mock('@/services/playlistCache', () => ({
+vi.mock('@/services/storage/playlistCache', () => ({
   loadPlaylistCache: mocks.loadPlaylistCache,
   savePlaylistCache: mocks.savePlaylistCache,
 }));

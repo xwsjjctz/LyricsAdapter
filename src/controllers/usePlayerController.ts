@@ -2,24 +2,24 @@ import { isOnlineTrackSource } from '../shared/onlineMusic';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { SlotId, Track } from '../types';
-import { getOnlineProvider } from '../services/onlineMusicProvider';
-import type { OnlineLyricsResult, OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
-import { parseLyrics } from '../services/metadataService';
-import { PROVIDER_LYRICS_PARTIAL_TTL_MS } from '../services/providerLyricsCache';
+import { getOnlineProvider } from '../services/online/onlineMusicProvider';
+import type { OnlineLyricsResult, OnlineSong, OnlineSource } from '../services/online/onlineMusicProvider';
+import { parseLyrics } from '../services/metadata/metadataService';
+import { PROVIDER_LYRICS_PARTIAL_TTL_MS } from '../services/storage/providerLyricsCache';
 import { onlineSongToTrack } from '../domain/trackFactory';
 import {
   isPlaylistTracksFresh,
   loadPlaylistTracks as loadCachedPlaylistTracks,
   savePlaylistTracks as saveCachedPlaylistTracks,
   type CachedPlaylistTracks,
-} from '../services/playlistTracksCache';
+} from '../services/storage/playlistTracksCache';
 
 const PLAYLIST_PAGE_SIZE = 30;
 const LYRICS_UPGRADE_ATTEMPT_LIMIT = 256;
 const PLAYLIST_LYRICS_PREFETCH_DELAY_MS = 120;
 const PLAYLIST_LYRICS_MAX_ACTIVE_REQUESTS = 3;
 
-interface PlaylistLoadState {
+export interface PlaylistLoadState {
   source: OnlineSource;
   playlistId: string | null;
   title: string | null;
@@ -152,7 +152,7 @@ function applyEnrichedLyrics(current: Track, enriched: Track): Track {
  * the former composition root, not redesigned. Dep arrays are reproduced
  * exactly to avoid
  * accidental behaviour changes; any known dep-array gaps are recorded in
- * docs/refactor-backlog.md rather than fixed here.
+ * docs/development/refactor-backlog.md rather than fixed here.
  */
 
 export interface PlayerControllerOptions {
@@ -189,7 +189,7 @@ export interface PlayerControllerOptions {
   shouldAutoPlayRef: MutableRefObject<boolean>;
   selectTrack: (index: number) => void;
   setIsPlaying: (playing: boolean) => void;
-  /** From playerStore (not usePlayback). */
+  /** From usePlayerRuntime (not usePlayback). */
   setRestoreTime: (time: number) => void;
 
   /** UI store */

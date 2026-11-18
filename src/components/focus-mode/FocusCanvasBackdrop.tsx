@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { logger } from '../../services/logger';
-import { toCoverThumb } from '../../services/coverUrl';
+import { toCoverThumb } from '../../services/covers/coverUrl';
 import {
   BACKDROP_ALPHA_EDGE_OPACITY,
   BACKDROP_ALPHA_EXIT_DURATION_MS,

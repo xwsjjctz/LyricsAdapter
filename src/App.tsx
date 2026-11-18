@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LibrarySlot, Track, ViewMode } from './types';
 import { getDesktopAPI } from './services/desktopAdapter';
-import type { LibrarySettings } from './services/libraryStorage';
-import { subscribeMusicPluginSecrets, syncOnlineCookiesToMain } from './services/musicSources';
-import { qqCredentialManager } from './services/qqCredentialManager';
+import type { LibrarySettings } from './services/storage/libraryStorage';
+import { subscribeMusicPluginSecrets, syncOnlineCookiesToMain } from './services/online/musicSources';
+import { qqCredentialManager } from './services/online/qqCredentialManager';
 import { useLibraryLoad } from './hooks/useLibraryLoad';
 import { useLibraryActions } from './hooks/useLibraryActions';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -13,12 +13,12 @@ import AppShell from './components/AppShell';
 import { useOnlineMusicIntegration } from './hooks/useOnlineMusicIntegration';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useAppClosePreparation } from './hooks/useAppClosePreparation';
-import { useImportStore } from './hooks/useImportStore';
-import { useLibraryStore } from './hooks/useLibraryStore';
+import { useImportRouting } from './hooks/useImportRouting';
+import { useLibraryWorkspace } from './hooks/useLibraryWorkspace';
 import { createLibraryState, LibraryStateProvider } from './stores/libraryState';
-import type { OnlineSource } from './services/onlineMusicProvider';
-import { usePlayerStore } from './hooks/usePlayerStore';
-import { useUIStore } from './hooks/useUIStore';
+import type { OnlineSource } from './services/online/onlineMusicProvider';
+import { usePlayerRuntime } from './hooks/usePlayerRuntime';
+import { useAppUI } from './hooks/useAppUI';
 import { useMusicPlugins } from './stores/musicPluginStore';
 import { usePlayerController } from './controllers/usePlayerController';
 import { useLibraryController } from './controllers/useLibraryController';
@@ -26,6 +26,9 @@ import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
 import { useLibraryViewModel } from './viewmodels/useLibraryViewModel';
 import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
 import { useImportViewModel } from './viewmodels/useImportViewModel';
+import { useCloudViewModel } from './viewmodels/useCloudViewModel';
+import { usePlaylistViewModel } from './viewmodels/usePlaylistViewModel';
+import { useLibraryCloudSync } from './hooks/useLibraryCloudSync';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useSystemLyrics } from './hooks/useSystemLyrics';
 import { revealStartupScreen } from './services/startupScreen';
@@ -41,7 +44,7 @@ const openPaletteMusicSearch = () => commandPalette.open('library');
 const AppContent: React.FC = () => {
   const { sources } = useMusicPlugins();
   const hasQQPlugin = sources.includes('qq');
-  const ui = useUIStore();
+  const ui = useAppUI();
   const {
     viewMode,
     transitionToView,
@@ -82,7 +85,7 @@ const AppContent: React.FC = () => {
     handleLibraryScrollPositionChange,
     handleCategoryChange,
     getLiveScrollPosition,
-  } = useLibraryStore(libraryState);
+  } = useLibraryWorkspace(libraryState);
   const {
     audioRef,
     setAudioRef,
@@ -116,7 +119,7 @@ const AppContent: React.FC = () => {
     activeBlobUrlsRef,
     createTrackedBlobUrl,
     revokeBlobUrl,
-  } = usePlayerStore({
+  } = usePlayerRuntime({
     activeTracks,
     activeTrackIndex,
     setActiveTracks,
@@ -219,7 +222,7 @@ const AppContent: React.FC = () => {
     handleImportClick,
     handleViewDropFilePaths,
     importDisabled,
-  } = useImportStore({
+  } = useImportRouting({
     localTracks: slots.local.tracks,
     updateLocalTracks,
     activeTrackIndex,
@@ -363,6 +366,24 @@ const AppContent: React.FC = () => {
     if (viewMode !== ViewMode.WALL) transitionToView(ViewMode.WALL);
     await loading;
   }, [handleSwitchSlot, playerController, transitionToView, viewMode]);
+  const playlist = usePlaylistViewModel({
+    loadState: playerController.libraryPlaylistLoadState,
+    browsingTracks: playerController.libraryBrowsingTracks,
+    open: handleOpenPlaylist,
+    loadMore: playerController.loadMorePlaylistInLibrary,
+    playTrack: playerController.playLibraryPlaylistTrack,
+  });
+
+  // Cloud tracks load (and refresh) regardless of which view is on screen.
+  const cloudSync = useLibraryCloudSync({
+    dataSource: viewSlot,
+    onLoadCloudTracks: loadCloudTracks,
+    onMergeCloudTracks: mergeCloudTracks,
+  });
+  const cloud = useCloudViewModel({
+    loadProgress: cloudSync.loadProgress,
+    refresh: cloudSync.refreshCloudTracks,
+  });
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.
@@ -417,21 +438,16 @@ const AppContent: React.FC = () => {
       player={player}
       importVm={importVm}
       online={online}
-      playerController={playerController}
-      handleSwitchSlot={handleSwitchSlot}
+      cloud={cloud}
+      playlist={playlist}
       pendingSlotLocate={pendingSlotLocate}
-      loadCloudTracks={loadCloudTracks}
-      mergeCloudTracks={mergeCloudTracks}
       handleSlotLocatePrepared={handleSlotLocatePrepared}
       handleSlotContentReady={handleSlotContentReady}
       handleLibraryScrollPositionChange={handleLibraryScrollPositionChange}
       handleCategoryChange={handleCategoryChange}
       libraryContentRef={libraryContentRef}
-      onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}
       isLinux={isLinux}
-      libraryBrowsingTracks={playerController.libraryBrowsingTracks}
-      onPlayLibraryPlaylistTrack={playerController.playLibraryPlaylistTrack}
     />
     </LibraryStateProvider>
   );

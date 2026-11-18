@@ -4,7 +4,7 @@ import ja from '../../src/i18n/locales/ja.json';
 import ko from '../../src/i18n/locales/ko.json';
 import de from '../../src/i18n/locales/de.json';
 import fr from '../../src/i18n/locales/fr.json';
-import { settingsStore } from './settingsStore';
+import { settingsStore } from './persistence/settingsStore';
 
 const resources: Record<string, Record<string, string>> = { zh, en, ja, ko, de, fr };
 

@@ -10,7 +10,7 @@
  */
 
 import type { ThemeConfig } from '../../types/theme';
-import { readableForeground } from '../colorUtils';
+import { readableForeground } from './colorUtils';
 
 /** WinUI 3 theme resources for one tone. */
 interface FluentPalette {

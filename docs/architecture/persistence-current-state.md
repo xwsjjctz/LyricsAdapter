@@ -77,7 +77,7 @@ flowchart LR
 
 ## SQLite 模型
 
-数据库由 `electron/services/userStateRepository.ts` 在主进程中独占。当前 schema version 为 1，使用四张 `STRICT` 表。
+数据库由 `electron/services/persistence/userStateRepository.ts` 在主进程中独占。当前 schema version 为 1，使用四张 `STRICT` 表。
 
 ### `schema_migrations`
 

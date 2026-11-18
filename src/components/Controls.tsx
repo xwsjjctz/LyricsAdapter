@@ -1,7 +1,7 @@
 import React, { memo, useId, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
-import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../services/covers/coverUrl';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';
@@ -10,7 +10,7 @@ import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
 import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { FLOATING_PLAYER_BOTTOM, FLOATING_PLAYER_HEIGHT } from '../constants/playerLayout';
-import { useLiquidGlass } from './LiquidGlass';
+import { useLiquidGlass } from './ui/LiquidGlass';
 import { useBaseThemeTokens } from '../hooks/useBaseThemeTokens';
 
 interface ControlsProps {

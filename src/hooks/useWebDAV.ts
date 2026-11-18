@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Track } from '../types';
-import { webdavClient, WebDAVFile } from '../services/webdavClient';
+import { webdavClient, WebDAVFile } from '../services/webdav/webdavClient';
 import { logger } from '../services/logger';
-import { indexedDBStorage } from '../services/indexedDBStorage';
+import { indexedDBStorage } from '../services/storage/indexedDBStorage';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { metadataFolderService, Manifest } from '../services/webdav/metadataFolderService';
 import { storeCoverLocally } from '../services/webdav/coverStore';

@@ -1,5 +1,5 @@
 import { logger } from '../logger';
-import type { WebDAVFile } from '../webdavClient';
+import type { WebDAVFile } from './webdavClient';
 import { materializePortableCover } from './coverStore';
 import { loadMetadataCache } from './metadataCache';
 import {

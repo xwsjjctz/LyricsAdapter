@@ -3,18 +3,18 @@ import { renderHook } from '@testing-library/react';
 import type { MutableRefObject } from 'react';
 import { useLibraryController } from '@/controllers/useLibraryController';
 import type { LibrarySlot, SlotId, Track } from '@/types';
-import { libraryStorage } from '@/services/libraryStorage';
-import { metadataCacheService } from '@/services/metadataCacheService';
-import { coverArtService } from '@/services/coverArtService';
+import { libraryStorage } from '@/services/storage/libraryStorage';
+import { metadataCacheService } from '@/services/storage/metadataCacheService';
+import { coverArtService } from '@/services/covers/coverArtService';
 import { requestLibraryFlush } from '@/services/libraryFlushEvent';
-import { refreshTrackLyricsCaches } from '@/services/trackLyricsCaches';
+import { refreshTrackLyricsCaches } from '@/services/storage/trackLyricsCaches';
 
 vi.mock('@/services/desktopAdapter', () => ({ isDesktop: () => true }));
-vi.mock('@/services/libraryStorage', () => ({ libraryStorage: { flushPendingSave: vi.fn(), saveLibrary: vi.fn() } }));
+vi.mock('@/services/storage/libraryStorage', () => ({ libraryStorage: { flushPendingSave: vi.fn(), saveLibrary: vi.fn() } }));
 vi.mock('@/services/libraryFlushEvent', () => ({ requestLibraryFlush: vi.fn() }));
-vi.mock('@/services/metadataCacheService', () => ({ metadataCacheService: { delete: vi.fn() } }));
-vi.mock('@/services/coverArtService', () => ({ coverArtService: { deleteCover: vi.fn() } }));
-vi.mock('@/services/trackLyricsCaches', () => ({ refreshTrackLyricsCaches: vi.fn(async () => {}) }));
+vi.mock('@/services/storage/metadataCacheService', () => ({ metadataCacheService: { delete: vi.fn() } }));
+vi.mock('@/services/covers/coverArtService', () => ({ coverArtService: { deleteCover: vi.fn() } }));
+vi.mock('@/services/storage/trackLyricsCaches', () => ({ refreshTrackLyricsCaches: vi.fn(async () => {}) }));
 function track(id: string): Track {
   return { id, title: id, artist: 'A', album: 'B', duration: 10, audioUrl: '', filePath: `/music/${id}.mp3` };
 }

@@ -14,7 +14,7 @@ vi.mock('@/services/desktopAdapter', () => ({
 vi.mock('@/services/libraryFlushEvent', () => ({
   requestLibraryFlush: mocks.requestLibraryFlush,
 }));
-vi.mock('@/services/playbackShutdown', () => ({
+vi.mock('@/services/playback/playbackShutdown', () => ({
   requestPlaybackShutdown: mocks.requestPlaybackShutdown,
 }));
 
