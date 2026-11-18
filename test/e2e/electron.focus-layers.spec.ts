@@ -22,7 +22,9 @@ import { expect, test, _electron as electron, type ElectronApplication, type Pag
  */
 
 const probeEnabled = process.env['FOCUS_LAYER_PROBE'] === '1';
-const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+// path.resolve drops the trailing separator: on Windows a trailing backslash escapes the
+// closing quote of the launch argument and Electron exits before opening a window.
+const repoRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 function readPositiveInteger(name: string, fallback: number, maximum: number): number {
   const parsed = Number.parseInt(process.env[name] ?? '', 10);
