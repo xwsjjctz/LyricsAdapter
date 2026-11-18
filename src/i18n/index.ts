@@ -20,7 +20,7 @@
  */
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { appStorage } from '../services/appStorage';
+import { appStorage } from '../services/storage/appStorage';
 import { logger } from '../services/logger';
 
 import zh from './locales/zh.json';

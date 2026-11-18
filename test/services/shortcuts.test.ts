@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { shortcutManager } from '@/services/shortcuts';
-import { appStorage } from '@/services/appStorage';
+import { appStorage } from '@/services/storage/appStorage';
 
 beforeEach(() => {
   localStorage.clear();

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getDesktopAPI } from '../../services/desktopAdapter';
-import { toCoverThumb } from '../../services/coverUrl';
+import { toCoverThumb } from '../../services/covers/coverUrl';
 import { logger } from '../../services/logger';
 
 /**

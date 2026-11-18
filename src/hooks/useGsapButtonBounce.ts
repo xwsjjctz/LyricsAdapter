@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-import { settingsManager } from '../services/settingsManager';
+import { settingsManager } from '../services/storage/settingsManager';
 
 // CSS transitions on `transform` would re-interpolate every GSAP frame, so
 // while a bounce runs only non-transform properties keep transitioning.

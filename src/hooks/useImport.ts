@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Track, type SyncedLyricLine } from '../types';
-import { parseAudioFile, parseLRCLyrics } from '../services/metadataService';
-import { libraryStorage } from '../services/libraryStorage';
-import { webdavClient, webdavCoverId } from '../services/webdavClient';
+import { parseAudioFile, parseLRCLyrics } from '../services/metadata/metadataService';
+import { libraryStorage } from '../services/storage/libraryStorage';
+import { webdavClient, webdavCoverId } from '../services/webdav/webdavClient';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface ParsedAudioMetadata {
@@ -20,13 +20,13 @@ interface ParsedAudioMetadata {
   fileSize?: number;
 }
 import { getDesktopAPI, getDesktopAPIAsync, type DesktopAPI } from '../services/desktopAdapter';
-import { metadataCacheService } from '../services/metadataCacheService';
-import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
+import { metadataCacheService } from '../services/storage/metadataCacheService';
+import { buildLibraryIndexDataForSlots } from '../services/storage/librarySerializer';
 import { logger } from '../services/logger';
 import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { getDesktopImportKey, getTrackImportKeys, getUniqueWebDAVFileName, getWebFileImportKey } from '../services/importIdentity';
-import type { LibrarySettings } from '../services/libraryStorage';
+import type { LibrarySettings } from '../services/storage/libraryStorage';
 
 interface UseImportOptions {
   tracks: Track[];

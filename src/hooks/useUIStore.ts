@@ -6,7 +6,7 @@ import { useGsapButtonBounce } from './useGsapButtonBounce';
 import { useGsapPageTransition } from './useGsapPageTransition';
 import { commandPalette } from './useCommandPalette';
 import { useWindowFocus } from './useWindowFocus';
-import { settingsManager, type LibraryMode } from '../services/settingsManager';
+import { settingsManager, type LibraryMode } from '../services/storage/settingsManager';
 
 export function useUIStore() {
   useGsapButtonBounce();

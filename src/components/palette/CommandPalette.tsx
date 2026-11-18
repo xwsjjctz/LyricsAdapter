@@ -9,7 +9,7 @@ import { dispatchForwardedShortcut, toNativePaletteState } from './nativePalette
 import { usePaletteItems, type PaletteItem, type PaletteLibrarySources } from './usePaletteItems';
 import TrackMenu, { type TrackMenuPosition } from '../TrackMenu';
 import { buildTrackMenuItems, downloadQualityOf } from '../../domain/trackMenuItems';
-import { themeManager } from '../../services/themeManager';
+import { themeManager } from '../../services/themes/themeManager';
 
 interface CommandPaletteProps {
   /** Injectable for tests; the app uses the shared store. */

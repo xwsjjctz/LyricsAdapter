@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type { Track } from '../types';
 import { useImport } from './useImport';
 import type { LibrarySlotId } from './useLibraryStore';
-import type { LibrarySettings } from '../services/libraryStorage';
+import type { LibrarySettings } from '../services/storage/libraryStorage';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 
 interface ImportStoreOptions {

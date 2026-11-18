@@ -21,7 +21,7 @@
  * STREAMINFO's MD5 checksums the *unencoded audio samples*, not the
  * metadata, so editing the comment block never invalidates it.
  *
- * This writer mirrors the read side in `src/services/metadataService.ts`
+ * This writer mirrors the read side in `src/services/metadata/metadataService.ts`
  * (`parseVorbisComment`) so written fields round-trip cleanly.
  */
 import fs from 'fs';

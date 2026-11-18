@@ -1,5 +1,5 @@
 import type { Track } from '../types';
-import type { OnlineSource } from '../services/onlineMusicProvider';
+import type { OnlineSource } from '../services/online/onlineMusicProvider';
 import type { PlaylistLoadState } from '../controllers/usePlayerController';
 
 /**

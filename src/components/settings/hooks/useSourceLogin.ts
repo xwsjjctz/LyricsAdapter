@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { OnlineSource } from '@/services/settingsManager';
-import { qqCredentialManager } from '@/services/qqCredentialManager';
-import { cookieStoreFor, sourceLogin, syncOnlineCookiesToMain, type MusicSourceLogin } from '@/services/musicSources';
+import type { OnlineSource } from '@/services/storage/settingsManager';
+import { qqCredentialManager } from '@/services/online/qqCredentialManager';
+import { cookieStoreFor, sourceLogin, syncOnlineCookiesToMain, type MusicSourceLogin } from '@/services/online/musicSources';
 import { logger } from '@/services/logger';
 import { useSettingsMessage, type SettingsMessageState } from './useSettingsMessage';
 import {
@@ -12,7 +12,7 @@ import {
   pollNetEaseQR,
   type QRLoginStatus,
   type QRPollResult,
-} from '@/services/qrLogin';
+} from '@/services/online/qrLogin';
 
 // Owns one music source's sign-in: its cookie and, for sources that support it, QR login.
 

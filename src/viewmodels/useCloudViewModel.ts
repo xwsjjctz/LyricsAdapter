@@ -1,4 +1,4 @@
-import { webdavClient } from '../services/webdavClient';
+import { webdavClient } from '../services/webdav/webdavClient';
 
 export interface CloudLoadProgress {
   loaded: number;

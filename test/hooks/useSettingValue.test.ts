@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useSettingValue } from '@/hooks/useSettingValue';
-import { settingsManager } from '@/services/settingsManager';
+import { settingsManager } from '@/services/storage/settingsManager';
 
 const readRadius = () => settingsManager.getFocusBgBlurRadius();
 

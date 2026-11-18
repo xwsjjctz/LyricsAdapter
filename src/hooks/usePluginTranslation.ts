@@ -11,10 +11,10 @@ import {
   setTranslationRequested,
   subscribeTranslationRequests,
   translationRequestKey,
-} from '../services/pluginTranslation';
+} from '../services/translation/pluginTranslation';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { logger } from '../services/logger';
-import { getTrackTranslationAction, runTrackTranslationAction, subscribeTrackTranslationActions } from '../services/trackTranslationActions';
+import { getTrackTranslationAction, runTrackTranslationAction, subscribeTrackTranslationActions } from '../services/translation/trackTranslationActions';
 
 /** `unavailable`: no usable translation provider or no lyrics, so Focus Mode shows no control. */
 export type PluginTranslationStatus = 'unavailable' | 'idle' | 'translating' | 'translated' | 'error';

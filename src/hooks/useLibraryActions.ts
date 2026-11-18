@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Track } from '../types';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
-import { metadataCacheService } from '../services/metadataCacheService';
+import { metadataCacheService } from '../services/storage/metadataCacheService';
 import { logger } from '../services/logger';
 
 /**

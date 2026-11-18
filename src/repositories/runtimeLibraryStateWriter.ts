@@ -1,7 +1,7 @@
-import { appStorage } from '../services/appStorage';
+import { appStorage } from '../services/storage/appStorage';
 import { getDesktopAPIAsync, isDesktop } from '../services/desktopAdapter';
-import { LatestWriteQueue } from '../services/latestWriteQueue';
-import type { buildMinimalTracks } from '../services/librarySerializer';
+import { LatestWriteQueue } from '../services/storage/latestWriteQueue';
+import type { buildMinimalTracks } from '../services/storage/librarySerializer';
 import { logger } from '../services/logger';
 
 type MinimalTracks = ReturnType<typeof buildMinimalTracks>;

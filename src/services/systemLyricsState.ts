@@ -5,7 +5,7 @@ import {
   type SystemLyricsState,
 } from '../types/systemLyrics';
 import { countGraphemes } from '../shared/graphemes';
-import { realCoverUrl } from './coverUrl';
+import { realCoverUrl } from './covers/coverUrl';
 import { normalizeSystemLyricsText } from '../shared/systemLyricsText';
 
 const TRACK_ID_LIMIT = 4096;

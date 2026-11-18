@@ -1,4 +1,4 @@
-import { indexedDBStorage } from '../indexedDBStorage';
+import { indexedDBStorage } from '../storage/indexedDBStorage';
 import { logger } from '../logger';
 import type { CachedMetadata } from './trackMapping';
 

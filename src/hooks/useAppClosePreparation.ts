@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { getDesktopAPIAsync } from '../services/desktopAdapter';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import { logger } from '../services/logger';
-import { requestPlaybackShutdown } from '../services/playbackShutdown';
+import { requestPlaybackShutdown } from '../services/playback/playbackShutdown';
 
 export function useAppClosePreparation(): void {
   useEffect(() => {

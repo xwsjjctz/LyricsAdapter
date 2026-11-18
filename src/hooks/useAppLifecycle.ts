@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { getDesktopAPIAsync, getDesktopAPI } from '../services/desktopAdapter';
-import { themeManager } from '../services/themeManager';
-import { webdavClient } from '../services/webdavClient';
-import { terminateMetadataWorker } from '../services/metadataService';
+import { themeManager } from '../services/themes/themeManager';
+import { webdavClient } from '../services/webdav/webdavClient';
+import { terminateMetadataWorker } from '../services/metadata/metadataService';
 import { logger } from '../services/logger';
 
 interface UseAppLifecycleParams {

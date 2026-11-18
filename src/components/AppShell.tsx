@@ -1,14 +1,14 @@
 import React, { type ReactElement, useCallback, useMemo, useState } from 'react';
 import { SlotId, ViewMode } from '../types';
 import { useLibraryState } from '../stores/libraryState';
-import type { PlaylistInfo } from '../services/onlineMusicProvider';
+import type { PlaylistInfo } from '../services/online/onlineMusicProvider';
 import TitleBar from './TitleBar';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
 import LibraryWallView from './LibraryWallView';
 import LibraryView from './LibraryView';
 import type { LibraryCollection } from './LibraryCollectionHeader';
-import { toCoverThumb } from '../services/coverUrl';
+import { toCoverThumb } from '../services/covers/coverUrl';
 import DownloadStatusPill from './wall/DownloadStatusPill';
 import WelcomePreview from './wall/WelcomePreview';
 import SettingsSurface, { NativeSettingsPrewarm } from './settings/SettingsSurface';

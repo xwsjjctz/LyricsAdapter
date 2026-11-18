@@ -1,13 +1,13 @@
 import { isOnlineTrackSource } from '../shared/onlineMusic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Track } from '../types';
-import { metadataCacheService } from '../services/metadataCacheService';
+import { metadataCacheService } from '../services/storage/metadataCacheService';
 import { logger } from '../services/logger';
-import { webdavClient } from '../services/webdavClient';
-import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playbackSource';
+import { webdavClient } from '../services/webdav/webdavClient';
+import { buildLocalAudioUrl, buildOnlineStreamUrl } from '../services/playback/playbackSource';
 import { UI } from '../constants/config';
-import { addPlaybackShutdownListener, pauseAudioBeforeShutdown } from '../services/playbackShutdown';
-import { attachAudioPulse, isAnalysableAudioUrl } from '../services/audioPulse';
+import { addPlaybackShutdownListener, pauseAudioBeforeShutdown } from '../services/playback/playbackShutdown';
+import { attachAudioPulse, isAnalysableAudioUrl } from '../services/playback/audioPulse';
 
 const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 

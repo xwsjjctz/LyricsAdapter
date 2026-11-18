@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { usePlayerController } from '@/controllers/usePlayerController';
-import type { OnlineLyricsResult } from '@/services/onlineMusicProvider';
+import type { OnlineLyricsResult } from '@/services/online/onlineMusicProvider';
 import type { SlotId, Track } from '@/types';
 
 const providerMocks = vi.hoisted(() => ({
@@ -17,14 +17,14 @@ const cacheMocks = vi.hoisted(() => ({
   fresh: vi.fn(),
 }));
 
-vi.mock('@/services/playlistTracksCache', () => ({
+vi.mock('@/services/storage/playlistTracksCache', () => ({
   loadPlaylistTracks: cacheMocks.load,
   savePlaylistTracks: cacheMocks.save,
   isPlaylistTracksFresh: cacheMocks.fresh,
 }));
 
-vi.mock('@/services/onlineMusicProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/services/onlineMusicProvider')>();
+vi.mock('@/services/online/onlineMusicProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/online/onlineMusicProvider')>();
   return {
     ...actual,
     getOnlineProvider: () => ({

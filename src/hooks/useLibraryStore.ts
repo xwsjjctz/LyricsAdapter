@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useGsapSlotTransition } from './useGsapSlotTransition';
 import { useLibrarySlots } from './useLibrarySlots';
-import { webdavClient } from '../services/webdavClient';
+import { webdavClient } from '../services/webdav/webdavClient';
 import { useStoreSelector } from '../stores/createStore';
 import type { LibraryStateStore } from '../stores/libraryState';
 import type { SlotId } from '../types';

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Language } from '@/i18n';
 import { getDesktopAPI } from '@/services/desktopAdapter';
 import { setNativeSettingsOwnsKeyboard } from '@/services/nativeSettingsFocus';
-import { settingsManager } from '@/services/settingsManager';
+import { settingsManager } from '@/services/storage/settingsManager';
 import { shortcutManager, type ShortcutAction } from '@/services/shortcuts';
 import type { MusicPluginInfo } from '@/shared/musicPlugin';
 import type { PluginUpdateSource } from '@/shared/pluginUpdate';

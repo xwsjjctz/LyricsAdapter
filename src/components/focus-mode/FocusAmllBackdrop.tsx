@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { BackgroundRender, MeshGradientRenderer } from '@applemusic-like-lyrics/core';
-import { DEFAULT_COVER_ARTWORK_URL, toCoverThumb } from '../../services/coverUrl';
+import { DEFAULT_COVER_ARTWORK_URL, toCoverThumb } from '../../services/covers/coverUrl';
 import { logger } from '../../services/logger';
-import { retainAudioPulse, sampleAudioPulse } from '../../services/audioPulse';
-import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState, type Spring } from '../../services/audioPulseEnvelope';
+import { retainAudioPulse, sampleAudioPulse } from '../../services/playback/audioPulse';
+import { INITIAL_PULSE_STATE, stepPulse, stepSpring, type PulseState, type Spring } from '../../services/playback/audioPulseEnvelope';
 
 interface FocusAmllBackdropProps {
   /** Resolved cover (the app-icon default when the track has none). */

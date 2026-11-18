@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SettingsSurface from '@/components/settings/SettingsSurface';
-import { settingsManager } from '@/services/settingsManager';
+import { settingsManager } from '@/services/storage/settingsManager';
 import { shortcutManager } from '@/services/shortcuts';
 import { musicPluginStore } from '@/stores/musicPluginStore';
 import type { NativeSettingsAction, NativeSettingsControl, NativeSettingsState } from '@/types/nativeSettings';

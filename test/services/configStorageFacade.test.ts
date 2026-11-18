@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/services/appStorage', () => ({
+vi.mock('@/services/storage/appStorage', () => ({
   appStorage: {
     getItem: mocks.getItem,
     setItem: mocks.setItem,
@@ -30,7 +30,7 @@ describe('configuration storage facade', () => {
   });
 
   it('routes theme persistence only through AppStorage', async () => {
-    const { themeManager } = await import('@/services/themeManager');
+    const { themeManager } = await import('@/services/themes/themeManager');
     const theme = themeManager.getAllThemes().find(({ id }) => id !== themeManager.getCurrentThemeId());
     expect(theme).toBeDefined();
 

@@ -10,10 +10,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/repositories/libraryPersistenceRepository', () => ({
   libraryPersistenceRepository: { loadBootstrap: mocks.loadBootstrap },
 }));
-vi.mock('@/services/metadataCacheService', () => ({
+vi.mock('@/services/storage/metadataCacheService', () => ({
   metadataCacheService: { initialize: mocks.initialize, get: mocks.getMetadata },
 }));
-vi.mock('@/services/libraryStorage', () => ({ libraryStorage: {
+vi.mock('@/services/storage/libraryStorage', () => ({ libraryStorage: {
   saveLibraryDebounced: mocks.saveLibraryDebounced,
   validateAllPaths: vi.fn().mockResolvedValue([]),
 } }));

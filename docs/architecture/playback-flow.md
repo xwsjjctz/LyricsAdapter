@@ -14,7 +14,7 @@
 | 曲库状态 | `stores/libraryState.ts`、`hooks/useLibrarySlots.ts`、`hooks/useLibraryStore.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
 | 持久化 | `hooks/useLibraryLoad.ts`、`repositories/libraryPersistenceRepository.ts`、`repositories/libraryClosePersistenceRepository.ts` | 聚合启动恢复、运行期状态写入、关闭最终快照；展示缓存由 `libraryStorage` 独立维护 |
 | 主进程协议 | `audioProtocol.ts`、`streamProtocol.ts`、`coverProtocol.ts` | 提供本地音频、在线音频、封面自定义协议 |
-| 音乐源插件 | `electron/services/musicPluginRegistry.ts`、`src/services/musicPluginProvider.ts` | 搜索、歌词、歌单、音源 URL 与认证；不持有播放状态 |
+| 音乐源插件 | `electron/services/musicPluginRegistry.ts`、`src/services/online/musicPluginProvider.ts` | 搜索、歌词、歌单、音源 URL 与认证；不持有播放状态 |
 
 ## 顶层流程
 

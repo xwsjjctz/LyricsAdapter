@@ -7,7 +7,7 @@ const settings = vi.hoisted(() => ({
   setLibraryMode: vi.fn(),
 }));
 
-vi.mock('@/services/settingsManager', () => ({
+vi.mock('@/services/storage/settingsManager', () => ({
   settingsManager: {
     getLibraryMode: () => settings.mode,
     setLibraryMode: settings.setLibraryMode,

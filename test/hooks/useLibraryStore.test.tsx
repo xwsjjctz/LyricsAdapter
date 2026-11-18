@@ -17,7 +17,7 @@ vi.mock('@/hooks/useGsapSlotTransition', () => ({
   }),
 }));
 
-vi.mock('@/services/webdavClient', () => ({
+vi.mock('@/services/webdav/webdavClient', () => ({
   webdavClient: { hasConfig: mocks.hasConfig },
 }));
 

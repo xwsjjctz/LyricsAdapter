@@ -9,7 +9,7 @@ const { writeAudioMetadata } = vi.hoisted(() => ({
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@/services/desktopAdapter', () => ({ getDesktopAPI: () => ({ writeAudioMetadata }) }));
 vi.mock('@/services/notificationService', () => ({ notify: vi.fn() }));
-vi.mock('@/services/metadataCacheService', () => ({ metadataCacheService: {} }));
+vi.mock('@/services/storage/metadataCacheService', () => ({ metadataCacheService: {} }));
 
 import MetadataEditorPopup from '@/components/MetadataEditorPopup';
 

@@ -8,16 +8,16 @@ const webdavMocks = vi.hoisted(() => ({
   getCdnUrl: vi.fn(),
   clearCdnCache: vi.fn(),
 }));
-vi.mock('@/services/webdavClient', () => ({
+vi.mock('@/services/webdav/webdavClient', () => ({
   webdavClient: webdavMocks,
 }));
 vi.mock('@/services/logger', () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
-vi.mock('@/services/metadataCacheService', () => ({
+vi.mock('@/services/storage/metadataCacheService', () => ({
   metadataCacheService: { get: vi.fn(), set: vi.fn() },
 }));
-vi.mock('@/services/onlineMusicProvider', () => ({
+vi.mock('@/services/online/onlineMusicProvider', () => ({
   getOnlineProvider: () => ({ id: 'qq', getLyrics: vi.fn() }),
   OnlineSource: {},
 }));
@@ -29,17 +29,17 @@ vi.mock('@/services/desktopAdapter', () => ({
 }));
 // The spectrum tap needs real media elements; this suite drives plain fakes.
 const audioPulseMocks = vi.hoisted(() => ({ attachAudioPulse: vi.fn() }));
-vi.mock('@/services/audioPulse', async () => ({
-  ...(await vi.importActual<typeof import('@/services/audioPulse')>('@/services/audioPulse')),
+vi.mock('@/services/playback/audioPulse', async () => ({
+  ...(await vi.importActual<typeof import('@/services/playback/audioPulse')>('@/services/playback/audioPulse')),
   attachAudioPulse: audioPulseMocks.attachAudioPulse,
 }));
-vi.mock('@/services/cookieManager', () => ({
+vi.mock('@/services/online/cookieManager', () => ({
   cookieManager: { ensureLoaded: vi.fn(), getCookie: () => '' },
   neteaseCookieManager: { ensureLoaded: vi.fn(), getCookie: () => '' },
 }));
 
 import { usePlayback } from '@/hooks/usePlayback';
-import { requestPlaybackShutdown } from '@/services/playbackShutdown';
+import { requestPlaybackShutdown } from '@/services/playback/playbackShutdown';
 
 function makeTrack(overrides: Partial<Track> & { id: string }): Track {
   return {

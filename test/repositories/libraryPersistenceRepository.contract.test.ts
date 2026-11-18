@@ -18,7 +18,7 @@ vi.mock('@/services/desktopAdapter', () => ({
   getDesktopAPIAsync: mocks.getDesktopAPIAsync,
 }));
 
-vi.mock('@/services/libraryStorage', () => ({
+vi.mock('@/services/storage/libraryStorage', () => ({
   libraryStorage: { loadLibrary: mocks.loadLibrary },
 }));
 

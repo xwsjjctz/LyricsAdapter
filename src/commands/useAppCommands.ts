@@ -4,16 +4,16 @@ import type { Language } from '../i18n';
 import { LANGUAGE_OPTIONS } from '../components/settings/shared';
 import { useOnlinePlaylists } from '../hooks/useOnlinePlaylists';
 import { logger } from '../services/logger';
-import type { PlaylistInfo } from '../services/onlineMusicProvider';
+import type { PlaylistInfo } from '../services/online/onlineMusicProvider';
 import {
   applyOverrides,
   loadOverrides,
   setOverride,
   type PlaylistOverride,
-} from '../services/playlistOverrides';
+} from '../services/storage/playlistOverrides';
 import { buildAppCommands, type AppCommandDeps, type PlaylistEntry } from './buildAppCommands';
 import type { PaletteCommand } from '../types/paletteCommand';
-import { themeManager } from '../services/themeManager';
+import { themeManager } from '../services/themes/themeManager';
 import { THEME_IDS } from '../types/theme';
 
 /** Shell callbacks; theme, language and playlist visibility are handled here. */

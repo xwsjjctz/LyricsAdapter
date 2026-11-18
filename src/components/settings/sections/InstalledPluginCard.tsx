@@ -2,7 +2,7 @@ import { Fragment, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MusicPluginInfo } from '@/shared/musicPlugin';
 import type { PluginUpdateInfo, PluginUpdateSource } from '@/shared/pluginUpdate';
-import { sourceLogin } from '@/services/musicSources';
+import { sourceLogin } from '@/services/online/musicSources';
 import type { SettingsTheme } from '../shared';
 import { useSourceSignedIn } from '../hooks/useSourceLogin';
 import Button from '../../ui/Button';

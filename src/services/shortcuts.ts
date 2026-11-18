@@ -1,5 +1,5 @@
 import { logger } from './logger';
-import { appStorage } from './appStorage';
+import { appStorage } from './storage/appStorage';
 
 import { DEFAULT_SHORTCUTS, resolveShortcutKey, type ShortcutAction, type ShortcutConfig } from '../constants/shortcuts';
 export type { ShortcutAction, ShortcutConfig } from '../constants/shortcuts';

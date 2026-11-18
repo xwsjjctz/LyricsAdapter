@@ -1,5 +1,5 @@
 import type { LyricLine as AmlLyricLine } from '@applemusic-like-lyrics/core';
-import { sourcePrependsLyricsTitle } from '../../services/musicSources';
+import { sourcePrependsLyricsTitle } from '../../services/online/musicSources';
 import type { SyncedLyricLine, Track } from '../../types';
 
 const PLAIN_LYRIC_TIMESTAMP = /^\[\d{1,2}:\d{2}(?::\d{2})?(?:\.\d{1,3})?\]/;

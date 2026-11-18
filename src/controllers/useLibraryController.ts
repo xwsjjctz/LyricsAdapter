@@ -2,14 +2,14 @@ import { useCallback, useRef } from 'react';
 import { requestLibraryFlush } from '../services/libraryFlushEvent';
 import type { MutableRefObject } from 'react';
 import type { LibrarySlot, SlotId, Track } from '../types';
-import { coverArtService } from '../services/coverArtService';
-import { metadataCacheService } from '../services/metadataCacheService';
+import { coverArtService } from '../services/covers/coverArtService';
+import { metadataCacheService } from '../services/storage/metadataCacheService';
 import { logger } from '../services/logger';
 import { reorderTracks, swapTracks } from '../services/libraryReorder';
-import { buildLibraryIndexDataForSlots } from '../services/librarySerializer';
-import { libraryStorage } from '../services/libraryStorage';
-import type { LibrarySettings } from '../services/libraryStorage';
-import { refreshTrackLyricsCaches } from '../services/trackLyricsCaches';
+import { buildLibraryIndexDataForSlots } from '../services/storage/librarySerializer';
+import { libraryStorage } from '../services/storage/libraryStorage';
+import type { LibrarySettings } from '../services/storage/libraryStorage';
+import { refreshTrackLyricsCaches } from '../services/storage/trackLyricsCaches';
 
 /**
  * Library Controller (Phase 2 of the refactor roadmap, §4).

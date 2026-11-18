@@ -8,16 +8,16 @@ import {
   type OnlineQuality,
   type OnlineSong,
   type OnlineSource,
-} from '../services/onlineMusicProvider';
-import { settingsManager } from '../services/settingsManager';
-import { webdavClient } from '../services/webdavClient';
-import { generateMetaJson } from '../services/webdavMetaService';
+} from '../services/online/onlineMusicProvider';
+import { settingsManager } from '../services/storage/settingsManager';
+import { webdavClient } from '../services/webdav/webdavClient';
+import { generateMetaJson } from '../services/webdav/webdavMetaService';
 import { notify } from '../services/notificationService';
-import { parseLyrics } from '../services/metadataService';
-import { metadataCacheService } from '../services/metadataCacheService';
+import { parseLyrics } from '../services/metadata/metadataService';
+import { metadataCacheService } from '../services/storage/metadataCacheService';
 import { logger } from '../services/logger';
 import { useTranslation } from 'react-i18next';
-import { QUALITY_EXTENSION, QUALITY_LABEL, saveOnlineAudio } from '../services/onlineDownload';
+import { QUALITY_EXTENSION, QUALITY_LABEL, saveOnlineAudio } from '../services/online/onlineDownload';
 import { getDesktopAPI, getDesktopAPIAsync } from '../services/desktopAdapter';
 import { WEBDAV_AUDIO_UPLOAD_ENABLED } from '../constants/features';
 import type { DownloadProgressEvent, OnlineProgressEntry } from '../types/onlineProgress';

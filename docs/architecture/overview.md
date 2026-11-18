@@ -274,7 +274,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 ### Library index 展示缓存
 
-renderer 的 `services/libraryStorage.ts` 经 `desktopAdapter` 调用主进程，读写 `app.getPath('userData')/library-index.json`。缓存由 `services/librarySerializer.ts` 构建：
+renderer 的 `services/storage/libraryStorage.ts` 经 `desktopAdapter` 调用主进程，读写 `app.getPath('userData')/library-index.json`。缓存由 `services/storage/librarySerializer.ts` 构建：
 
 - `songs`: local tracks
 - `cloudSongs`: cloud tracks
@@ -306,7 +306,7 @@ renderer 的 `services/libraryStorage.ts` 经 `desktopAdapter` 调用主进程�
 
 ### IndexedDB
 
-`services/indexedDBStorage.ts` 保存 renderer 侧缓存：
+`services/storage/indexedDBStorage.ts` 保存 renderer 侧缓存：
 
 - 普通 metadata cache。
 - WebDAV metadata cache。
@@ -316,7 +316,7 @@ renderer 的 `services/libraryStorage.ts` 经 `desktopAdapter` 调用主进程�
 
 桌面端 cookie、用户设置、侧栏布局和歌单覆盖由 `AppStorage` / SQLite 保存；IndexedDB 中历史设置仅在需要时作为一次性迁移来源。
 
-`services/metadataCacheService.ts` 在内存 Map 和 IndexedDB 之间提供 LRU/FIFO 风格缓存，最大 300 条，写入时做数据校验。
+`services/storage/metadataCacheService.ts` 在内存 Map 和 IndexedDB 之间提供 LRU/FIFO 风格缓存，最大 300 条，写入时做数据校验。
 
 ### 封面缓存
 
@@ -357,7 +357,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ### 在线音乐下载/上传
 
-在线 provider 抽象在 `services/onlineMusicProvider.ts`，QQ 和网易都归一成 `OnlineSong`。`services/musicPluginProvider.ts` 提供 renderer façade，搜索、歌词、歌单与 URL 查询最终由主进程中已启用的音乐源插件执行。
+在线 provider 抽象在 `services/online/onlineMusicProvider.ts`，QQ 和网易都归一成 `OnlineSong`。`services/online/musicPluginProvider.ts` 提供 renderer façade，搜索、歌词、歌单与 URL 查询最终由主进程中已启用的音乐源插件执行。
 
 `useOnlineMusicIntegration` 负责：
 
@@ -396,7 +396,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ## WebDAV 云曲库
 
-WebDAV 客户端在 `services/webdavClient.ts`，配置通过 `AppStorage` 的 `webdav-config` 读写：桌面端加密保存于 SQLite，浏览器模式使用 localStorage。短期 CDN URL 缓存独立放在 IndexedDB。它负责：
+WebDAV 客户端在 `services/webdav/webdavClient.ts`，配置通过 `AppStorage` 的 `webdav-config` 读写：桌面端加密保存于 SQLite，浏览器模式使用 localStorage。短期 CDN URL 缓存独立放在 IndexedDB。它负责：
 
 - PROPFIND 列目录。
 - 解析 WebDAV href 为稳定路径。
@@ -445,7 +445,7 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 
 桌面端默认通过 `electron/ipc/metadataHandlers.ts` 调用 `electron/services/audioMetadataService.ts`，由 `music-tag-native` 读取本地文件标签。浏览器模式、桌面兼容回退和 WebDAV 部分读取仍使用 renderer 解析路径：
 
-- `metadataService.parseAudioFile(file)` 优先使用 `services/workers/metadataWorker.ts`，失败时回到主线程 parser。
+- `metadataService.parseAudioFile(file)` 优先使用 `services/metadata/metadataWorker.ts`，失败时回到主线程 parser。
 - 支持 MP3 ID3v2、FLAC metadata block/VORBIS_COMMENT/PICTURE、M4A/MP4 atoms。
 - LRC 通过 `parseLRCLyrics()` 转为 `syncedLyrics`。
 - WebDAV Range 解析使用 `parseMetadataFromBuffer()`，当文件头不足以包含封面或完整 Vorbis comment 时返回需要补读的 range。

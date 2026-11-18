@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from 'react';
 import { Track } from '../types';
-import { themeManager } from '../services/themeManager';
+import { themeManager } from '../services/themes/themeManager';
 import { registerCommand } from '../services/debugCommands';
-import { settingsManager } from '../services/settingsManager';
+import { settingsManager } from '../services/storage/settingsManager';
 import { ThemeConfig, THEME_IDS } from '../types/theme';
 import { getDesktopAPI } from '../services/desktopAdapter';
-import { resolveCoverUrl } from '../services/coverUrl';
+import { resolveCoverUrl } from '../services/covers/coverUrl';
 import FocusBackdrop from './focus-mode/FocusBackdrop';
 import FocusControls from './focus-mode/FocusControls';
 import FocusCoverStage from './focus-mode/FocusCoverStage';

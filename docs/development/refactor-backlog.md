@@ -46,7 +46,7 @@
 
 ### 元数据解析重复实现
 
-`services/metadataService.ts` 的主线程 parser 与 `services/workers/metadataWorker.ts` 各有一份 MP3/FLAC/M4A 解析实现，修改解析行为时需要同步两处。
+`services/metadata/metadataService.ts` 的主线程 parser 与 `services/metadata/metadataWorker.ts` 各有一份 MP3/FLAC/M4A 解析实现，修改解析行为时需要同步两处。
 
 ### 依赖规则尚未覆盖 components → services
 

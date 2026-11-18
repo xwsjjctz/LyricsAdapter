@@ -4,7 +4,7 @@ import type { Track } from '../../types';
 import type { ThemeColors } from '../../types/theme';
 import { useFocusGlassControls } from '../../hooks/useFocusGlassControls';
 import { useFocusBackdropLuminance } from './useFocusBackdropLuminance';
-import { resolveCoverUrl } from '../../services/coverUrl';
+import { resolveCoverUrl } from '../../services/covers/coverUrl';
 import FocusPortraitControls from './FocusPortraitControls';
 import WindowsFocusControls from './WindowsFocusControls';
 import FocusTranslateButton from './FocusTranslateButton';

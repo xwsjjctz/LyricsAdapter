@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { settingsManager } from '../services/settingsManager';
+import { settingsManager } from '../services/storage/settingsManager';
 
 /**
  * Tracks the floating-panel setting and re-renders when it changes

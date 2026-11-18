@@ -16,7 +16,7 @@ const webdavMocks = vi.hoisted(() => ({
   ensureCollection: vi.fn(),
 }));
 
-vi.mock('@/services/webdavClient', () => ({
+vi.mock('@/services/webdav/webdavClient', () => ({
   webdavClient: {
     fetchTextFile: webdavMocks.fetchTextFile,
     uploadTextFile: webdavMocks.uploadTextFile,

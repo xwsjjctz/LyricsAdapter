@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import LibraryTrackRow from '@/components/LibraryTrackRow';
-import { themeManager } from '@/services/themeManager';
+import { themeManager } from '@/services/themes/themeManager';
 
 vi.mock('@/components/TrackCover', () => ({ default: () => <div data-testid="cover" /> }));
 function setup(selecting = false, available = true, current: { isCurrentTrack?: boolean; nowPlayingAnimated?: boolean } = {}) {

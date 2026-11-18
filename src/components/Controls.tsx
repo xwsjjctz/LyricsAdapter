@@ -1,7 +1,7 @@
 import React, { memo, useId, useRef } from 'react';
 import { Track } from '../types';
 import { useTranslation } from 'react-i18next';
-import { resolveCoverUrl, toCoverThumb } from '../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../services/covers/coverUrl';
 import OverflowMarquee from './OverflowMarquee';
 import '../styles/playerSliders.css';
 import { PlaybackIcon, usePlaybackSymbols } from './PlaybackIcon';

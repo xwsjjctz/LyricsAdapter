@@ -35,7 +35,7 @@
 | 流媒体代理 | [streamProtocol.ts](../../electron/protocols/streamProtocol.ts) |
 | 官方目录和下载校验 | [musicPluginCatalog.ts](../../electron/services/musicPluginCatalog.ts) |
 | 界面来源筛选 | [musicPluginStore.ts](../../src/stores/musicPluginStore.ts) |
-| renderer 的 provider 与凭据选择 | [onlineMusicProvider.ts](../../src/services/onlineMusicProvider.ts) |
+| renderer 的 provider 与凭据选择 | [onlineMusicProvider.ts](../../src/services/online/onlineMusicProvider.ts) |
 | 官方插件 SDK | [固定版本 src/sdk.ts](https://github.com/xwsjjctz/LyricsAdapter-Music-Plugins/blob/fa3a3a6e2f1731e1ec0709412121330b06cb3820/src/sdk.ts) |
 
 官方 SDK 目前是仓库中的 TypeScript 源文件，没有可直接安装的公共 SDK npm 包。它的 `OnlineSource` 也只包含 `qq | netease`；新增来源不能仅通过导入 SDK 完成。不要使用类型断言掩盖宿主尚未支持的来源。

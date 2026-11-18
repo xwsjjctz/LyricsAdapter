@@ -1,0 +1,241 @@
+import { readableForeground } from '@/services/themes/colorUtils';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { themeManager } from '@/services/themes/themeManager';
+import { appStorage } from '@/services/storage/appStorage';
+import { THEME_IDS } from '@/types/theme';
+import { getDefaultTheme } from '@/services/themes/predefinedThemes';
+import { dayPaletteColors } from '@/services/themes/dayPalette';
+import { resolveThemeControls } from '@/services/themes/themeControls';
+import { resolveThemeAppearance } from '@/services/themes/themeAppearance';
+
+beforeEach(() => {
+  localStorage.clear();
+  appStorage.clearCache();
+  (themeManager as any).currentThemeId = THEME_IDS.DEFAULT;
+});
+
+describe('getCurrentThemeId', () => {
+  it('should return default theme id initially', () => {
+    expect(themeManager.getCurrentThemeId()).toBe(THEME_IDS.DEFAULT);
+  });
+
+  it.each([
+    ['default-dark', THEME_IDS.DEFAULT, '#fff7fc'],
+    ['default-light', THEME_IDS.DEFAULT_LIGHT, '#31283a'],
+    ['warm', THEME_IDS.DEFAULT_LIGHT, '#31283a'],
+  ] as const)('restores the original mode from saved %s settings', async (savedTheme, expectedTheme, textColor) => {
+    themeManager.setTheme(THEME_IDS.BRUTALIST);
+    await appStorage.setItem('app-theme', savedTheme);
+    themeManager.reload();
+
+    expect(themeManager.getCurrentThemeId()).toBe(expectedTheme);
+    expect(appStorage.getItem('app-theme')).toBe(savedTheme);
+    expect(document.documentElement.style.getPropertyValue('--theme-text-primary')).toBe(textColor);
+  });
+
+  it('applies the night palette by default and restores the original day palette', () => {
+    themeManager.setTheme(THEME_IDS.DEFAULT);
+
+    expect(getDefaultTheme().isDark).toBe(true);
+    expect(document.documentElement.classList.contains('theme-dark')).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--theme-background-sidebar')).toBe('#1d1927');
+    expect(dayPaletteColors.textPrimary).toBe('#31283a');
+    expect(themeManager.getAllThemes().some(theme => theme.colors === dayPaletteColors)).toBe(true);
+    themeManager.setTheme(THEME_IDS.DEFAULT_LIGHT);
+    expect(document.documentElement.classList.contains('theme-light')).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--theme-background-gradient-start')).toBe('#fff7fb');
+    expect(document.documentElement.style.getPropertyValue('--theme-background-gradient-end')).toBe('#eef5ff');
+  });
+});
+
+describe('getCurrentTheme', () => {
+  it('should return a valid theme config', () => {
+    const theme = themeManager.getCurrentTheme();
+    expect(theme).toBeDefined();
+    expect(theme.id).toBe(THEME_IDS.DEFAULT);
+    expect(theme.colors).toBeDefined();
+    expect(theme.colors.primary).toBeTruthy();
+  });
+});
+
+describe('setTheme', () => {
+  it('should change the current theme', () => {
+    const allThemes = themeManager.getAllThemes();
+    const otherTheme = allThemes.find(t => t.id !== THEME_IDS.DEFAULT);
+    if (!otherTheme) return;
+
+    themeManager.setTheme(otherTheme.id);
+    expect(themeManager.getCurrentThemeId()).toBe(otherTheme.id);
+  });
+
+  it('should ignore non-existent theme id', () => {
+    const originalId = themeManager.getCurrentThemeId();
+    // Call setTheme with an invalid id - the method logs a warning and returns
+    themeManager.setTheme('non-existent' as any);
+    // Theme should remain unchanged
+    expect(themeManager.getCurrentThemeId()).toBe(originalId);
+  });
+
+  it('should persist to localStorage', () => {
+    const allThemes = themeManager.getAllThemes();
+    const otherTheme = allThemes.find(t => t.id !== THEME_IDS.DEFAULT);
+    if (!otherTheme) return;
+
+    themeManager.setTheme(otherTheme.id);
+    expect(localStorage.getItem('app-theme')).toBe(otherTheme.id);
+  });
+});
+
+describe('getAllThemes', () => {
+  it('should return an array of themes', () => {
+    const themes = themeManager.getAllThemes();
+    expect(Array.isArray(themes)).toBe(true);
+    expect(themes.length).toBeGreaterThan(0);
+  });
+
+  it('should include the default theme', () => {
+    const themes = themeManager.getAllThemes();
+    expect(themes.some(t => t.id === THEME_IDS.DEFAULT)).toBe(true);
+  });
+});
+
+describe('applyTheme', () => {
+  it('should set CSS custom properties on :root', () => {
+    const theme = getDefaultTheme();
+
+    // Restore original documentElement before this test
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-primary')).toBe(theme.colors.primary);
+    expect(root.style.getPropertyValue('--theme-background-dark')).toBe(theme.colors.backgroundDark);
+    expect(root.style.getPropertyValue('--theme-text-primary')).toBe(theme.colors.textPrimary);
+  });
+
+  it('exposes a readable foreground for text on the primary color', () => {
+    const theme = getDefaultTheme();
+    themeManager.applyTheme(theme);
+    expect(document.documentElement.style.getPropertyValue('--theme-on-primary'))
+      .toBe(readableForeground(theme.colors.primary));
+  });
+
+  it('should expose theme-driven control custom properties', () => {
+    const theme = getDefaultTheme();
+    const controls = resolveThemeControls(theme);
+
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-control-panel-bg')).toBe(controls.panelBackground);
+    expect(root.style.getPropertyValue('--theme-control-action-bg')).toBe(controls.actionBackground);
+    expect(root.style.getPropertyValue('--theme-control-primary-button-bg')).toBe(controls.primaryButtonBackground);
+    expect(root.style.getPropertyValue('--theme-control-slider-fill')).toBe(controls.sliderFill);
+  });
+
+  it('should allow themes to override control styles without changing palette tokens', () => {
+    const theme = {
+      ...getDefaultTheme(),
+      controls: {
+        actionBackground: '#123456',
+        sliderFill: '#abcdef',
+      },
+    };
+
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-primary')).toBe(theme.colors.primary);
+    expect(root.style.getPropertyValue('--theme-control-action-bg')).toBe('#123456');
+    expect(root.style.getPropertyValue('--theme-control-slider-fill')).toBe('#abcdef');
+  });
+
+  it('should expose theme-driven appearance custom properties', () => {
+    const theme = {
+      ...getDefaultTheme(),
+      appearance: {
+        surfaceRadius: '0px',
+        progressHeight: '8px',
+        panelBorderWidth: '4px',
+        buttonLetterSpacing: '0.12em',
+      },
+    };
+    const appearance = resolveThemeAppearance(theme);
+
+    themeManager.applyTheme(theme);
+
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--theme-surface-radius')).toBe(appearance.surfaceRadius);
+    expect(root.style.getPropertyValue('--theme-progress-height')).toBe('8px');
+    expect(root.style.getPropertyValue('--theme-panel-border-width')).toBe('4px');
+    expect(root.style.getPropertyValue('--theme-button-letter-spacing')).toBe('0.12em');
+  });
+
+  it('overrides the root font only for themes with their own typeface', () => {
+    const theme = getDefaultTheme();
+    themeManager.applyTheme({ ...theme, fonts: { main: "'Arial Black', sans-serif" } });
+    // CSSOM serializes single quotes to double quotes, so do a contains check
+    expect(document.documentElement.style.fontFamily).toContain('Arial Black');
+
+    themeManager.applyTheme(theme);
+    expect(document.documentElement.style.fontFamily).toBe('');
+  });
+
+  it('draws the default themes in Fluent on Windows only', () => {
+    const root = document.documentElement;
+    themeManager.applyTheme(getDefaultTheme());
+    expect(root.dataset['designLanguage']).toBeUndefined();
+
+    const electron = window.electron;
+    Object.assign(window, { electron: { ...electron, platform: 'win32' } });
+    try {
+      themeManager.applyTheme(getDefaultTheme());
+      expect(root.dataset['designLanguage']).toBe('fluent');
+      expect(root.style.getPropertyValue('--theme-control-radius')).toBe('4px');
+      expect(themeManager.getCurrentTheme().designLanguage).toBe('fluent');
+      // The Windows glass player redeclares the theme's own tokens.
+      expect(themeManager.getBaseTheme().designLanguage).toBeUndefined();
+
+      themeManager.applyTheme(themeManager.getAllThemes().find(t => t.id === THEME_IDS.BRUTALIST)!);
+      expect(root.dataset['designLanguage']).toBeUndefined();
+    } finally {
+      Object.assign(window, { electron });
+      themeManager.applyTheme(getDefaultTheme());
+    }
+  });
+
+  it('should toggle theme-dark / theme-light class based on isDark', () => {
+    const darkTheme = getDefaultTheme();
+    // The default theme is probably dark — test the light case
+    const lightTheme = { ...darkTheme, isDark: false };
+    themeManager.applyTheme(lightTheme);
+    expect(document.documentElement.classList.contains('theme-light')).toBe(true);
+    expect(document.documentElement.classList.contains('theme-dark')).toBe(false);
+  });
+});
+
+describe('subscribe', () => {
+  it('should notify on theme change', () => {
+    const listener = vi.fn();
+    themeManager.subscribe(listener);
+
+    const allThemes = themeManager.getAllThemes();
+    const otherTheme = allThemes.find(t => t.id !== THEME_IDS.DEFAULT);
+    if (!otherTheme) return;
+
+    themeManager.setTheme(otherTheme.id);
+    expect(listener).toHaveBeenCalledWith(otherTheme.id);
+  });
+
+  it('should stop notifying after unsubscribe', () => {
+    const listener = vi.fn();
+    const unsubscribe = themeManager.subscribe(listener);
+    unsubscribe();
+
+    const allThemes = themeManager.getAllThemes();
+    const otherTheme = allThemes.find(t => t.id !== THEME_IDS.DEFAULT);
+    if (!otherTheme) return;
+
+    themeManager.setTheme(otherTheme.id);
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
