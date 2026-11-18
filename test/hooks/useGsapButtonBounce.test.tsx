@@ -9,7 +9,7 @@ const gsapMock = vi.hoisted(() => ({
 }));
 
 vi.mock('gsap', () => ({ gsap: gsapMock }));
-vi.mock('@/services/settingsManager', () => ({
+vi.mock('@/services/storage/settingsManager', () => ({
   settingsManager: { getGsapButtonBounce: () => true, subscribe: () => () => undefined },
 }));
 

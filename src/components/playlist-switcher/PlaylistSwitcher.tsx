@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } f
 import { useTranslation } from 'react-i18next';
 import { useNativeSurface } from '../../hooks/useNativeSurface';
 import { useDocumentDarkMode } from '../../hooks/useNativePalette';
-import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../../services/covers/coverUrl';
 import { getDesktopAPI } from '../../services/desktopAdapter';
 import type { PlaylistSwitcherAction, PlaylistSwitcherFrameAction } from '../../types/playlistSwitcher';
 import { toNativeSwitcherState } from './nativeSwitcherState';

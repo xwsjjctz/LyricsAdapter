@@ -6,15 +6,15 @@
 
 | 参与者 | 文件 | 职责 |
 | --- | --- | --- |
-| UI | `components/AppShell.tsx`、`components/LibraryView.tsx`、`components/Controls.tsx`、`components/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
+| UI | `components/AppShell.tsx`、`components/library/LibraryView.tsx`、`components/Controls.tsx`、`components/focus-mode/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
 | 应用组合层 | `App.tsx` 中的 `AppContent` | 挂载 `<audio>`，连接 UI、stores、controllers、viewmodels 与生命周期 hooks |
 | 播放意图 | `controllers/usePlayerController.ts` | 处理同/跨 slot 选歌、在线流播放、歌单浏览与播放上下文 |
-| 播放聚合层 | `hooks/usePlayerStore.ts` | 包装 `usePlayback`，提供实时播放时钟、音量/模式读取与恢复入口 |
+| 播放聚合层 | `hooks/usePlayerRuntime.ts` | 包装 `usePlayback`，提供实时播放时钟、音量/模式读取与恢复入口 |
 | 播放核心 | `hooks/usePlayback.ts` | 控制 `<audio>`，按 track source 解析播放 URL，处理事件与错误恢复 |
-| 曲库状态 | `stores/libraryState.ts`、`hooks/useLibrarySlots.ts`、`hooks/useLibraryStore.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
+| 曲库状态 | `stores/libraryState.ts`、`hooks/useLibrarySlots.ts`、`hooks/useLibraryWorkspace.ts` | 保存四个 slot 的 tracks、index、time、volume、mode、滚动和过滤状态 |
 | 持久化 | `hooks/useLibraryLoad.ts`、`repositories/libraryPersistenceRepository.ts`、`repositories/libraryClosePersistenceRepository.ts` | 聚合启动恢复、运行期状态写入、关闭最终快照；展示缓存由 `libraryStorage` 独立维护 |
 | 主进程协议 | `audioProtocol.ts`、`streamProtocol.ts`、`coverProtocol.ts` | 提供本地音频、在线音频、封面自定义协议 |
-| 音乐源插件 | `electron/services/musicPluginRegistry.ts`、`src/services/musicPluginProvider.ts` | 搜索、歌词、歌单、音源 URL 与认证；不持有播放状态 |
+| 音乐源插件 | `electron/services/plugins/musicPluginRegistry.ts`、`src/services/online/musicPluginProvider.ts` | 搜索、歌词、歌单、音源 URL 与认证；不持有播放状态 |
 
 ## 顶层流程
 

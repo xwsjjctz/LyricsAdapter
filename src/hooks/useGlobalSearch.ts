@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { logger } from '../services/logger';
-import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
-import { providerFor, sourceIsReady } from '../services/musicSources';
+import type { OnlineSong, OnlineSource } from '../services/online/onlineMusicProvider';
+import { providerFor, sourceIsReady } from '../services/online/musicSources';
 import { useMusicPlugins } from '../stores/musicPluginStore';
 import { searchTracks, type TrackSearchResult } from '../services/trackSearch';
 import type { Track } from '../types';

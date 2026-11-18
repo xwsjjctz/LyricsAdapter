@@ -4,7 +4,7 @@
  * Separates non-rebuildable user data (track membership, play count, settings)
  * from rebuildable cache (metadata from audio file headers).
  */
-import { userDataStore } from '../services/userDataStore';
+import { userDataStore } from '../services/persistence/userDataStore';
 import { logger } from '../logger';
 import { typedIpcSchemas, userDataSnapshotSchema } from './typedSchemas';
 import { errorMessage, fail, ok, parsePayload } from './typedResult';

@@ -12,7 +12,7 @@ import type { Track } from '../../types';
 import { trackToAmlLyricLines } from './amllLyrics';
 import { FocusAmlAnimationBudget } from './focusAmlAnimationBudget';
 import { getDesktopAPI } from '../../services/desktopAdapter';
-import { settingsManager } from '../../services/settingsManager';
+import { settingsManager } from '../../services/storage/settingsManager';
 import { useWindowVisible } from '../../hooks/useWindowVisible';
 
 const subscribeToSettings = (listener: () => void) => settingsManager.subscribe(listener);

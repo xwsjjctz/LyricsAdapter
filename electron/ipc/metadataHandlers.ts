@@ -1,5 +1,5 @@
 import { logger } from "../logger";
-import { readAudioMetadata, writeAudioMetadata } from "../services/audioMetadataService";
+import { readAudioMetadata, writeAudioMetadata } from "../services/metadata/audioMetadataService";
 import type { AudioMetadataWrite } from "../../src/shared/ipcContract";
 import { handleIpc } from './ipcMainTyped';
 

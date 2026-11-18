@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/services/appStorage', () => ({
+vi.mock('@/services/storage/appStorage', () => ({
   appStorage: {
     init: mocks.storageInit,
     getItem: mocks.storageGetItem,
@@ -23,7 +23,7 @@ vi.mock('@/services/appStorage', () => ({
   },
 }));
 
-vi.mock('@/services/indexedDBStorage', () => ({
+vi.mock('@/services/storage/indexedDBStorage', () => ({
   indexedDBStorage: {
     initialize: mocks.idbInitialize,
     getSetting: mocks.idbGetSetting,
@@ -50,7 +50,7 @@ async function createLoadedStore(cookie: string, checkTime: string) {
     return '';
   });
 
-  const module = await import('@/services/cookieManager');
+  const module = await import('@/services/online/cookieManager');
   await Promise.all([
     module.cookieManager.ensureLoaded(),
     module.neteaseCookieManager.ensureLoaded(),

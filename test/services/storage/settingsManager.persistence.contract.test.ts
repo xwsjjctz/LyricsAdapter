@@ -1,0 +1,177 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const storageMocks = vi.hoisted(() => ({
+  getItem: vi.fn<(key: string) => string | null>(() => null),
+  setItem: vi.fn<(key: string, value: string) => Promise<void>>(),
+}));
+
+vi.mock('@/services/storage/appStorage', () => ({
+  appStorage: storageMocks,
+}));
+
+vi.mock('@/services/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+import { settingsManager } from '@/services/storage/settingsManager';
+
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: Error) => void;
+} {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+describe('SettingsManager persistence contract', () => {
+  beforeEach(() => {
+    storageMocks.getItem.mockReset();
+    storageMocks.getItem.mockReturnValue(null);
+    storageMocks.setItem.mockReset();
+    storageMocks.setItem.mockResolvedValue(undefined);
+    (settingsManager as unknown as { onlineSource: string }).onlineSource = 'qq';
+    (settingsManager as unknown as { downloadPath: string }).downloadPath = '';
+    (settingsManager as unknown as { focusAmlLyricsEnabled: boolean }).focusAmlLyricsEnabled = false;
+    (settingsManager as unknown as { focusAmlLyricsDurableValue: boolean }).focusAmlLyricsDurableValue = false;
+    (settingsManager as unknown as { focusAmlLyricsPersistenceQueue: Promise<void> }).focusAmlLyricsPersistenceQueue = Promise.resolve();
+    (settingsManager as unknown as { persistenceRevisions: Map<string, number> }).persistenceRevisions.clear();
+  });
+
+  it('reports a durable write failure and rolls back the current value', async () => {
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(settingsManager.setOnlineSource('netease')).resolves.toBe(false);
+    expect(settingsManager.getOnlineSource()).toBe('qq');
+  });
+
+  it('keeps any stored plugin id and falls back to QQ Music only for malformed values', () => {
+    // The plugin list later switches to an enabled source if this one is not installed.
+    storageMocks.getItem.mockImplementation(key => key === 'la_online_source' ? 'soda' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getOnlineSource()).toBe('soda');
+
+    storageMocks.getItem.mockImplementation(key => key === 'la_online_source' ? 'Not A Source!' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getOnlineSource()).toBe('qq');
+  });
+
+  it('defaults AMLL lyrics on while respecting explicit stored values', () => {
+    storageMocks.getItem.mockReturnValue(null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
+
+    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'false' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+
+    storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_lyrics_enabled' ? 'invalid' : null);
+    (settingsManager as unknown as { loadFromStorage: () => void }).loadFromStorage();
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(true);
+  });
+
+  it('rolls back the AMLL renderer flag when persistence fails', async () => {
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(settingsManager.setFocusAmlLyricsEnabled(true)).resolves.toBe(false);
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+  });
+
+  it('defaults the Windows font preference off and restores valid saved values', async () => {
+    settingsManager.reload();
+    expect(settingsManager.getFocusEnhancedFontEnabled()).toBe(false);
+    for (const value of ['true', 'false', 'invalid']) {
+      storageMocks.getItem.mockImplementation(key => key === 'la_focus_enhanced_font_enabled' ? value : null);
+      settingsManager.reload();
+      expect(settingsManager.getFocusEnhancedFontEnabled()).toBe(value === 'true');
+    }
+    await expect(settingsManager.setFocusEnhancedFontEnabled(true)).resolves.toBe(true);
+    expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_enhanced_font_enabled', 'true');
+    await expect(settingsManager.setFocusEnhancedFontEnabled(false)).resolves.toBe(true);
+    expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_enhanced_font_enabled', 'false');
+  });
+
+  it('defaults the Focus background to the classic cover and restores saved values', async () => {
+    settingsManager.reload();
+    expect(settingsManager.getFocusAmllBackgroundEnabled()).toBe(false);
+    for (const value of ['true', 'false', 'invalid']) {
+      storageMocks.getItem.mockImplementation(key => key === 'la_focus_amll_background_enabled' ? value : null);
+      settingsManager.reload();
+      expect(settingsManager.getFocusAmllBackgroundEnabled()).toBe(value === 'true');
+    }
+    await expect(settingsManager.setFocusAmllBackgroundEnabled(true)).resolves.toBe(true);
+    expect(storageMocks.setItem).toHaveBeenLastCalledWith('la_focus_amll_background_enabled', 'true');
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+    await expect(settingsManager.setFocusAmllBackgroundEnabled(false)).resolves.toBe(false);
+    expect(settingsManager.getFocusAmllBackgroundEnabled()).toBe(true);
+  });
+
+  it('restores the displayed font preference when saving fails', async () => {
+    settingsManager.reload();
+    storageMocks.setItem.mockRejectedValueOnce(new Error('disk full'));
+    const listener = vi.fn();
+    const unsubscribe = settingsManager.subscribe(listener);
+    try {
+      await expect(settingsManager.setFocusEnhancedFontEnabled(true)).resolves.toBe(false);
+      expect(settingsManager.getFocusEnhancedFontEnabled()).toBe(false);
+      expect(listener).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('returns to the last durable AMLL value when two rapid writes both fail', async () => {
+    const older = deferred();
+    const newer = deferred();
+    storageMocks.setItem
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise);
+
+    const olderResult = settingsManager.setFocusAmlLyricsEnabled(true);
+    const newerResult = settingsManager.setFocusAmlLyricsEnabled(false);
+    older.reject(new Error('first write failed'));
+    await expect(olderResult).resolves.toBe(false);
+    newer.reject(new Error('second write failed'));
+
+    await expect(newerResult).resolves.toBe(false);
+    expect(settingsManager.getFocusAmlLyricsEnabled()).toBe(false);
+  });
+
+  it('does not let an older failed write roll back a newer successful value', async () => {
+    const older = deferred();
+    const newer = deferred();
+    storageMocks.setItem
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise);
+
+    const olderResult = settingsManager.setOnlineSource('netease');
+    const newerResult = settingsManager.setOnlineSource('qq');
+    newer.resolve();
+    await expect(newerResult).resolves.toBe(true);
+    older.reject(new Error('older write failed'));
+
+    await expect(olderResult).resolves.toBe(false);
+    expect(settingsManager.getOnlineSource()).toBe('qq');
+  });
+
+  it('lets save flows await download-path durability', async () => {
+    const write = deferred();
+    storageMocks.setItem.mockImplementationOnce(() => write.promise);
+
+    const result = settingsManager.setDownloadPath('/music');
+    expect(settingsManager.getDownloadPath()).toBe('/music');
+    write.resolve();
+
+    await expect(result).resolves.toBe(true);
+  });
+});

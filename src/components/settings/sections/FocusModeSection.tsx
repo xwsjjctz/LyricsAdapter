@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDesktopAPI } from '../../../services/desktopAdapter';
-import { settingsManager } from '../../../services/settingsManager';
+import { settingsManager } from '../../../services/storage/settingsManager';
 import { Switch } from '../../ui';
 import { useSettingValue } from '../../../hooks/useSettingValue';
 import type { SettingsTheme } from '../shared';

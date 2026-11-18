@@ -4,7 +4,7 @@ import {
   DEFAULT_COVER_ARTWORK_URL,
   resolveCoverUrl,
   toCoverThumb,
-} from '../services/coverUrl';
+} from '../services/covers/coverUrl';
 import { logger } from '../services/logger';
 
 const DEFAULT_SEEK_OFFSET_SECONDS = 10;

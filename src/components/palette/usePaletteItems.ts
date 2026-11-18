@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PaletteCommand } from '../../types/paletteCommand';
 import { resolveCommandLevel, searchCommands } from '../../commands/searchCommands';
-import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
-import type { OnlineQuality, OnlineSong, OnlineSource, PlaylistInfo } from '../../services/onlineMusicProvider';
+import { resolveCoverUrl, toCoverThumb } from '../../services/covers/coverUrl';
+import type { OnlineQuality, OnlineSong, OnlineSource, PlaylistInfo } from '../../services/online/onlineMusicProvider';
 import { shortcutManager } from '../../services/shortcuts';
 import { textMatchesQuery } from '../../services/trackSearch';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import type { CommandPaletteState } from '../../hooks/useCommandPalette';
 import type { Track } from '../../types';
-import { sourceLabel } from '../../services/musicSources';
+import { sourceLabel } from '../../services/online/musicSources';
 
 const LIBRARY_LIMIT = 6;
 const ONLINE_LIMIT = 8;

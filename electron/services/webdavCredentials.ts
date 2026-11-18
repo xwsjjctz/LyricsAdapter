@@ -1,5 +1,5 @@
 import type { WebdavAccountProbe, WebdavCredentialMode } from '../../src/shared/ipcContract';
-import { settingsStore } from './settingsStore';
+import { settingsStore } from './persistence/settingsStore';
 
 /**
  * WebDAV credentials stay in the main process: the renderer names a URL and

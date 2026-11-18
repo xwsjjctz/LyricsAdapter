@@ -16,10 +16,10 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('electron', () => ({ ipcMain: mocks.ipcMain }));
-vi.mock('../../../electron/services/persistenceRepository', () => ({
+vi.mock('../../../electron/services/persistence/persistenceRepository', () => ({
   persistenceRepository: { loadBootstrap: mocks.loadBootstrap },
 }));
-vi.mock('../../../electron/services/persistenceCommitService', () => ({
+vi.mock('../../../electron/services/persistence/persistenceCommitService', () => ({
   persistenceCommitService: { commitClose: mocks.commitClose },
 }));
 vi.mock('../../../electron/logger', () => ({

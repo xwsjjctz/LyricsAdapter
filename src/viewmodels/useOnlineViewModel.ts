@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { Track } from '../types';
-import type { OnlineSong, OnlineSource } from '../services/onlineMusicProvider';
-import type { OnlineQuality } from '../services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from '../services/online/onlineMusicProvider';
+import type { OnlineQuality } from '../services/online/onlineMusicProvider';
 import { trackToOnlineSong } from '../domain/trackFactory';
 import type { OnlineProgressEntry } from '../types/onlineProgress';
 

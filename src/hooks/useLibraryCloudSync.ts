@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Track, SlotId } from '../types';
 import { logger } from '../services/logger';
-import { webdavClient } from '../services/webdavClient';
+import { webdavClient } from '../services/webdav/webdavClient';
 import { useWebDAV, WebDAVDiffResult } from '../hooks/useWebDAV';
-import { parseMetadataFromBuffer, parseCoverFromRange } from '../services/metadataService';
+import { parseMetadataFromBuffer, parseCoverFromRange } from '../services/metadata/metadataService';
 import { metadataFolderService, Manifest, ManifestEntry, Chunk, ChunkEntry, assignChunkId, DEFAULT_CHUNK_SIZE } from '../services/webdav/metadataFolderService';
 import { getEffectiveConfig } from '../services/webdav/providerConfig';
 import { registerCommand } from '../services/debugCommands';

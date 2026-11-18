@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { MusicPluginInfo } from '@/shared/musicPlugin';
 import type { ConfigurationField } from '@/shared/plugin';
 import { isOfficialMusicSource, type PluginUpdateChannel, type PluginUpdateInfo, type PluginUpdateSource } from '@/shared/pluginUpdate';
-import { languageDisplayName, translationLanguages } from '@/services/pluginTranslation';
+import { languageDisplayName, translationLanguages } from '@/services/translation/pluginTranslation';
 import { useSourceLogin, useSourceSignedIn } from '../hooks/useSourceLogin';
 import { pluginCardCapabilities } from '../sections/InstalledPluginCard';
 import { usePluginConfiguration } from '../sections/PluginConfiguration';

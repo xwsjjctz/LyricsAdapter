@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildAppCommands, type AppCommandDeps } from '@/commands/buildAppCommands';
 import { resolveCommandLevel, searchCommands } from '@/commands/searchCommands';
 import type { PaletteCommand } from '@/types/paletteCommand';
-import type { PlaylistInfo } from '@/services/onlineMusicProvider';
+import type { PlaylistInfo } from '@/services/online/onlineMusicProvider';
 
 const t = ((key: string, options?: Record<string, unknown>) =>
   options ? `${key}(${Object.values(options).join(',')})` : key) as unknown as TFunction;

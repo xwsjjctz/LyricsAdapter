@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   BrowserWindow: { getFocusedWindow: mocks.focused },
   Menu: { buildFromTemplate: mocks.build, setApplicationMenu: mocks.install },
 }));
-vi.mock('../../electron/services/settingsStore', () => ({ settingsStore: { get: (key: string) => mocks.settings[key] } }));
+vi.mock('../../electron/services/persistence/settingsStore', () => ({ settingsStore: { get: (key: string) => mocks.settings[key] } }));
 vi.mock('../../electron/services/windowState', () => ({ applyWindowPreset: mocks.preset }));
 import { registerApplicationMenu } from '../../electron/applicationMenu';
 

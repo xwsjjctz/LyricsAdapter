@@ -16,7 +16,7 @@ test('real Chromium requests read complete bodies and manual redirects after the
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'la-plugin-network-')));
   try {
     await mkdir(path.join(root, 'native-transport-profile'));
-    await build({ entryPoints: [path.join(repo, 'electron/services/pluginUpdateFetch.ts')],
+    await build({ entryPoints: [path.join(repo, 'electron/services/plugins/pluginUpdateFetch.ts')],
       bundle: true, platform: 'node', format: 'cjs', external: ['electron'], outfile: path.join(root, 'plugin-transport.cjs') });
     const entry = path.join(root, 'main.cjs');
     await copyFile(path.join(repo, 'test/e2e/fixtures/plugin-update-network.cjs'), entry);

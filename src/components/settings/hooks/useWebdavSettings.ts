@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { webdavClient } from '@/services/webdavClient';
+import { webdavClient } from '@/services/webdav/webdavClient';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/services/logger';
 import { useSettingsMessage, type SettingsMessageState } from './useSettingsMessage';

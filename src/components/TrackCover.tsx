@@ -4,7 +4,7 @@ import {
   realCoverUrl,
   toCoverThumb,
   appendCoverQuery,
-} from '../services/coverUrl';
+} from '../services/covers/coverUrl';
 
 interface TrackCoverProps {
   trackId: string;

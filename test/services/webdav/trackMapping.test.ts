@@ -11,7 +11,7 @@ import {
   parseArtistTitleFromFilename,
   trackToWebDAVFile,
 } from '@/services/webdav/trackMapping';
-import type { WebDAVFile } from '@/services/webdavClient';
+import type { WebDAVFile } from '@/services/webdav/webdavClient';
 
 const file = (path: string, size = 10, lastModified = 'Mon, 01 Jan 2024 00:00:00 GMT'): WebDAVFile => ({
   name: path.split('/').pop()!, path, size, lastModified, isDirectory: false,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { themeManager } from '@/services/themeManager';
+import { themeManager } from '@/services/themes/themeManager';
 import { THEME_IDS, ThemeConfig } from '@/types/theme';
 import { i18n } from '@/services/i18n';
 

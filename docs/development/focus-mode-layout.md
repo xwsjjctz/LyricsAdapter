@@ -8,7 +8,7 @@
 
 ### 主体布局
 
-实现：[FocusMode.tsx](../../src/components/FocusMode.tsx)。
+实现：[FocusMode.tsx](../../src/components/focus-mode/FocusMode.tsx)。
 
 - 整页覆盖窗口，内容使用纵向 flex 布局。
 - 顶部预留 `48 × scale`，主体底部外边距为 `96 × scale`。

@@ -1,6 +1,6 @@
 import { startPluginGuest } from '../../../electron/plugin-host/pluginGuest';
 import type { GuestToHost, HostToGuest } from '../../../electron/plugin-host/protocol';
-import type { PluginProcessChannel } from '../../../electron/services/pluginProcess';
+import type { PluginProcessChannel } from '../../../electron/services/plugins/pluginProcess';
 
 /**
  * Runs the real guest in this process; every message is structured-cloned and

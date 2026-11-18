@@ -2,7 +2,7 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Track } from '@/types';
 import FocusAmlLyrics, { FocusDomLyricPlayer } from '@/components/focus-mode/FocusAmlLyrics';
-import { settingsManager } from '@/services/settingsManager';
+import { settingsManager } from '@/services/storage/settingsManager';
 
 const desktopMocks = vi.hoisted(() => ({ platform: 'win32' as string | undefined }));
 vi.mock('@/services/desktopAdapter', () => ({

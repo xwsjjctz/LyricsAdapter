@@ -48,8 +48,8 @@ were independently implemented for this repository.
 The acknowledgement applies principally to these LyricsAdapter implementation
 targets and their later revisions:
 
-- `electron/services/windowsTaskbarLyricsService.ts`
-- `electron/services/systemLyricsCoordinator.ts`
+- `electron/services/system-lyrics/windowsTaskbarLyricsService.ts`
+- `electron/services/system-lyrics/systemLyricsCoordinator.ts`
 - `electron/native/windowsTaskbarHost.ts`
 - `native/windows-taskbar-host/`
 

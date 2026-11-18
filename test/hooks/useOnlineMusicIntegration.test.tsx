@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DownloadProgressEvent } from '@/types/onlineProgress';
-import type { OnlineSong, OnlineSource } from '@/services/onlineMusicProvider';
+import type { OnlineSong, OnlineSource } from '@/services/online/onlineMusicProvider';
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(), writeMetadata: vi.fn(), listen: vi.fn(), unlisten: vi.fn(), notify: vi.fn(),
@@ -11,16 +11,16 @@ vi.mock('@/services/desktopAdapter', () => ({
     onDownloadProgress: mocks.listen, offDownloadProgress: mocks.unlisten }),
   getDesktopAPIAsync: async () => null,
 }));
-vi.mock('@/services/onlineMusicProvider', () => ({
+vi.mock('@/services/online/onlineMusicProvider', () => ({
   getOnlineProvider: (id: OnlineSource = 'qq') => ({ id, getLyrics: async () => null, getCoverUrl: () => '',
     getMusicUrl: async () => ({ url: 'https://example.invalid/audio', quality: '320' }), getRawCookie: () => '' }),
 }));
-vi.mock('@/services/settingsManager', () => ({ settingsManager: { getDownloadPath: () => '/tmp/download-test' } }));
-vi.mock('@/services/webdavClient', () => ({ webdavClient: {} }));
-vi.mock('@/services/webdavMetaService', () => ({ generateMetaJson: vi.fn() }));
+vi.mock('@/services/storage/settingsManager', () => ({ settingsManager: { getDownloadPath: () => '/tmp/download-test' } }));
+vi.mock('@/services/webdav/webdavClient', () => ({ webdavClient: {} }));
+vi.mock('@/services/webdav/webdavMetaService', () => ({ generateMetaJson: vi.fn() }));
 vi.mock('@/services/notificationService', () => ({ notify: mocks.notify }));
-vi.mock('@/services/metadataService', () => ({ parseLyrics: vi.fn() }));
-vi.mock('@/services/metadataCacheService', () => ({ metadataCacheService: {} }));
+vi.mock('@/services/metadata/metadataService', () => ({ parseLyrics: vi.fn() }));
+vi.mock('@/services/storage/metadataCacheService', () => ({ metadataCacheService: {} }));
 vi.mock('@/services/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 

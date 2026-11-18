@@ -1,4 +1,4 @@
-import type { PluginHandleSpec } from '../services/pluginHandle';
+import type { PluginHandleSpec } from '../services/plugins/pluginHandle';
 
 /**
  * Messages between the main process and a plugin host process. Everything is

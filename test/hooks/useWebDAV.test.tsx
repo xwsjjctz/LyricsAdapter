@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WebDAVFile } from '@/services/webdavClient';
+import type { WebDAVFile } from '@/services/webdav/webdavClient';
 
 const mocks = vi.hoisted(() => ({
   files: [] as WebDAVFile[],
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   saveMetadataCache: vi.fn(async () => undefined),
 }));
 
-vi.mock('@/services/webdavClient', () => ({
+vi.mock('@/services/webdav/webdavClient', () => ({
   webdavClient: {
     hasConfig: () => true,
     getConfig: () => ({ serverUrl: 'https://dav.example.com', username: 'u', password: 'p' }),
@@ -20,7 +20,7 @@ vi.mock('@/services/webdavClient', () => ({
     clearCdnCache: vi.fn(),
   },
 }));
-vi.mock('@/services/indexedDBStorage', () => ({
+vi.mock('@/services/storage/indexedDBStorage', () => ({
   indexedDBStorage: {
     getFileListSnapshot: async () => mocks.snapshot,
     setFileListSnapshot: mocks.setFileListSnapshot,

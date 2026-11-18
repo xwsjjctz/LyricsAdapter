@@ -1,4 +1,4 @@
-import { resolveCoverUrl, toCoverThumb } from '../../services/coverUrl';
+import { resolveCoverUrl, toCoverThumb } from '../../services/covers/coverUrl';
 import {
   PLAYLIST_SWITCHER_MAX_CARDS,
   type PlaylistSwitcherCard,

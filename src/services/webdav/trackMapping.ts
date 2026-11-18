@@ -1,5 +1,5 @@
 import type { MetaJson, Track } from '../../types';
-import type { WebDAVFile } from '../webdavClient';
+import type { WebDAVFile } from './webdavClient';
 import type { ChunkEntry, ManifestEntry } from './metadataFolderService';
 
 /** Pure mapping between WebDAV listings, cached metadata and library tracks. */

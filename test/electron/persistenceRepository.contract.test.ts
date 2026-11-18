@@ -1,18 +1,18 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { PersistenceRepository } from '../../electron/services/persistenceRepository';
+import { PersistenceRepository } from '../../electron/services/persistence/persistenceRepository';
 import type { UserDataSnapshot } from '../../src/types/typedIpc';
 
 // Importing the class also creates the production singleton. Keep that module
 // initialization hermetic: these dependencies are irrelevant to injected-port
 // contract tests and must never touch the developer's real ~/.la data.
-vi.mock('../../electron/services/settingsStore', () => ({
+vi.mock('../../electron/services/persistence/settingsStore', () => ({
   settingsStore: { getAll: vi.fn(() => ({})) },
 }));
-vi.mock('../../electron/services/userDataStore', () => ({
+vi.mock('../../electron/services/persistence/userDataStore', () => ({
   userDataStore: { load: vi.fn() },
 }));
-vi.mock('../../electron/services/libraryIndexFiles', () => ({
+vi.mock('../../electron/services/persistence/libraryIndexFiles', () => ({
   doLoadLibraryIndex: vi.fn(async () => ({ ok: true, data: { songs: [], settings: {} } })),
 }));
 

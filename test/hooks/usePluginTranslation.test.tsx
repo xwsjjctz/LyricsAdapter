@@ -25,8 +25,8 @@ vi.mock('@/services/logger', () => ({
 }));
 // A fixed document keeps this test independent of SubtleCrypto under jsdom; the lease,
 // cache and request registry are the real ones.
-vi.mock('@/services/pluginTranslation', async importOriginal => ({
-  ...await importOriginal<typeof import('@/services/pluginTranslation')>(),
+vi.mock('@/services/translation/pluginTranslation', async importOriginal => ({
+  ...await importOriginal<typeof import('@/services/translation/pluginTranslation')>(),
   lyricDocumentForTrack: async (track: Track): Promise<LyricDocument> => ({
     id: `lyrics-${track.id}`,
     trackId: track.id,
@@ -36,9 +36,9 @@ vi.mock('@/services/pluginTranslation', async importOriginal => ({
 }));
 
 import { usePluginTranslation } from '@/hooks/usePluginTranslation';
-import { runTrackTranslationAction } from '@/services/trackTranslationActions';
+import { runTrackTranslationAction } from '@/services/translation/trackTranslationActions';
 import { musicPluginStore } from '@/stores/musicPluginStore';
-import { applyExternalTranslationPreference } from '@/services/pluginTranslationPreference';
+import { applyExternalTranslationPreference } from '@/services/translation/pluginTranslationPreference';
 
 const provider: PluginProviderInfo = {
   key: 'demo:default', pluginId: 'demo', id: 'default', type: 'lyrics.translation', name: 'Demo', version: '1.0.0', cacheControl: true,

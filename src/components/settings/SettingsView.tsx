@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import ShortcutsSettings from '../ShortcutsSettings';
+import ShortcutsSettings from './ShortcutsSettings';
 import { useSectionScroll } from './hooks/useSectionScroll';
 import { useWebdavSettings } from './hooks/useWebdavSettings';
 import FocusModeSection from './sections/FocusModeSection';

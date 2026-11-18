@@ -23,7 +23,7 @@ vi.mock('@applemusic-like-lyrics/core', () => ({
 }));
 
 import FocusAmllBackdrop from '@/components/focus-mode/FocusAmllBackdrop';
-import { DEFAULT_COVER_ARTWORK_URL } from '@/services/coverUrl';
+import { DEFAULT_COVER_ARTWORK_URL } from '@/services/covers/coverUrl';
 
 /** Images settle on the next microtask; URLs in `failing` report an error. */
 const failing = new Set<string>();

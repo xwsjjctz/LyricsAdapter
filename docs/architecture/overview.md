@@ -96,12 +96,12 @@ flowchart TB
 | `electron/ipc/typedHandlers.ts` | typed IPC: 文件选择/读取、library index、WebDAV，带 payload 校验 |
 | `electron/ipc/fileHandlers.ts`、`coverHandlers.ts`、`windowHandlers.ts` 等 | 文件校验、封面、窗口、下载等位置参数通道，按领域分别注册 |
 | `electron/ipc/musicPluginHandlers.ts` | 音乐源与翻译调用、安装/启停/更新、凭据变更事件，以及 QQ/网易登录的兼容通道 |
-| `electron/services/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
-| `electron/services/pluginProcess.ts`、`electron/plugin-host/`、`electron/pluginHost.ts` | 每个插件一个 utilityProcess：主进程侧 RPC 与监管（超时、卡死检测、崩溃重启），子进程侧以快照提供同步 host 接口 |
-| `electron/services/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
-| `electron/services/persistenceRepository.ts`、`persistenceCommitService.ts` | 聚合启动读取与关闭最终提交；区分用户状态和缓存结果 |
-| `electron/ipc/metadataHandlers.ts`、`services/audioMetadataService.ts` | 通过 `music-tag-native` 读取、刷新和写入音频标签 |
-| `electron/services/systemLyricsCoordinator.ts` | 协调 macOS 菜单栏歌词与 Windows 任务栏歌词的生命周期和操作回传 |
+| `electron/services/plugins/musicPluginRegistry.ts`、`pluginRuntime.ts` | 插件发现、合同校验、加载、激活与释放 |
+| `electron/services/plugins/pluginProcess.ts`、`electron/plugin-host/`、`electron/plugin-host/pluginHost.ts` | 每个插件一个 utilityProcess：主进程侧 RPC 与监管（超时、卡死检测、崩溃重启），子进程侧以快照提供同步 host 接口 |
+| `electron/services/persistence/userStateRepository.ts` | SQLite 用户状态、事务、首次迁移与敏感值加密 |
+| `electron/services/persistence/persistenceRepository.ts`、`persistenceCommitService.ts` | 聚合启动读取与关闭最终提交；区分用户状态和缓存结果 |
+| `electron/ipc/metadataHandlers.ts`、`services/metadata/audioMetadataService.ts` | 通过 `music-tag-native` 读取、刷新和写入音频标签 |
+| `electron/services/system-lyrics/systemLyricsCoordinator.ts` | 协调 macOS 菜单栏歌词与 Windows 任务栏歌词的生命周期和操作回传 |
 
 主进程也维护音频路径 allowlist。用户通过文件选择或拖拽授权后的音频路径才允许通过 IPC 读取；app-managed `userData/audio` 也被视为可读范围。
 
@@ -126,7 +126,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 - `usePlayerController` 负责跨 slot 选歌、搜索定位、在线流播放、歌单播放上下文和歌单歌词窗口。
 - `useLibraryController` 负责 view-slot-aware 删除、批量删除、重排、元数据更新和下载完成后的曲库写入。
-- player/library/import/online viewmodel 向 `AppShell` 提供面向 UI 的状态和回调。
+- player/library/import/online/cloud/playlist viewmodel 向 `AppShell` 提供面向 UI 的状态和回调；`AppShell` 不直接调用 WebDAV 等业务 service。
 - `AppContent` 保留应用级装配，例如持久化快照、启动恢复、cookie 启动同步、生命周期注册和孤儿缓存清理。
 
 文件长度不作为组合根的架构边界；判断标准是领域状态变更是否继续由对应 controller、hook 或 service 持有。
@@ -167,7 +167,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 ### Track
 
-`types.ts` 中的 `Track` 是统一曲目模型。所有来源最终都归一为这个结构。
+`types/index.ts` 中的 `Track` 是统一曲目模型。所有来源最终都归一为这个结构。
 
 关键字段：
 
@@ -215,7 +215,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 | 概念 | 所属 | 含义 |
 | --- | --- | --- |
 | `activeSlotId` | `stores/libraryState.ts`（由 `useLibrarySlots` 写入） | 当前真正的播放上下文，`usePlayback` 使用 `slots[activeSlotId]` |
-| `viewSlot` | `stores/libraryState.ts`（由 `useLibraryStore` 写入） | 当前曲库面板正在浏览的 slot |
+| `viewSlot` | `stores/libraryState.ts`（由 `useLibraryWorkspace` 写入） | 当前曲库面板正在浏览的 slot |
 
 这两个值可以不同。例如用户正在播放 `playlist` slot 中的在线歌单，同时曲库面板仍显示 `local` 或 Playlists 视图。删除、重排、导入这类库操作应面向 `viewSlot`，播放控制应面向 `activeSlotId`。
 
@@ -225,17 +225,34 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 | 文件 | 作用 |
 | --- | --- |
-| `stores/libraryState.ts` | 曲库领域状态：四个 slot、`activeSlotId`、`viewSlot`。实例由 `AppContent` 创建并经 `LibraryStateProvider` 提供；组件用 `useLibraryState(selector)` 读取所需切片，写入只经 `useLibrarySlots` 与 controllers。更新立即生效，`getSlots()` 能读到尚未渲染的最新值 |
+| `stores/libraryState.ts` | 曲库领域状态：四个 slot、`activeSlotId`、`viewSlot`。实例由 `AppContent` 创建并经 `LibraryStateProvider` 提供；组件用 `useLibraryState(selector)` 读取所需切片，写入函数由 `useLibrarySlots` 定义（写入方见下文）。更新立即生效，`getSlots()` 能读到尚未渲染的最新值 |
 | `stores/musicPluginStore.ts`、`stores/pluginTranslationStore.ts` | 插件列表与歌词翻译偏好的订阅 |
 
-组合 hook 位于 `src/hooks/`：
+#### 曲库状态的写入方
+
+写入函数（`updateSlot`、`updateLocalTracks`、`loadCloudTracks`、`mergeCloudTracks` 等）由 `useLibrarySlots` 定义，经 `useLibraryWorkspace` 交给 `AppContent`，再分发给下列写入方。组件只读不写。
+
+| 写入方 | 写入内容 |
+| --- | --- |
+| `usePlayerController` | 跨 slot 选歌、在线播放写入 `online`、歌单播放写入 `playlist`、歌词补全 |
+| `useLibraryController` | 删除、批量删除、重排、元数据更新、下载完成后加入 `local` |
+| `useImport`（经 `useImportRouting`） | 本地导入写入 `local`；云端导入上传后合并进 `cloud` |
+| `useLibraryCloudSync` | WebDAV 扫描的全量或增量结果写入 `cloud` |
+| `useOnlineMusicIntegration` | 在线歌曲上传 WebDAV 后合并进 `cloud` |
+| `useLibraryActions` | 重新载入文件后写回当前播放 slot |
+| `useLibraryLoad` | 启动时恢复四个 slot |
+| `usePlayback` | 回写正在播放曲目的时长、懒加载的 `audioUrl` 与缓存歌词 |
+
+前两项是约定的所有者。其余是既有流程直接持有写入函数的例外：新增曲库变更应放进 controller，不再增加新的写入方。
+
+组合 hook 位于 `src/hooks/`。它们只把多个 hook 组装起来，本身不是 store；外部状态容器只放在 `src/stores/`。
 
 | 文件 | 作用 |
 | --- | --- |
-| `hooks/useLibraryStore.ts` | 包装 `useLibrarySlots`，增加 slot 切换动画、云端可写性检测、滚动位置和分类选择 |
-| `hooks/usePlayerStore.ts` | 包装 `usePlayback` 与 `useBlobUrls`。音量和播放模式是全局状态，不再镜像进 slot；持久化快照把实时值写到 active slot |
-| `hooks/useImportStore.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
-| `hooks/useUIStore.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
+| `hooks/useLibraryWorkspace.ts` | 包装 `useLibrarySlots`，增加 slot 切换动画、云端可写性检测、滚动位置和分类选择 |
+| `hooks/usePlayerRuntime.ts` | 包装 `usePlayback` 与 `useBlobUrls`。音量和播放模式是全局状态，不再镜像进 slot；持久化快照把实时值写到 active slot |
+| `hooks/useImportRouting.ts` | 包装 `useImport`，根据 `viewSlot` 路由本地导入或 cloud 上传 |
+| `hooks/useAppUI.ts` | 聚合视图模式、焦点模式、页面动画、未保存元数据导航拦截、窗口焦点和玻璃 UI 状态 |
 
 ## 数据持久化
 
@@ -257,7 +274,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 ### Library index 展示缓存
 
-renderer 的 `services/libraryStorage.ts` 经 `desktopAdapter` 调用主进程，读写 `app.getPath('userData')/library-index.json`。缓存由 `services/librarySerializer.ts` 构建：
+renderer 的 `services/storage/libraryStorage.ts` 经 `desktopAdapter` 调用主进程，读写 `app.getPath('userData')/library-index.json`。缓存由 `services/storage/librarySerializer.ts` 构建：
 
 - `songs`: local tracks
 - `cloudSongs`: cloud tracks
@@ -289,7 +306,7 @@ renderer 的 `services/libraryStorage.ts` 经 `desktopAdapter` 调用主进程�
 
 ### IndexedDB
 
-`services/indexedDBStorage.ts` 保存 renderer 侧缓存：
+`services/storage/indexedDBStorage.ts` 保存 renderer 侧缓存：
 
 - 普通 metadata cache。
 - WebDAV metadata cache。
@@ -299,7 +316,7 @@ renderer 的 `services/libraryStorage.ts` 经 `desktopAdapter` 调用主进程�
 
 桌面端 cookie、用户设置、侧栏布局和歌单覆盖由 `AppStorage` / SQLite 保存；IndexedDB 中历史设置仅在需要时作为一次性迁移来源。
 
-`services/metadataCacheService.ts` 在内存 Map 和 IndexedDB 之间提供 LRU/FIFO 风格缓存，最大 300 条，写入时做数据校验。
+`services/storage/metadataCacheService.ts` 在内存 Map 和 IndexedDB 之间提供 LRU/FIFO 风格缓存，最大 300 条，写入时做数据校验。
 
 ### 封面缓存
 
@@ -311,7 +328,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ### 本地导入
 
-本地导入入口在 `useImport`，通过 `useImportStore` 由 `viewSlot` 路由。
+本地导入入口在 `useImport`，通过 `useImportRouting` 由 `viewSlot` 路由。
 
 桌面模式流程：
 
@@ -340,7 +357,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ### 在线音乐下载/上传
 
-在线 provider 抽象在 `services/onlineMusicProvider.ts`，QQ 和网易都归一成 `OnlineSong`。`services/musicPluginProvider.ts` 提供 renderer façade，搜索、歌词、歌单与 URL 查询最终由主进程中已启用的音乐源插件执行。
+在线 provider 抽象在 `services/online/onlineMusicProvider.ts`，QQ 和网易都归一成 `OnlineSong`。`services/online/musicPluginProvider.ts` 提供 renderer façade，搜索、歌词、歌单与 URL 查询最终由主进程中已启用的音乐源插件执行。
 
 `useOnlineMusicIntegration` 负责：
 
@@ -354,7 +371,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ## 播放架构
 
-播放由 `usePlayerStore` 包装 `usePlayback` 提供。
+播放由 `usePlayerRuntime` 包装 `usePlayback` 提供。
 
 核心职责：
 
@@ -379,7 +396,7 @@ WebDAV 封面使用 `webdavCoverId(webdavPath)` 构造稳定 id，避免不同�
 
 ## WebDAV 云曲库
 
-WebDAV 客户端在 `services/webdavClient.ts`，配置通过 `AppStorage` 的 `webdav-config` 读写：桌面端加密保存于 SQLite，浏览器模式使用 localStorage。短期 CDN URL 缓存独立放在 IndexedDB。它负责：
+WebDAV 客户端在 `services/webdav/webdavClient.ts`，配置通过 `AppStorage` 的 `webdav-config` 读写：桌面端加密保存于 SQLite，浏览器模式使用 localStorage。短期 CDN URL 缓存独立放在 IndexedDB。它负责：
 
 - PROPFIND 列目录。
 - 解析 WebDAV href 为稳定路径。
@@ -389,7 +406,7 @@ WebDAV 客户端在 `services/webdavClient.ts`，配置通过 `AppStorage` 的 `
 - 可写性探针。
 - 本地 CDN URL cache。
 
-`hooks/useLibraryCloudSync.ts` 在 `LibraryView` 中使用 `useWebDAV`：
+`hooks/useLibraryCloudSync.ts` 由 `AppContent` 调用，内部使用 `useWebDAV`，加载进度和手动刷新经 `useCloudViewModel` 交给界面：
 
 - 首次进入 cloud slot 自动加载。
 - 手动 refresh 重新扫描。
@@ -426,16 +443,16 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 
 ## 元数据
 
-桌面端默认通过 `electron/ipc/metadataHandlers.ts` 调用 `electron/services/audioMetadataService.ts`，由 `music-tag-native` 读取本地文件标签。浏览器模式、桌面兼容回退和 WebDAV 部分读取仍使用 renderer 解析路径：
+桌面端默认通过 `electron/ipc/metadataHandlers.ts` 调用 `electron/services/metadata/audioMetadataService.ts`，由 `music-tag-native` 读取本地文件标签。浏览器模式、桌面兼容回退和 WebDAV 部分读取仍使用 renderer 解析路径：
 
-- `metadataService.parseAudioFile(file)` 优先使用 `services/workers/metadataWorker.ts`，失败时回到主线程 parser。
+- `metadataService.parseAudioFile(file)` 优先使用 `services/metadata/metadataWorker.ts`，失败时回到主线程 parser。
 - 支持 MP3 ID3v2、FLAC metadata block/VORBIS_COMMENT/PICTURE、M4A/MP4 atoms。
 - LRC 通过 `parseLRCLyrics()` 转为 `syncedLyrics`。
 - WebDAV Range 解析使用 `parseMetadataFromBuffer()`，当文件头不足以包含封面或完整 Vorbis comment 时返回需要补读的 range。
 
 主进程写入：
 
-- `electron/services/audioMetadataService.ts` 的 `writeAudioMetadata()` 通过 `music-tag-native` 保存通用标签。
+- `electron/services/metadata/audioMetadataService.ts` 的 `writeAudioMetadata()` 通过 `music-tag-native` 保存通用标签。
 - `wordLyricsTagService` 在通用标签保存后处理 QRC/YRC 自定义标签，其中 MP3 逐字标签通过 `node-id3` 读写。
 - coverUrl 可来自 data URL、`cover://` 或远程 http(s)。
 
@@ -444,8 +461,9 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 当前架构已经有清晰的跨进程边界和 slot 模型，但还有一些需要重构时特别留意的点：
 
 - `AppContent` 仍直接编排持久化快照和孤儿缓存清理；若继续增长，应按领域边界下沉，而不是按行数机械拆文件。
-- `useLibraryActions` 目前仍保留文件重载入口，曲库 mutation 则由 `useLibraryController` 统一持有。
+- 导入、云同步、在线上传、文件重载仍直接持有曲库写入函数，没有经过 `useLibraryController`（见“曲库状态的写入方”）。
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
-- `useLibraryCloudSync` 由 `AppShell` 触发云同步，UI 组件仍承载这一业务副作用入口。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。
+
+未解决的重构问题统一记录在[重构待办](../development/refactor-backlog.md)。

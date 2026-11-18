@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import GsapModal from './GsapModal';
+import GsapModal from './ui/GsapModal';
 import Button from './ui/Button';
 
 interface ConfirmDialogProps {
