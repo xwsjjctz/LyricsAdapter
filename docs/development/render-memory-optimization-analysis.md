@@ -25,8 +25,8 @@
 
 ### 1.1 渲染架构速览
 
-- **曲库列表**：已虚拟化（`src/hooks/useLibraryVirtualScroll.ts:65` 阈值 40、`:52` overscan 6），行组件已 `memo`（`src/components/LibraryTrackRow.tsx:36`）。
-- **Focus Mode**：**无 WebGL**。背景是 5 张 canvas 2D（`src/components/FocusMode.tsx:242-250, 268-270, 330-331`），歌词是 DOM——legacy 用 React 行（`FocusLegacyLyrics.tsx`），AMLL 用 `DomLyricPlayer`（DOM 渲染器，非 Pixi）。AMLL chunk 里含 Pixi 代码但从不实例化。
+- **曲库列表**：已虚拟化（`src/hooks/useLibraryVirtualScroll.ts:65` 阈值 40、`:52` overscan 6），行组件已 `memo`（`src/components/library/LibraryTrackRow.tsx:36`）。
+- **Focus Mode**：**无 WebGL**。背景是 5 张 canvas 2D（`src/components/focus-mode/FocusMode.tsx:242-250, 268-270, 330-331`），歌词是 DOM——legacy 用 React 行（`FocusLegacyLyrics.tsx`），AMLL 用 `DomLyricPlayer`（DOM 渲染器，非 Pixi）。AMLL chunk 里含 Pixi 代码但从不实例化。
 - **封面**：`cover://` 协议 + `?size=` 缩略图（`electron/protocols/coverProtocol.ts:9-11, 182-220`），带 `?v=` 的内容哈希走 `immutable` 缓存（`electron/ipc/coverHandlers.ts:41-42`）。
 - **音频**：`audio://` Range 流式（`electron/protocols/audioProtocol.ts:99-128`），切歌/卸载清空 `<audio>` 并 `load()`（`src/hooks/usePlayback.ts:151-158`），`preload="metadata"`（`src/App.tsx:448`）。**这部分已经做得很好，无需再优化**。
 
@@ -66,7 +66,7 @@
 |------|------|------|
 | `src/components/BrowseView.tsx:379-383` | 在线列表直接 `<img src={song.coverUrl}>`，无 `toCoverThumb`、无 `loading`、无尺寸 | 网易 CDN 返回 800×800（`src/services/neteaseMusicApi.ts:125-129` `?param=800y800`）→ 2.56MB/张，30 行 ≈ 77MB 解码位图，而 CSS 显示仅 ~160px |
 | `src/components/search/SearchResultCards.tsx:138-142` | 同上 | 最多 8 张在线卡，同样 800px 直出 |
-| `src/components/LibraryView.tsx:1124-1130 / 1147-1153` | 专辑/艺术家 rail 用了 `toCoverThumb(...,128)`，但**无 `loading="lazy"` / `decoding` / `width/height`** | 128×128×4 = 64KB/张；500 专辑 ≈ 32MB，2000 专辑 ≈ 128MB。该 rail 是 `overflow-y-auto` 滚动容器（`LibraryView.tsx:1103-1106`），lazy 本可生效 |
+| `src/components/library/LibraryView.tsx:1124-1130 / 1147-1153` | 专辑/艺术家 rail 用了 `toCoverThumb(...,128)`，但**无 `loading="lazy"` / `decoding` / `width/height`** | 128×128×4 = 64KB/张；500 专辑 ≈ 32MB，2000 专辑 ≈ 128MB。该 rail 是 `overflow-y-auto` 滚动容器（`LibraryView.tsx:1103-1106`），lazy 本可生效 |
 
 **建议**：`toCoverThumb(song.coverUrl, 128)` 已支持网易 `param=N`、QQ `T00xR` 尺寸 snap、picsum（`src/services/covers/coverUrl.ts:71-117`），直接复用；并补 `loading="lazy" decoding="async" width={40} height={40}`。专辑数 >200 时给 rail 加 `content-visibility:auto; contain-intrinsic-size:auto 40px`（全仓库目前 `contain` / `content-visibility` 命中 0 处）。
 
@@ -80,7 +80,7 @@
 
 ### P0-3 Focus 背景扩边临时画布常驻整个会话
 
-`src/components/FocusMode.tsx:236-250` 里 `padding = ceil(bgBlurRadius × 0.5 × 4)`（默认 80 → 160px），于是 source / filtered 两张扩边画布分别比输出大 320px：
+`src/components/focus-mode/FocusMode.tsx:236-250` 里 `padding = ceil(bgBlurRadius × 0.5 × 4)`（默认 80 → 160px），于是 source / filtered 两张扩边画布分别比输出大 320px：
 
 - 1200×800 窗口：source/filtered 各 1020×820 = 3.19MiB，output/frame/prepared 各 1.34MiB，**5 张合计 10.39MiB**，其中两张扩边画布 6.4MiB。
 - 2560×1440 窗口：合计 **27.7MiB**，其中扩边画布 14.8MiB。
@@ -91,7 +91,7 @@
 
 ### P0-4 滚动事件驱动全应用重渲染
 
-`src/components/LibraryView.tsx:584-589` 的 `handleScroll` 每个滚动事件都：
+`src/components/library/LibraryView.tsx:584-589` 的 `handleScroll` 每个滚动事件都：
 
 1. `setScrollTop(newScrollTop)`（本组件重渲染，虚拟化计算）；
 2. `onScrollPositionChange?.(newScrollTop)` → `src/hooks/useLibrarySlots.ts:124-129` `setActiveScrollPosition` → 新的 `slots` 对象 → `App` → `AppShell` → `LibraryView` / `Sidebar` 全树重渲染。
@@ -104,7 +104,7 @@
 
 `src/services/metadata/metadataService.ts:125` `const buffer = await file.arrayBuffer()`，随后 transfer 给 worker；`src/hooks/useImport.ts:277-286` 用 `Promise.all` 并发处理一个批次，`BATCH_SIZE = 10`（`:630` / `:737`）。10 首 50–100MB 的 FLAC 意味着**瞬时 0.5–1GB** 的 ArrayBuffer（transfer 后 worker 消息队列里仍然全部存活）。
 
-Electron 下拖放/原生对话框走的是路径导入（`src/components/LibraryView.tsx:706-715` 的 `getPathForFile`、`processDesktopFilePathBatch`），所以**桌面主流程通常不触发**；但 `<input type="file">`（`src/components/AppShell.tsx:211`）和浏览器模式仍会走 File 路径。**建议**：把批大小降到 2–3（低风险先行），长期改为 Range 头解析。
+Electron 下拖放/原生对话框走的是路径导入（`src/components/library/LibraryView.tsx:706-715` 的 `getPathForFile`、`processDesktopFilePathBatch`），所以**桌面主流程通常不触发**；但 `<input type="file">`（`src/components/AppShell.tsx:211`）和浏览器模式仍会走 File 路径。**建议**：把批大小降到 2–3（低风险先行），长期改为 Range 头解析。
 
 ### P0-6 搜索：每键全库 pinyin + 收起后仍挂载
 
@@ -148,7 +148,7 @@ Windows 上 125% / 150% 缩放非常普遍，Chromium 的所有合成层、`back
 与之相关的一个**确定的实现缺陷**：Focus 背景 canvas 完全不感知 DPR——
 
 ```ts
-// src/components/FocusMode.tsx:305-308
+// src/components/focus-mode/FocusMode.tsx:305-308
 const cssWidth  = Math.max(1, window.innerWidth  + BACKDROP_OVERSCAN_PX * 2); // +200
 const cssHeight = Math.max(1, window.innerHeight + BACKDROP_OVERSCAN_PX * 2);
 const width  = Math.max(1, Math.ceil(cssWidth  * BACKDROP_RENDER_SCALE));     // ×0.5
@@ -315,11 +315,11 @@ const height = Math.max(1, Math.ceil(cssHeight * BACKDROP_RENDER_SCALE));
 | 变更 | 文件 | 说明 |
 |------|------|------|
 | 在线封面缩略图 + 懒加载 | `src/components/BrowseView.tsx`、`src/components/search/SearchResultCards.tsx` | `toCoverThumb(url, 128/256)` + `loading="lazy" decoding="async" width/height`；网易 800×800 原图不再直出 |
-| 专辑/艺术家 rail 封面 | `src/components/LibraryView.tsx`、`src/index.css` | 补 lazy/decoding/尺寸；新增 `.library-category-row`（`content-visibility: auto; contain-intrinsic-size: auto 56px`） |
+| 专辑/艺术家 rail 封面 | `src/components/library/LibraryView.tsx`、`src/index.css` | 补 lazy/decoding/尺寸；新增 `.library-category-row`（`content-visibility: auto; contain-intrinsic-size: auto 56px`） |
 | 侧边栏无效模糊 | `src/components/Sidebar.tsx` | 删除 `backdrop-blur-md`（背景恒为不透明主题色） |
 | 面板重复模糊 | `src/styles/components.css` | 删除 `.app-side-panel::after` 上的第二次 `backdrop-filter` |
 | 停用的 Glass UI 契约 | `src/services/storage/settingsManager.ts` | 持久化的 `glassUI` 不再生效（恒 false），避免旧配置长期背 2 个全宽模糊层 |
-| Focus 扩边画布释放 | `src/components/FocusMode.tsx` | `prepareBackdrop` 后延迟 1200ms 释放两张扩边 scratch canvas 的 backing store（避开 1000ms 入场/交叉淡入的动画帧），不再持有到卸载 |
+| Focus 扩边画布释放 | `src/components/focus-mode/FocusMode.tsx` | `prepareBackdrop` 后延迟 1200ms 释放两张扩边 scratch canvas 的 backing store（避开 1000ms 入场/交叉淡入的动画帧），不再持有到卸载 |
 | 滚动提交去抖 | `src/stores/libraryStore.ts`、`src/App.tsx` | 滚动只写 ref；停稳 250ms 后提交 state；切槽立即 flush 并取消失效提交；关闭落盘用 `getLiveScrollPosition()` 读实时值；新增 `test/stores/libraryStore.test.tsx` |
 | 元数据缓存上限 | `src/services/metadata/metadataService.ts` | worker 缓存 50 → 8（每项含封面 ArrayBuffer） |
 | 层探针工具 | `test/e2e/electron.focus-layers.spec.ts` | `FOCUS_LAYER_PROBE=1` 启用，输出层数/面积/合成原因 + GC 后各进程内存到 `test-results/memory/layer-probes/` |

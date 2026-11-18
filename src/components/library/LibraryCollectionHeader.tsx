@@ -1,8 +1,8 @@
 import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import type { Track } from '../types';
-import TrackCover from './TrackCover';
+import type { Track } from '../../types';
+import TrackCover from '../TrackCover';
 
 /** What the list shows: a source (local, cloud, history) or an online playlist. */
 export interface LibraryCollection {

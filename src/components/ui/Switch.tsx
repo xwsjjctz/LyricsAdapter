@@ -1,5 +1,5 @@
 import { THEME_IDS } from '../../types/theme';
-import RetroSwitch from '../RetroSwitch';
+import RetroSwitch from './RetroSwitch';
 import { useCurrentTheme } from '../settings/shared';
 
 interface SwitchProps {

@@ -6,7 +6,7 @@
 
 | 参与者 | 文件 | 职责 |
 | --- | --- | --- |
-| UI | `components/AppShell.tsx`、`components/LibraryView.tsx`、`components/Controls.tsx`、`components/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
+| UI | `components/AppShell.tsx`、`components/library/LibraryView.tsx`、`components/Controls.tsx`、`components/focus-mode/FocusMode.tsx` | 发出用户意图：选歌、播放暂停、seek、上下曲、音量、模式切换 |
 | 应用组合层 | `App.tsx` 中的 `AppContent` | 挂载 `<audio>`，连接 UI、stores、controllers、viewmodels 与生命周期 hooks |
 | 播放意图 | `controllers/usePlayerController.ts` | 处理同/跨 slot 选歌、在线流播放、歌单浏览与播放上下文 |
 | 播放聚合层 | `hooks/usePlayerStore.ts` | 包装 `usePlayback`，提供实时播放时钟、音量/模式读取与恢复入口 |

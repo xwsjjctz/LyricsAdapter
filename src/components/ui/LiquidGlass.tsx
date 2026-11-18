@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type CSSProperties, type RefObject } from 'react';
-import '../styles/liquidGlass.css';
+import '../../styles/liquidGlass.css';
 
 type Material = 'regular' | 'clear';
 interface Geometry { width: number; height: number; padding: number; map: string }

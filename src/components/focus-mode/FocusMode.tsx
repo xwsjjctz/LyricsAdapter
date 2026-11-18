@@ -1,29 +1,29 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, memo } from 'react';
-import { Track } from '../types';
-import { themeManager } from '../services/themes/themeManager';
-import { registerCommand } from '../services/debugCommands';
-import { settingsManager } from '../services/storage/settingsManager';
-import { ThemeConfig, THEME_IDS } from '../types/theme';
-import { getDesktopAPI } from '../services/desktopAdapter';
-import { resolveCoverUrl } from '../services/covers/coverUrl';
-import FocusBackdrop from './focus-mode/FocusBackdrop';
-import FocusControls from './focus-mode/FocusControls';
-import FocusCoverStage from './focus-mode/FocusCoverStage';
-import FocusTrackMeta from './focus-mode/FocusTrackMeta';
-import { BACKDROP_ALPHA_EXIT_DURATION_MS } from './focus-mode/focusBackdropAlpha';
-import { useFocusModeScale } from './focus-mode/focusModeScale';
-import { useFocusPortraitLayout } from './focus-mode/useFocusPortraitLayout';
-import { useFocusControlsIdle } from './focus-mode/useFocusControlsIdle';
-import { FOCUS_CONTROLS_IDLE_MS } from './focus-mode/focusControlsIdle';
-import { hasTrackLyrics } from './focus-mode/focusLyricsTrack';
-import './focus-mode/FocusModeLayout.css';
-import FocusLyrics from './focus-mode/FocusLyrics';
-import { useWindowVisible } from '../hooks/useWindowVisible';
-import { usePluginTranslation } from '../hooks/usePluginTranslation';
+import { Track } from '../../types';
+import { themeManager } from '../../services/themes/themeManager';
+import { registerCommand } from '../../services/debugCommands';
+import { settingsManager } from '../../services/storage/settingsManager';
+import { ThemeConfig, THEME_IDS } from '../../types/theme';
+import { getDesktopAPI } from '../../services/desktopAdapter';
+import { resolveCoverUrl } from '../../services/covers/coverUrl';
+import FocusBackdrop from './FocusBackdrop';
+import FocusControls from './FocusControls';
+import FocusCoverStage from './FocusCoverStage';
+import FocusTrackMeta from './FocusTrackMeta';
+import { BACKDROP_ALPHA_EXIT_DURATION_MS } from './focusBackdropAlpha';
+import { useFocusModeScale } from './focusModeScale';
+import { useFocusPortraitLayout } from './useFocusPortraitLayout';
+import { useFocusControlsIdle } from './useFocusControlsIdle';
+import { FOCUS_CONTROLS_IDLE_MS } from './focusControlsIdle';
+import { hasTrackLyrics } from './focusLyricsTrack';
+import './FocusModeLayout.css';
+import FocusLyrics from './FocusLyrics';
+import { useWindowVisible } from '../../hooks/useWindowVisible';
+import { usePluginTranslation } from '../../hooks/usePluginTranslation';
 import {
   CLOCK_RESYNC_THRESHOLD_SECONDS,
   useFocusPlaybackClock,
-} from './focus-mode/useFocusPlaybackClock';
+} from './useFocusPlaybackClock';
 
 // FocusMode 沉浸式深色风格的固定颜色（不受主题影响）
 const FOCUS_MODE_COLORS = {

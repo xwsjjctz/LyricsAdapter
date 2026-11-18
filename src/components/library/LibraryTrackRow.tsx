@@ -1,11 +1,11 @@
 import React, { memo } from 'react';
-import { Track } from '../types';
+import { Track } from '../../types';
 import { useTranslation } from 'react-i18next';
-import { ThemeColors } from '../types/theme';
-import TrackCover from './TrackCover';
-import NowPlayingBars from './NowPlayingBars';
-import { formatDuration } from '../shared/formatDuration';
-import { isPlainEnter } from '../shared/keyboard';
+import { ThemeColors } from '../../types/theme';
+import TrackCover from '../TrackCover';
+import NowPlayingBars from '../NowPlayingBars';
+import { formatDuration } from '../../shared/formatDuration';
+import { isPlainEnter } from '../../shared/keyboard';
 
 interface LibraryTrackRowProps {
   track: Track;

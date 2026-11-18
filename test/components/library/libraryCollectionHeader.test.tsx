@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import LibraryCollectionHeader from '@/components/LibraryCollectionHeader';
+import LibraryCollectionHeader from '@/components/library/LibraryCollectionHeader';
 import i18n from '@/services/i18n';
 import type { Track } from '@/types';
 

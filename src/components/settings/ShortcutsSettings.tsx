@@ -1,10 +1,10 @@
 import React, { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { shortcutManager, ShortcutAction, ShortcutConfig } from '../services/shortcuts';
-import { themeManager } from '../services/themes/themeManager';
-import { ThemeConfig } from '../types/theme';
-import ConfirmDialog from './ConfirmDialog';
-import Button from './ui/Button';
+import { shortcutManager, ShortcutAction, ShortcutConfig } from '../../services/shortcuts';
+import { themeManager } from '../../services/themes/themeManager';
+import { ThemeConfig } from '../../types/theme';
+import ConfirmDialog from '../ConfirmDialog';
+import Button from '../ui/Button';
 
 interface ShortcutsSettingsProps {
   layout?: 'single' | 'two-column';

@@ -5,7 +5,7 @@ import { getDesktopAPI } from '../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
 import { notify } from '../services/notificationService';
 import TrackCover from './TrackCover';
-import GsapModal from './GsapModal';
+import GsapModal from './ui/GsapModal';
 import Button from './ui/Button';
 import { parseLRCLyrics } from '../services/metadata/metadataService';
 import { parseCoverDataUrl, sanitizePersistedCoverUrl } from '../services/covers/coverUrl';

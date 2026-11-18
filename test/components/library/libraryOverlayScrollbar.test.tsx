@@ -1,7 +1,7 @@
 import { act, fireEvent, render } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { RefObject } from 'react';
-import LibraryOverlayScrollbar from '@/components/LibraryOverlayScrollbar';
+import LibraryOverlayScrollbar from '@/components/library/LibraryOverlayScrollbar';
 
 describe('LibraryOverlayScrollbar', () => {
   it('maps the bottom position into the viewport above the control-bar inset', () => {

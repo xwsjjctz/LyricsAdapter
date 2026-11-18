@@ -21,7 +21,7 @@
 | 运行环境 | 可信 Node 插件可运行 | 超时、取消、清理、故障隔离；限制权限需要实际执行边界 |
 | 第三方分发 | 官方安装包目录 | 作者信任、兼容筛选、第三方目录和更新规则 |
 
-依据：[MusicPluginRegistry](../../electron/services/plugins/musicPluginRegistry.ts)、[PlayerViewModel](../../src/viewmodels/usePlayerViewModel.ts)、[FocusLyrics](../../src/components/focus-mode/FocusLyrics.tsx)、[AML 转换](../../src/components/focus-mode/amllLyrics.ts)、[现有歌词类型](../../src/types.ts)。当前内部歌词时间以秒表示，AML 转换成毫秒；`translatedLyric` 已接入插件译文，`romanLyric` 当前仍为空字符串。
+依据：[MusicPluginRegistry](../../electron/services/plugins/musicPluginRegistry.ts)、[PlayerViewModel](../../src/viewmodels/usePlayerViewModel.ts)、[FocusLyrics](../../src/components/focus-mode/FocusLyrics.tsx)、[AML 转换](../../src/components/focus-mode/amllLyrics.ts)、[现有歌词类型](../../src/types/index.ts)。当前内部歌词时间以秒表示，AML 转换成毫秒；`translatedLyric` 已接入插件译文，`romanLyric` 当前仍为空字符串。
 
 ## 三类公共接口
 

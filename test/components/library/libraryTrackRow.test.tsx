@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import LibraryTrackRow from '@/components/LibraryTrackRow';
+import LibraryTrackRow from '@/components/library/LibraryTrackRow';
 import { themeManager } from '@/services/themes/themeManager';
 
 vi.mock('@/components/TrackCover', () => ({ default: () => <div data-testid="cover" /> }));

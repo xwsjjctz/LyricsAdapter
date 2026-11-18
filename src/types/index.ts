@@ -1,4 +1,4 @@
-import type { OnlineSource } from './shared/onlineMusic';
+import type { OnlineSource } from '../shared/onlineMusic';
 
 
 export interface Track {

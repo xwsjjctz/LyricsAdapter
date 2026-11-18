@@ -1,20 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SlotId, Track } from '../types';
-import { getDesktopAPI } from '../services/desktopAdapter';
-import { useCurrentTheme } from './settings/shared';
-import PosterWall from './wall/PosterWall';
-import TrackMenu from './TrackMenu';
-import ConfirmDialog from './ConfirmDialog';
-import MetadataEditorPopup from './MetadataEditorPopup';
-import type { TrackDownloadQuality } from '../domain/trackMenuItems';
-import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
-import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
-import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
-import WallSelectionBar from './wall/WallSelectionBar';
-import WallStatusPill from './wall/WallStatusPill';
-import WallWelcome from './wall/WallWelcome';
-import type { OnlineProgress } from '../types/onlineProgress';
+import type { SlotId, Track } from '../../types';
+import { getDesktopAPI } from '../../services/desktopAdapter';
+import { useCurrentTheme } from '../settings/shared';
+import PosterWall from '../wall/PosterWall';
+import TrackMenu from '../TrackMenu';
+import ConfirmDialog from '../ConfirmDialog';
+import MetadataEditorPopup from '../MetadataEditorPopup';
+import type { TrackDownloadQuality } from '../../domain/trackMenuItems';
+import { useLibraryTrackActions } from '../../hooks/useLibraryTrackActions';
+import { useLibraryFileDrop } from '../../hooks/useLibraryFileDrop';
+import { FLOATING_PLAYER_BOTTOM_INSET } from '../../constants/playerLayout';
+import WallSelectionBar from '../wall/WallSelectionBar';
+import WallStatusPill from '../wall/WallStatusPill';
+import WallWelcome from '../wall/WallWelcome';
+import type { OnlineProgress } from '../../types/onlineProgress';
 
 type Progress = { loaded: number; total: number } | null | undefined;
 

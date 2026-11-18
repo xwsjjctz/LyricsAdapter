@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ThemeColors } from '../types/theme';
-import { lastInputWasKeyboard } from '../services/inputModality';
+import type { ThemeColors } from '../../types/theme';
+import { lastInputWasKeyboard } from '../../services/inputModality';
 
 interface Props {
   count: number;

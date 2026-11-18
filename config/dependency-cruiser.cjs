@@ -6,7 +6,7 @@
 // the baseline. Never regenerate it to admit a new violation.
 
 // i18n/index.ts initialises i18next in the renderer; only the locale JSON is shared.
-const FOUNDATION = '^src/(types/|types\\.ts$|shared/|domain/|constants/|i18n/locales/)';
+const FOUNDATION = '^src/(types/|shared/|domain/|constants/|i18n/locales/)';
 const RENDERER_UI = '^src/(components|commands|App\\.tsx|index\\.tsx)';
 const RENDERER_STATE = '^src/(hooks|stores|controllers|viewmodels)/';
 

@@ -11,7 +11,7 @@ import type { SettingsSectionId } from '@/types/settingsPanel';
 import type { NativeSettingsAction, NativeSettingsBlock, NativeSettingsDialog, NativeSettingsRow, NativeSettingsState } from '@/types/nativeSettings';
 import { useDocumentDarkMode } from '../../../hooks/useNativePalette';
 import { dispatchForwardedShortcut } from '../../palette/nativePaletteState';
-import { useShortcutEditor, type RecordedKey } from '../../ShortcutsSettings';
+import { useShortcutEditor, type RecordedKey } from '../ShortcutsSettings';
 import { useWebdavSettings } from '../hooks/useWebdavSettings';
 import { useFocusModeSettings } from '../sections/FocusModeSection';
 import { useCoverCache, useDownloadPath, useGeneralSettings } from '../sections/GeneralSection';

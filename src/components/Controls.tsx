@@ -10,7 +10,7 @@ import { usePlayerControlbar } from '../hooks/usePlayerControlbar';
 import { usePlayerControlbarLayout } from '../hooks/usePlayerControlbarLayout';
 import { getDesktopAPI } from '../services/desktopAdapter';
 import { FLOATING_PLAYER_BOTTOM, FLOATING_PLAYER_HEIGHT } from '../constants/playerLayout';
-import { useLiquidGlass } from './LiquidGlass';
+import { useLiquidGlass } from './ui/LiquidGlass';
 import { useBaseThemeTokens } from '../hooks/useBaseThemeTokens';
 
 interface ControlsProps {

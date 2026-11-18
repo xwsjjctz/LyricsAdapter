@@ -1,28 +1,28 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Track, SlotId } from '../types';
-import { logger } from '../services/logger';
-import { getDesktopAPI } from '../services/desktopAdapter';
+import { Track, SlotId } from '../../types';
+import { logger } from '../../services/logger';
+import { getDesktopAPI } from '../../services/desktopAdapter';
 import { useTranslation } from 'react-i18next';
-import { themeManager } from '../services/themes/themeManager';
-import { toCoverThumb } from '../services/covers/coverUrl';
-import { ThemeConfig } from '../types/theme';
-import { resolveThemeAppearance } from '../services/themes/themeAppearance';
+import { themeManager } from '../../services/themes/themeManager';
+import { toCoverThumb } from '../../services/covers/coverUrl';
+import { ThemeConfig } from '../../types/theme';
+import { resolveThemeAppearance } from '../../services/themes/themeAppearance';
 import LibraryTrackRow from './LibraryTrackRow';
 import LibraryCollectionHeader, { type LibraryCollection } from './LibraryCollectionHeader';
-import TrackMenu from './TrackMenu';
-import type { TrackDownloadQuality } from '../domain/trackMenuItems';
+import TrackMenu from '../TrackMenu';
+import type { TrackDownloadQuality } from '../../domain/trackMenuItems';
 import LibrarySelectionBar from './LibrarySelectionBar';
-import MetadataEditorPopup from './MetadataEditorPopup';
-import ConfirmDialog from './ConfirmDialog';
-import { useLibraryTrackActions } from '../hooks/useLibraryTrackActions';
-import { useLibraryFileDrop } from '../hooks/useLibraryFileDrop';
-import { useLibraryVirtualScroll } from '../hooks/useLibraryVirtualScroll';
-import { readableForeground } from '../services/themes/colorUtils';
+import MetadataEditorPopup from '../MetadataEditorPopup';
+import ConfirmDialog from '../ConfirmDialog';
+import { useLibraryTrackActions } from '../../hooks/useLibraryTrackActions';
+import { useLibraryFileDrop } from '../../hooks/useLibraryFileDrop';
+import { useLibraryVirtualScroll } from '../../hooks/useLibraryVirtualScroll';
+import { readableForeground } from '../../services/themes/colorUtils';
 import LibraryOverlayScrollbar from './LibraryOverlayScrollbar';
-import { FLOATING_PLAYER_BOTTOM_INSET } from '../constants/playerLayout';
-import { getMacTitleBarLayout } from '../shared/macTitleBarLayout';
-import { WINDOWS_TITLE_BAR_HEIGHT } from '../shared/windowsChrome';
-import { useLibraryState } from '../stores/libraryState';
+import { FLOATING_PLAYER_BOTTOM_INSET } from '../../constants/playerLayout';
+import { getMacTitleBarLayout } from '../../shared/macTitleBarLayout';
+import { WINDOWS_TITLE_BAR_HEIGHT } from '../../shared/windowsChrome';
+import { useLibraryState } from '../../stores/libraryState';
 
 /** The browsed slot's selection, scroll offset and filters come from the library store. */
 interface LibraryViewProps {

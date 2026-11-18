@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
-import { lastInputWasKeyboard } from '../services/inputModality';
+import { lastInputWasKeyboard } from '../../services/inputModality';
 
 interface GsapModalProps {
   isOpen: boolean;

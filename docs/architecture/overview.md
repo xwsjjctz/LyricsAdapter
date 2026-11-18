@@ -167,7 +167,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 ### Track
 
-`types.ts` 中的 `Track` 是统一曲目模型。所有来源最终都归一为这个结构。
+`types/index.ts` 中的 `Track` 是统一曲目模型。所有来源最终都归一为这个结构。
 
 关键字段：
 

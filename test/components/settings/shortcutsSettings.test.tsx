@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import ShortcutsSettings from '@/components/ShortcutsSettings';
+import ShortcutsSettings from '@/components/settings/ShortcutsSettings';
 import { shortcutManager } from '@/services/shortcuts';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
