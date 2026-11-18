@@ -727,6 +727,11 @@ test('boots built renderer through Electron preload and IPC', async ({}, testInf
 
     const nextTrackButton = focusOverlay.locator('button', { hasText: 'skip_next' });
     await expect(nextTrackButton).toHaveCount(1);
+    // Focus controls are hidden and disabled until the pointer rests on them (and hide again
+    // a second after it leaves). Hovering holds them open, so the click no longer depends on
+    // how long the checks above took.
+    await nextTrackButton.hover();
+    await expect(nextTrackButton).toBeEnabled();
     await nextTrackButton.click();
     await expect(focusOverlay.getByRole('heading', {
       name: 'Focus E2E Fixture Next',

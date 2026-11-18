@@ -39,6 +39,20 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
       ...(process.platform === 'linux' ? ['--no-sandbox'] : []), `--user-data-dir=${data}`, repo,
     ], env });
     const page = await app.firstWindow();
+    // A Windows window with system caption buttons and Mica keeps its content one pixel
+    // narrower than the window (393 → 392 at 200%), so wait for the content width Electron
+    // reports instead of the requested window width.
+    const resizeWindow = async (width: number, height: number) => {
+      await app!.evaluate(({ BrowserWindow }, size) => {
+        BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(size.width, size.height);
+      }, { width, height });
+      await expect.poll(async () => {
+        const contentWidth = await app!.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.getContentSize()[0]!);
+        const innerWidth = await page.evaluate(() => window.innerWidth);
+        return innerWidth === contentWidth && Math.abs(contentWidth - width) <= 1;
+      }).toBe(true);
+    };
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'ready');
@@ -86,8 +100,7 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
     expect(Math.abs(bounds!.x + bounds!.width / 2 - viewport.width / 2)).toBeLessThan(1);
     expect(Math.abs(bounds!.y + bounds!.height / 2 - viewport.height / 2)).toBeLessThan(1);
     await page.screenshot({ path: testInfo.outputPath('startup-wide.png') });
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(393, 851));
-    await expect.poll(() => page.evaluate(() => innerWidth)).toBe(393);
+    await resizeWindow(393, 851);
     await page.screenshot({ path: testInfo.outputPath('startup-portrait.png') });
     await expect(page.locator('html')).toHaveAttribute('data-startup', 'loading');
 
@@ -97,11 +110,13 @@ test('startup covers slow restoration and enlarges the icon to reveal the saved 
     await expect(page.locator('#root')).not.toHaveAttribute('inert');
     await expect(page.locator('html')).toHaveClass(/theme-light/);
     await expect(page.locator('.library-track-row')).toContainText('Restored from cache');
-    await expect(page.locator('.app-library-background')).toHaveCSS('background-image',
-      'linear-gradient(135deg, rgb(255, 247, 251), rgb(238, 245, 255))');
+    // Over Windows Mica the same theme gradient is drawn 78% opaque (wall.css).
+    const mica = await page.locator('html').getAttribute('data-window-effect') === 'mica';
+    await expect(page.locator('.app-library-background')).toHaveCSS('background-image', mica
+      ? 'linear-gradient(135deg, color(srgb 1 0.968627 0.984314 / 0.78), color(srgb 0.933333 0.960784 1 / 0.78))'
+      : 'linear-gradient(135deg, rgb(255, 247, 251), rgb(238, 245, 255))');
     await page.screenshot({ path: testInfo.outputPath('library-portrait.png') });
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => !w.getParentWindow())!.setSize(1200, 800));
-    await expect.poll(() => page.evaluate(() => innerWidth)).toBe(1200);
+    await resizeWindow(1200, 800);
     await page.screenshot({ path: testInfo.outputPath('library-wide.png') });
     const samples = await page.evaluate(() =>
       (window as typeof window & { startupProbe?: { scale: number; opacity: number; title: string; list: boolean }[] }).startupProbe!);
