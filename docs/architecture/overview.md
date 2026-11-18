@@ -126,7 +126,7 @@ renderer 的根组合点是 `App.tsx` 中的私有 `AppContent`。默认导出�
 
 - `usePlayerController` 负责跨 slot 选歌、搜索定位、在线流播放、歌单播放上下文和歌单歌词窗口。
 - `useLibraryController` 负责 view-slot-aware 删除、批量删除、重排、元数据更新和下载完成后的曲库写入。
-- player/library/import/online viewmodel 向 `AppShell` 提供面向 UI 的状态和回调。
+- player/library/import/online/cloud/playlist viewmodel 向 `AppShell` 提供面向 UI 的状态和回调；`AppShell` 不直接调用 WebDAV 等业务 service。
 - `AppContent` 保留应用级装配，例如持久化快照、启动恢复、cookie 启动同步、生命周期注册和孤儿缓存清理。
 
 文件长度不作为组合根的架构边界；判断标准是领域状态变更是否继续由对应 controller、hook 或 service 持有。
@@ -406,7 +406,7 @@ WebDAV 客户端在 `services/webdavClient.ts`，配置通过 `AppStorage` 的 `
 - 可写性探针。
 - 本地 CDN URL cache。
 
-`hooks/useLibraryCloudSync.ts` 在 `LibraryView` 中使用 `useWebDAV`：
+`hooks/useLibraryCloudSync.ts` 由 `AppContent` 调用，内部使用 `useWebDAV`，加载进度和手动刷新经 `useCloudViewModel` 交给界面：
 
 - 首次进入 cloud slot 自动加载。
 - 手动 refresh 重新扫描。
@@ -463,6 +463,5 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 - `AppContent` 仍直接编排持久化快照和孤儿缓存清理；若继续增长，应按领域边界下沉，而不是按行数机械拆文件。
 - 导入、云同步、在线上传、文件重载仍直接持有曲库写入函数，没有经过 `useLibraryController`（见“曲库状态的写入方”）。
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
-- `useLibraryCloudSync` 由 `AppShell` 触发云同步，UI 组件仍承载这一业务副作用入口。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。

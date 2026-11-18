@@ -1,7 +1,7 @@
 import React, { type ReactElement, useCallback, useMemo, useState } from 'react';
-import { SlotId, Track, ViewMode } from '../types';
+import { SlotId, ViewMode } from '../types';
 import { useLibraryState } from '../stores/libraryState';
-import type { OnlineSource, PlaylistInfo } from '../services/onlineMusicProvider';
+import type { PlaylistInfo } from '../services/onlineMusicProvider';
 import TitleBar from './TitleBar';
 import Controls from './Controls';
 import FocusMode from './FocusMode';
@@ -18,9 +18,7 @@ import type { PlaylistSwitchItem } from './playlist-switcher/types';
 import type { PaletteLibrarySources } from './palette/usePaletteItems';
 import { useAppCommands, type AppCommandHandlers } from '../commands/useAppCommands';
 import type { PaletteSourceSlot } from '../commands/buildAppCommands';
-import { useLibraryCloudSync } from '../hooks/useLibraryCloudSync';
 import { useWindowVisible } from '../hooks/useWindowVisible';
-import { webdavClient } from '../services/webdavClient';
 import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import type { useUIStore } from '../hooks/useUIStore';
@@ -28,7 +26,8 @@ import type { useLibraryViewModel } from '../viewmodels/useLibraryViewModel';
 import type { usePlayerViewModel } from '../viewmodels/usePlayerViewModel';
 import type { useImportViewModel } from '../viewmodels/useImportViewModel';
 import type { useOnlineViewModel } from '../viewmodels/useOnlineViewModel';
-import type { usePlayerController } from '../controllers/usePlayerController';
+import type { useCloudViewModel } from '../viewmodels/useCloudViewModel';
+import type { usePlaylistViewModel } from '../viewmodels/usePlaylistViewModel';
 
 // The single application shell. AppContent owns wiring while this component
 // remains presentational; all state and user intents arrive via props.
@@ -43,33 +42,22 @@ interface AppShellProps {
   player: ReturnType<typeof usePlayerViewModel>;
   importVm: ReturnType<typeof useImportViewModel>;
   online: ReturnType<typeof useOnlineViewModel>;
-  playerController: ReturnType<typeof usePlayerController>;
+  cloud: ReturnType<typeof useCloudViewModel>;
+  // Playlist browse/play decoupling: the playlist being browsed on the wall
+  // (viewSlot === 'playlist') is shown from its browsing tracks rather than
+  // the 'playlist' play slot, so opening a playlist never interrupts playback.
+  playlist: ReturnType<typeof usePlaylistViewModel>;
   // Slot state (slots, the play context and the browsed source) is read from
-  // the library store; the props below are intents and view wiring.
-  handleSwitchSlot: (slotId: SlotId) => Promise<void> | void;
+  // the library store; the props below are view wiring.
   pendingSlotLocate: { slot: SlotId; token: number } | null | undefined;
-  loadCloudTracks: (tracks: Track[]) => void;
-  mergeCloudTracks: (added: Track[], removedIds: string[], updated: Track[]) => void;
   handleSlotLocatePrepared: (token: number) => void;
   // The classic list view reports its own entrance, scroll offset and category.
   handleSlotContentReady: (slot: SlotId) => void;
   handleLibraryScrollPositionChange: (position: number) => void;
   handleCategoryChange: (selection: string | null) => void;
   libraryContentRef: React.RefObject<HTMLDivElement>;
-  onOpenPlaylist: (
-    source: OnlineSource,
-    playlistId: string,
-    playlistTitle: string,
-    totalTrackCount: number,
-  ) => Promise<void>;
   audioElement: ReactElement | null;
   isLinux: boolean;
-  // Playlist browse/play decoupling: the playlist being browsed on the wall
-  // (viewSlot === 'playlist') is shown from this preview rather than the
-  // 'playlist' play slot, so opening a playlist never interrupts playback.
-  // The slot is only committed when the user plays a poster.
-  libraryBrowsingTracks: Track[];
-  onPlayLibraryPlaylistTrack: (index: number) => void;
 }
 
 const AppShell: React.FC<AppShellProps> = ({
@@ -78,21 +66,16 @@ const AppShell: React.FC<AppShellProps> = ({
   player,
   importVm,
   online,
-  playerController,
-  handleSwitchSlot,
+  cloud,
+  playlist,
   pendingSlotLocate,
-  loadCloudTracks,
-  mergeCloudTracks,
   handleSlotLocatePrepared,
   handleSlotContentReady,
   handleLibraryScrollPositionChange,
   handleCategoryChange,
   libraryContentRef,
-  onOpenPlaylist,
   audioElement,
   isLinux,
-  libraryBrowsingTracks,
-  onPlayLibraryPlaylistTrack,
 }) => {
   const { t } = useTranslation();
   const slots = useLibraryState(state => state.slots);
@@ -119,23 +102,18 @@ const AppShell: React.FC<AppShellProps> = ({
 
   // A browsed playlist always shows its own (possibly still loading) tracks,
   // never the previously played playlist held in the 'playlist' play slot.
-  const playlistState = playerController.libraryPlaylistLoadState;
+  const playlistState = playlist.loadState;
   const isBrowsingPlaylist = viewSlot === 'playlist' && !!playlistState.playlistId;
-  const shownTracks = isBrowsingPlaylist ? libraryBrowsingTracks : library.slots[library.viewSlot].tracks;
-  const playShownTrack = viewSlot === 'playlist' && libraryBrowsingTracks.length > 0
-    ? onPlayLibraryPlaylistTrack
+  const shownTracks = isBrowsingPlaylist ? playlist.browsingTracks : library.slots[library.viewSlot].tracks;
+  const playShownTrack = viewSlot === 'playlist' && playlist.browsingTracks.length > 0
+    ? playlist.playTrack
     : library.selectTrack;
   // Identity of the shown list, used to restore the wall’s scroll position.
   const librarySourceKey = viewSlot === 'playlist' && playlistState.playlistId
     ? `playlist:${playlistState.source}:${playlistState.playlistId}`
     : viewSlot;
 
-  // Cloud tracks load (and refresh) regardless of which view is on screen.
-  const { loadProgress: cloudLoadProgress, refreshCloudTracks } = useLibraryCloudSync({
-    dataSource: viewSlot,
-    onLoadCloudTracks: loadCloudTracks,
-    onMergeCloudTracks: mergeCloudTracks,
-  });
+  const refreshCloudTracks = cloud.refresh;
   const refreshCloud = useCallback(() => {
     void refreshCloudTracks().catch(() => notify(t('settingsDialog.webdavTitle'), t('browse.error')));
   }, [refreshCloudTracks, t]);
@@ -151,25 +129,27 @@ const AppShell: React.FC<AppShellProps> = ({
     setIsFocusMode(current => !current);
   }, [setIsFocusMode]);
 
+  const { activeSlotId, switchViewSlot } = library;
+  const hasCloudConfig = cloud.hasConfig;
   const switchSource = useCallback((slot: PaletteSourceSlot) => {
-    if (slot === 'cloud' && !webdavClient.hasConfig()) {
+    if (slot === 'cloud' && !hasCloudConfig()) {
       notify(t('settingsDialog.webdavTitle'), t('settingsDialog.webdavFillAll'));
       openSettings('cloud');
       return;
     }
     handleNavigate(ViewMode.WALL);
-    void handleSwitchSlot(slot);
-  }, [handleNavigate, handleSwitchSlot, openSettings, t]);
-  const openPlaylistInfo = useCallback((playlist: PlaylistInfo) => {
+    void switchViewSlot(slot);
+  }, [handleNavigate, hasCloudConfig, switchViewSlot, openSettings, t]);
+  const openPlaylist = playlist.open;
+  const openPlaylistInfo = useCallback((info: PlaylistInfo) => {
     handleNavigate(ViewMode.WALL);
-    void onOpenPlaylist(playlist.source, playlist.id, playlist.name, playlist.songCount)
+    void openPlaylist(info.source, info.id, info.name, info.songCount)
       .catch(() => notify(t('playlists.title'), t('browse.error')));
-  }, [handleNavigate, onOpenPlaylist, t]);
+  }, [handleNavigate, openPlaylist, t]);
 
   // Scroll the wall to the playing track, switching back from search results
   // or over to the source it plays from when the shown list lacks it.
   const currentTrackId = player.currentTrack?.id;
-  const { activeSlotId, switchViewSlot } = library;
   const locateCurrentTrack = useCallback(() => {
     if (!currentTrackId) return;
     if (viewMode !== ViewMode.WALL) handleNavigate(ViewMode.WALL);
@@ -203,7 +183,7 @@ const AppShell: React.FC<AppShellProps> = ({
     reloadFiles: importVm.reloadFiles,
     hasUnavailableTracks,
     selectTracks: canManageShown && shownTracks.length > 0 ? selectTracks : undefined,
-    refreshCloud: viewSlot === 'cloud' && webdavClient.hasConfig() ? refreshCloud : undefined,
+    refreshCloud: viewSlot === 'cloud' && hasCloudConfig() ? refreshCloud : undefined,
     playAll: shownTracks.length > 0 ? playAll : undefined,
     shuffleAll: shownTracks.length > 0 ? shuffleAll : undefined,
     locateCurrentTrack: currentTrackId ? locateCurrentTrack : undefined,
@@ -214,40 +194,40 @@ const AppShell: React.FC<AppShellProps> = ({
     libraryLayout,
     setLibraryLayout: switchLibraryLayout,
   }), [
-    canManageShown, currentTrackId, hasUnavailableTracks, locateCurrentTrack, importVm.importClick, importVm.importDisabled, importVm.reloadFiles,
+    canManageShown, currentTrackId, hasCloudConfig, hasUnavailableTracks, locateCurrentTrack, importVm.importClick, importVm.importDisabled, importVm.reloadFiles,
     libraryLayout, openPlaylistInfo, openSettings, switchLibraryLayout, playShownTrack, player, refreshCloud, selectTracks,
     shownTracks.length, slots.cloud.tracks.length, slots.local.tracks.length, slots.online.tracks.length,
     switchSource, toggleFocusMode, viewSlot,
   ]);
   const { commands, visiblePlaylists } = useAppCommands(commandHandlers);
-  const hasCloudConfig = webdavClient.hasConfig();
+  const cloudConfigured = hasCloudConfig();
   const switcherItems = useMemo<PlaylistSwitchItem[]>(() => [
-    ...(['local', 'cloud', 'online'] as const).filter(slot => slot !== 'cloud' || hasCloudConfig).map(slot => ({
+    ...(['local', 'cloud', 'online'] as const).filter(slot => slot !== 'cloud' || cloudConfigured).map(slot => ({
       id: `source:${slot}`,
       name: t(`sidebar.${slot}`),
       detail: t('playlistSwitcher.count', { count: slots[slot].tracks.length }),
       icon: slot === 'local' ? 'hard_drive' : slot === 'cloud' ? 'cloud' : 'history',
       run: () => switchSource(slot),
     })),
-    ...visiblePlaylists.map(playlist => ({
-      id: `playlist:${playlist.source}:${playlist.id}`,
-      name: playlist.name,
-      detail: t('playlistSwitcher.count', { count: playlist.songCount }),
+    ...visiblePlaylists.map(item => ({
+      id: `playlist:${item.source}:${item.id}`,
+      name: item.name,
+      detail: t('playlistSwitcher.count', { count: item.songCount }),
       icon: 'queue_music',
-      coverUrl: playlist.coverUrl,
-      run: () => openPlaylistInfo(playlist),
+      coverUrl: item.coverUrl,
+      run: () => openPlaylistInfo(item),
     })),
-  ], [hasCloudConfig, openPlaylistInfo, slots.local.tracks.length, slots.cloud.tracks.length,
+  ], [cloudConfigured, openPlaylistInfo, slots.local.tracks.length, slots.cloud.tracks.length,
     slots.online.tracks.length, switchSource, t, visiblePlaylists]);
   // The list's Apple Music-style header: the browsed playlist, or the shown source.
   const listCollection = useMemo<LibraryCollection>(() => {
     if (viewSlot !== 'playlist') {
       return { title: t(`sidebar.${viewSlot}`), coverUrl: null, trackCount: shownTracks.length };
     }
-    const playlist = visiblePlaylists.find(entry => entry.id === playlistState.playlistId && entry.source === playlistState.source);
+    const shownPlaylist = visiblePlaylists.find(entry => entry.id === playlistState.playlistId && entry.source === playlistState.source);
     return {
-      title: playlistState.title ?? playlist?.name ?? t('playlists.title'),
-      coverUrl: playlist?.coverUrl ? toCoverThumb(playlist.coverUrl, 400) ?? null : null,
+      title: playlistState.title ?? shownPlaylist?.name ?? t('playlists.title'),
+      coverUrl: shownPlaylist?.coverUrl ? toCoverThumb(shownPlaylist.coverUrl, 400) ?? null : null,
       trackCount: Math.max(playlistState.totalTrackCount ?? 0, shownTracks.length),
     };
   }, [playlistState.playlistId, playlistState.source, playlistState.title, playlistState.totalTrackCount,
@@ -312,9 +292,9 @@ const AppShell: React.FC<AppShellProps> = ({
                     onPendingLocatePrepared={handleSlotLocatePrepared}
                     onSlotContentReady={handleSlotContentReady}
                     onCategoryChange={handleCategoryChange}
-                    cloudLoadProgress={cloudLoadProgress}
+                    cloudLoadProgress={cloud.loadProgress}
                     onRefreshCloud={refreshCloudTracks}
-                    {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playerController.loadMorePlaylistInLibrary } : {})}
+                    {...(viewSlot === 'playlist' ? { onLoadMorePlaylist: playlist.loadMore } : {})}
                     playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
                     playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
                     playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
@@ -338,7 +318,7 @@ const AppShell: React.FC<AppShellProps> = ({
                     playlistLoading={viewSlot === 'playlist' && playlistState.isLoading}
                     playlistHasMore={viewSlot === 'playlist' && playlistState.hasMore}
                     playlistLoadError={viewSlot === 'playlist' ? playlistState.error : null}
-                    onLoadMorePlaylist={viewSlot === 'playlist' ? playerController.loadMorePlaylistInLibrary : undefined}
+                    onLoadMorePlaylist={viewSlot === 'playlist' ? playlist.loadMore : undefined}
                     pendingLocateSlot={pendingSlotLocate?.slot}
                     pendingLocateToken={pendingSlotLocate?.token}
                     onPendingLocatePrepared={handleSlotLocatePrepared}
@@ -352,7 +332,7 @@ const AppShell: React.FC<AppShellProps> = ({
                     onDropFiles={importVm.dropFiles}
                     onDropFilePaths={importVm.dropFilePaths}
                     importProgress={importVm.importProgress}
-                    loadProgress={cloudLoadProgress}
+                    loadProgress={cloud.loadProgress}
                     selectionRequest={selectionRequest}
                   />
               )}

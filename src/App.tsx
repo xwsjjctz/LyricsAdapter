@@ -26,6 +26,9 @@ import { usePlayerViewModel } from './viewmodels/usePlayerViewModel';
 import { useLibraryViewModel } from './viewmodels/useLibraryViewModel';
 import { useOnlineViewModel } from './viewmodels/useOnlineViewModel';
 import { useImportViewModel } from './viewmodels/useImportViewModel';
+import { useCloudViewModel } from './viewmodels/useCloudViewModel';
+import { usePlaylistViewModel } from './viewmodels/usePlaylistViewModel';
+import { useLibraryCloudSync } from './hooks/useLibraryCloudSync';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useSystemLyrics } from './hooks/useSystemLyrics';
 import { revealStartupScreen } from './services/startupScreen';
@@ -363,6 +366,24 @@ const AppContent: React.FC = () => {
     if (viewMode !== ViewMode.WALL) transitionToView(ViewMode.WALL);
     await loading;
   }, [handleSwitchSlot, playerController, transitionToView, viewMode]);
+  const playlist = usePlaylistViewModel({
+    loadState: playerController.libraryPlaylistLoadState,
+    browsingTracks: playerController.libraryBrowsingTracks,
+    open: handleOpenPlaylist,
+    loadMore: playerController.loadMorePlaylistInLibrary,
+    playTrack: playerController.playLibraryPlaylistTrack,
+  });
+
+  // Cloud tracks load (and refresh) regardless of which view is on screen.
+  const cloudSync = useLibraryCloudSync({
+    dataSource: viewSlot,
+    onLoadCloudTracks: loadCloudTracks,
+    onMergeCloudTracks: mergeCloudTracks,
+  });
+  const cloud = useCloudViewModel({
+    loadProgress: cloudSync.loadProgress,
+    refresh: cloudSync.refreshCloudTracks,
+  });
 
   // The playlist lyrics sliding-window effect (current ± 1 prefetch + eviction)
   // now runs inside the player controller, keyed on playlistCurrentIndex.
@@ -417,21 +438,16 @@ const AppContent: React.FC = () => {
       player={player}
       importVm={importVm}
       online={online}
-      playerController={playerController}
-      handleSwitchSlot={handleSwitchSlot}
+      cloud={cloud}
+      playlist={playlist}
       pendingSlotLocate={pendingSlotLocate}
-      loadCloudTracks={loadCloudTracks}
-      mergeCloudTracks={mergeCloudTracks}
       handleSlotLocatePrepared={handleSlotLocatePrepared}
       handleSlotContentReady={handleSlotContentReady}
       handleLibraryScrollPositionChange={handleLibraryScrollPositionChange}
       handleCategoryChange={handleCategoryChange}
       libraryContentRef={libraryContentRef}
-      onOpenPlaylist={handleOpenPlaylist}
       audioElement={audioElement}
       isLinux={isLinux}
-      libraryBrowsingTracks={playerController.libraryBrowsingTracks}
-      onPlayLibraryPlaylistTrack={playerController.playLibraryPlaylistTrack}
     />
     </LibraryStateProvider>
   );

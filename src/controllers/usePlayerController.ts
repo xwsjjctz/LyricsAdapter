@@ -19,7 +19,7 @@ const LYRICS_UPGRADE_ATTEMPT_LIMIT = 256;
 const PLAYLIST_LYRICS_PREFETCH_DELAY_MS = 120;
 const PLAYLIST_LYRICS_MAX_ACTIVE_REQUESTS = 3;
 
-interface PlaylistLoadState {
+export interface PlaylistLoadState {
   source: OnlineSource;
   playlistId: string | null;
   title: string | null;
