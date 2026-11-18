@@ -152,7 +152,7 @@ function applyEnrichedLyrics(current: Track, enriched: Track): Track {
  * the former composition root, not redesigned. Dep arrays are reproduced
  * exactly to avoid
  * accidental behaviour changes; any known dep-array gaps are recorded in
- * docs/refactor-backlog.md rather than fixed here.
+ * docs/development/refactor-backlog.md rather than fixed here.
  */
 
 export interface PlayerControllerOptions {

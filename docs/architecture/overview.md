@@ -465,3 +465,5 @@ Provider 策略在 `services/webdav/providerConfig.ts`，目前包含 generic �
 - `useImport` 同时处理文件选择、批处理、元数据解析、通知、持久化和 WebDAV 上传。
 - `desktopAdapter` 已提供业务侧统一入口；`index.tsx` 的启动平台探测是剩余的边界级直接读取。
 - renderer 主线程 parser 与 worker parser 有重复实现，需要重构时保证解析行为一致。
+
+未解决的重构问题统一记录在[重构待办](../development/refactor-backlog.md)。
