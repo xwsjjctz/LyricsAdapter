@@ -23,6 +23,10 @@ type RequestState = { key: string; scope: string; track: Track; status: 'transla
 
 const EMPTY: TranslatedLines = {};
 const sameProvider = (a: PluginProviderInfo | null, b: PluginProviderInfo | null) => JSON.stringify(a) === JSON.stringify(b);
+const sameLines = (a: TranslatedLines, b: TranslatedLines) => {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key]);
+};
 
 /**
  * Focus Mode lyric translation, started only through `toggle`; `track` is null when it has
@@ -68,8 +72,13 @@ export function usePluginTranslation(track: Track | null, visible: boolean) {
     let disposed = false;
     let release: (() => void) | undefined;
     const matches = (previous: RequestState | undefined) => previous?.key === requestKey && previous.scope === scope && previous.track === track && previous.clearRevision === action.clearRevision;
-    setState(previous => ({ key: requestKey, scope, track, status: 'translating', clearRevision: action.clearRevision,
-      lines: matches(previous) ? previous!.lines : EMPTY, hasResult: matches(previous) && previous!.hasResult }));
+    // Re-reading a request that already has a result (after a reload attempt, or when Focus Mode
+    // reopens) keeps showing it instead of flashing back to translating.
+    setState(previous => {
+      const kept = matches(previous) && previous!.hasResult;
+      return { key: requestKey, scope, track, status: kept ? 'translated' : 'translating', clearRevision: action.clearRevision,
+        lines: matches(previous) ? previous!.lines : EMPTY, hasResult: kept };
+    });
     const cancel = () => { disposed = true; release?.(); };
     void (async () => {
       const document = await lyricDocumentForTrack(track);
@@ -79,8 +88,11 @@ export function usePluginTranslation(track: Track | null, visible: boolean) {
       release = lease.release;
       const result = await lease.promise;
       if (!disposed && getTrackTranslationAction(requestKey).clearRevision === action.clearRevision) {
-        setState({ key: requestKey, scope, track, status: 'translated', hasResult: true, clearRevision: action.clearRevision,
-          lines: Object.fromEntries(result.lines.map(line => [line.lineId, line.text])) });
+        const lines: TranslatedLines = Object.fromEntries(result.lines.map(line => [line.lineId, line.text]));
+        // An unchanged result (the memory cache after a failed reload) keeps the same object,
+        // so the lyric renderers do not lay the lines out again.
+        setState(previous => ({ key: requestKey, scope, track, status: 'translated', hasResult: true, clearRevision: action.clearRevision,
+          lines: matches(previous) && previous!.hasResult && sameLines(previous!.lines, lines) ? previous!.lines : lines }));
       }
     })().catch(error => {
       if (disposed) return;
