@@ -111,6 +111,8 @@ export interface TypedElectronIPC {
     allowAudioPath: (filePath: string) => Promise<IpcResult<void>>;
   };
   lyrics: {
+    /** Whether lyrics may be looked up online on the app's own initiative; false in end-to-end runs. */
+    lookupAllowed: () => Promise<IpcResult<boolean>>;
     /** Lyrics from the community collection (AMLL TTML DB); null when it has none for the track. */
     matchCommunity: (query: LyricsMatchQuery) => Promise<IpcResult<OnlineLyricsResult | null>>;
   };

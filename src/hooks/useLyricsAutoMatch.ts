@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Track } from '../types';
 import type { OnlineLyricsResult } from '../shared/onlineMusic';
 import { getDesktopAPI } from '../services/desktopAdapter';
@@ -47,6 +47,20 @@ export function useLyricsAutoMatch({
   const known = useRef<Set<string> | null>(null);
   const latest = useRef({ getLocalTracks, applyMatchedLyrics });
   latest.current = { getLocalTracks, applyMatchedLyrics };
+  /** The main process allows lookups (it does not in end-to-end runs); false until it has answered. */
+  const [allowed, setAllowed] = useState(false);
+  const active = ready && allowed;
+
+  useEffect(() => {
+    // Browser mode has no desktop bridge, and with it no sources to ask.
+    const desktop = getDesktopAPI();
+    if (!desktop?.lyricsLookupAllowed) return;
+    let current = true;
+    desktop.lyricsLookupAllowed()
+      .then(value => { if (current) setAllowed(value); })
+      .catch(error => logger.warn('[LyricsMatch] Could not ask whether lookups are allowed:', error));
+    return () => { current = false; };
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -89,7 +103,7 @@ export function useLyricsAutoMatch({
 
   // Newly added local tracks (imports, downloads) are looked up as they arrive.
   useEffect(() => {
-    if (!ready || !getDesktopAPI()) return;
+    if (!active) return;
     if (!known.current) {
       known.current = new Set(localTracks.map(track => track.id));
       return;
@@ -97,11 +111,11 @@ export function useLyricsAutoMatch({
     const added = localTracks.filter(track => !known.current!.has(track.id));
     for (const track of added) known.current.add(track.id);
     enqueue(added.filter(needsLyricsMatch).map(track => track.id));
-  }, [ready, localTracks, enqueue]);
+  }, [active, localTracks, enqueue]);
 
   // A track from before this feature, or one whose lookup could not complete, gets its turn when played.
   useEffect(() => {
-    if (!ready || !currentTrackId || !getDesktopAPI()) return;
+    if (!active || !currentTrackId) return;
     const timer = setTimeout(() => {
       const track = latest.current.getLocalTracks().find(candidate => candidate.id === currentTrackId);
       if (!track || !needsLyricsMatch(track)) return;
@@ -110,5 +124,5 @@ export function useLyricsAutoMatch({
       enqueue([track.id], true);
     }, PLAYING_TRACK_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [ready, currentTrackId, enqueue]);
+  }, [active, currentTrackId, enqueue]);
 }

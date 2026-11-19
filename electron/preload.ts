@@ -109,6 +109,7 @@ const typedIpc = {
     allowAudioPath: async (filePath: string) => invoke('ipc:file:allowAudioPath', { filePath }),
   },
   lyrics: {
+    lookupAllowed: invoker('ipc:lyrics:lookupAllowed'),
     matchCommunity: invoker('ipc:lyrics:matchCommunity'),
   },
   library: {

@@ -146,6 +146,7 @@ export interface IpcInvokeContract {
   'ipc:file:expandAudioPaths': [[payload: { paths: string[] }], IpcResult<AudioPathScan>];
   'ipc:file:readAudio': [[payload: { filePath: string }], IpcResult<{ data: ArrayBuffer }>];
   'ipc:file:allowAudioPath': [[payload: { filePath: string }], IpcResult<void>];
+  'ipc:lyrics:lookupAllowed': [[], IpcResult<boolean>];
   'ipc:lyrics:matchCommunity': [[payload: LyricsMatchQuery], IpcResult<OnlineLyricsResult | null>];
   'ipc:library:loadIndex': [[], IpcResult<unknown>];
   'ipc:library:saveIndex': [[library: unknown], IpcResult<void>];

@@ -73,6 +73,8 @@ export interface DesktopAPI {
   selectAudioFolder: () => Promise<AudioPathScan & { canceled: boolean }>;
   /** Importable audio beneath dropped folders. */
   expandAudioPaths: (paths: string[]) => Promise<AudioPathScan>;
+  /** Whether lyrics may be looked up online without being asked; false in end-to-end runs. */
+  lyricsLookupAllowed: () => Promise<boolean>;
   /** Lyrics from the community collection; null when it has none. Rejects when it cannot be reached. */
   matchCommunityLyrics: (query: LyricsMatchQuery) => Promise<OnlineLyricsResult | null>;
   loadLibraryIndex: () => Promise<{ success: boolean; library: unknown; error?: string }>;
@@ -194,6 +196,11 @@ class ElectronAdapter implements FullDesktopAPI {
     if (result.ok) return result.data;
     logger.error('[ElectronAdapter] Folder scan failed:', result.error);
     return { filePaths: [], truncated: false };
+  }
+
+  async lyricsLookupAllowed(): Promise<boolean> {
+    const result = await this.api.ipc!.lyrics.lookupAllowed();
+    return result.ok && result.data;
   }
 
   async matchCommunityLyrics(query: LyricsMatchQuery): Promise<OnlineLyricsResult | null> {
