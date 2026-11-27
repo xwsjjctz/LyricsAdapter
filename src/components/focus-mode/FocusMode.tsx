@@ -191,8 +191,8 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
     }
   }, [isVisible, portrait]);
 
-  // Tracks without artwork use the app-icon default cover as their backdrop too.
-  const coverUrl = track ? resolveCoverUrl(track.coverUrl) : undefined;
+  // Use the app-icon default cover when no track is loaded or the track has no artwork.
+  const coverUrl = resolveCoverUrl(track?.coverUrl);
 
   const handleLyricSeek = useCallback((lyricTime: number) => {
     onSeek(lyricTime);
@@ -241,7 +241,7 @@ const FocusModeContent: React.FC<FocusModeProps> = memo(({
         {/* Content Section */}
         <main
           className="focus-main flex-1 flex items-center justify-center overflow-visible mb-24 mx-auto w-full flex-row pl-0 pr-4 lg:pl-0 lg:pr-8 gap-20 lg:gap-32 max-w-5xl translate-x-6 lg:translate-x-6"
-          data-focus-has-lyrics={hasTrackLyrics(track)}
+          data-focus-has-lyrics={!track || hasTrackLyrics(track)}
           style={hasScaledLayout ? {
             marginBottom: `${96 * focusScale}px`,
             maxWidth: `${1024 * focusScale}px`,
