@@ -17,6 +17,36 @@
 - Use skills and OpenSpec when relevant to the request. Read only needed references.
   See [agent workflow](docs/agent-workflow.md) for OpenSpec operations.
 
+## Orca orchestration
+
+- When a complex task has at least two independent subtasks, the coordinating
+  agent must automatically use the Orca `orchestration` skill to dispatch them.
+  This is standing authorization to start the necessary workers within the task's
+  scope. Handle simple tasks directly and honor a user request for a single agent.
+- Follow the user's plan when provided, including assignments, dependencies, and
+  acceptance criteria. Otherwise split the task by deliverable. Give each worker a
+  self-contained brief with its goal, allowed files and commands, and what to report.
+- Use Orca `orchestration worker-start` for workers. Default to local Codex workers
+  with at most three active at once. Use the current worktree for read-only work
+  and separate child worktrees when concurrent edits would conflict. Dispatch
+  dependent work once its prerequisites are met.
+- The coordinator reviews worker results, integrates authorized changes, and reports
+  outcomes and blockers. Workers inherit the user's scope and this repository's
+  test, build, and Git rules. Workers do not delegate recursively.
+
+### Dependency audits
+
+- When the user's task or plan calls for checking vulnerable or outdated dependencies
+  or evaluating upgrades, the coordinator must automatically send a read-only
+  `question` to the Orca bot `bot:依赖更新` via `orchestration send`. This is standing
+  authorization to contact that bot for those audits.
+- Include the repository, target branch or ref, and audit scope. Audit LyricsAdapter
+  by default. Include LyricsAdapter-Android only when the user includes it in scope.
+  Request a prioritized report with affected dependencies, evidence, and recommended
+  upgrade versions. Instruct the bot to leave files, commits, and pull requests alone.
+- Review the bot's Orca mailbox reply before starting work that depends on it.
+  The coordinator is responsible for advancing the plan after the reply arrives.
+
 ## Navigation and commands
 
 When `.codegraph/` exists, try CodeGraph first for symbol and call-path questions:
