@@ -44,6 +44,39 @@ interface UseImportOptions {
   mergeCloudTracks?: (added: Track[], removedIds: string[], updated: Track[]) => void;
 }
 
+const DESKTOP_IMPORT_CONCURRENCY = 8;
+const UI_UPDATE_BATCH = 20;
+
+/**
+ * Run async work over `items` with a bounded worker pool, preserving input
+ * order in the returned array while invoking `onItemDone` as each finishes.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+  onItemDone?: (result: R, completedCount: number) => void,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  let completed = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex++;
+        const result = await worker(items[currentIndex]!, currentIndex);
+        results[currentIndex] = result;
+        completed += 1;
+        onItemDone?.(result, completed);
+      }
+    }),
+  );
+
+  return results;
+}
+
 /** 音频扩展名 → 上传 Content-Type。 */
 function audioMimeFor(ext: string): string {
   switch (ext) {
@@ -149,130 +182,152 @@ export function useImport({
     return map;
   }, [tracks]);
 
-  // Process file paths directly (new path-based import - no file copying)
-  const processDesktopFilePathBatch = useCallback(async (
-    filePaths: { path: string; name: string }[],
+  // Process a single desktop file path directly (path-based import - no file copying)
+  const processDesktopFilePathItem = useCallback(async (
+    filePath: string,
+    fileName: string,
     desktopAPI: DesktopAPI,
-    tracksMap: Map<string, Track>
-  ): Promise<Track[]> => {
-    const results = await Promise.all(
-      filePaths.map(async ({ path: filePath, name: fileName }) => {
-        const existingTrack = tracksMap.get(getDesktopImportKey(filePath));
-        if (existingTrack) {
-          logger.debug(`[Import] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
-        } else {
-          logger.debug(`[Import] 🆕 File "${fileName}" is new, creating new track`);
-        }
+    tracksMap: Map<string, Track>,
+  ): Promise<Track> => {
+    const existingTrack = tracksMap.get(getDesktopImportKey(filePath));
+    if (existingTrack) {
+      logger.debug(`[Import] 🔄 File "${fileName}" already exists (ID: ${existingTrack.id}), will reuse ID`);
+    } else {
+      logger.debug(`[Import] 🆕 File "${fileName}" is new, creating new track`);
+    }
 
-        let metadata: ParsedAudioMetadata | undefined;
+    let metadata: ParsedAudioMetadata | undefined;
+    try {
+      const parseResult = await desktopAPI.parseAudioMetadata(filePath);
+      if (parseResult.success && parseResult.metadata) {
+        metadata = parseResult.metadata as ParsedAudioMetadata;
+        logger.debug(`[Import] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
+      }
+    } catch (error) {
+      logger.error('[Import] Failed to parse metadata:', error);
+    }
+
+    const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
+
+    let coverUrl = '';
+    let coverSavedToDisk = false;
+    if (metadata?.coverData && metadata?.coverMime) {
+      if (desktopAPI.saveCoverThumbnail) {
         try {
-          const parseResult = await desktopAPI.parseAudioMetadata(filePath);
-          if (parseResult.success && parseResult.metadata) {
-            metadata = parseResult.metadata as ParsedAudioMetadata;
-            logger.debug(`[Import] ✅ Parsed metadata for "${fileName}": ${metadata?.title} - ${metadata?.artist}`);
+          const coverResult = await desktopAPI.saveCoverThumbnail({
+            id: trackId,
+            data: metadata.coverData,
+            mime: metadata.coverMime,
+          });
+          if (coverResult?.success && coverResult.coverUrl) {
+            coverUrl = coverResult.coverUrl;
+            coverSavedToDisk = true;
           }
         } catch (error) {
-          logger.error('[Import] Failed to parse metadata:', error);
+          logger.warn('[Import] Failed to save cover thumbnail to disk:', error);
         }
+      }
 
-        const trackId = existingTrack?.id || Math.random().toString(36).substr(2, 9);
-
-        let coverUrl = '';
-        let coverSavedToDisk = false;
-        if (metadata?.coverData && metadata?.coverMime) {
-          if (desktopAPI.saveCoverThumbnail) {
-            try {
-              const coverResult = await desktopAPI.saveCoverThumbnail({
-                id: trackId,
-                data: metadata.coverData,
-                mime: metadata.coverMime
-              });
-              if (coverResult?.success && coverResult.coverUrl) {
-                coverUrl = coverResult.coverUrl;
-                coverSavedToDisk = true;
-              }
-            } catch (error) {
-              logger.warn('[Import] Failed to save cover thumbnail to disk:', error);
-            }
+      if (!coverSavedToDisk) {
+        try {
+          const byteCharacters = atob(metadata.coverData);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
           }
-
-          if (!coverSavedToDisk) {
-            try {
-              const byteCharacters = atob(metadata.coverData);
-              const byteNumbers = new Array(byteCharacters.length);
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-              }
-              const byteArray = new Uint8Array(byteNumbers);
-              const blob = new Blob([byteArray], { type: metadata.coverMime });
-              coverUrl = createTrackedBlobUrl(blob);
-
-
-            } catch (error) {
-              logger.error('[Import] Failed to create cover blob:', error);
-            }
-          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: metadata.coverMime });
+          coverUrl = createTrackedBlobUrl(blob);
+        } catch (error) {
+          logger.error('[Import] Failed to create cover blob:', error);
         }
+      }
+    }
 
-        if (metadata) {
-          metadataCacheService.set(trackId, {
-            title: metadata.title ?? '',
-            artist: metadata.artist ?? '',
-            album: metadata.album ?? '',
-            duration: metadata.duration ?? 0,
-            lyrics: metadata.lyrics ?? '',
-            syncedLyrics: metadata.syncedLyrics,
-            wordLyrics: metadata.wordLyrics,
-            wordLyricsFormat: metadata.wordLyricsFormat,
-            fileName: fileName,
-            fileSize: metadata.fileSize || 0,
-            lastModified: Date.now(),
-          });
-        }
+    if (metadata) {
+      metadataCacheService.set(trackId, {
+        title: metadata.title ?? '',
+        artist: metadata.artist ?? '',
+        album: metadata.album ?? '',
+        duration: metadata.duration ?? 0,
+        lyrics: metadata.lyrics ?? '',
+        syncedLyrics: metadata.syncedLyrics,
+        wordLyrics: metadata.wordLyrics,
+        wordLyricsFormat: metadata.wordLyricsFormat,
+        fileName: fileName,
+        fileSize: metadata.fileSize || 0,
+        lastModified: Date.now(),
+      });
+    }
 
-        const track = {
-          id: trackId,
-          title: metadata?.title || fileName.replace(/\.[^/.]+$/, ''),
-          artist: metadata?.artist || 'Unknown Artist',
-          album: metadata?.album || 'Unknown Album',
-          duration: metadata?.duration || 0,
-          lyrics: metadata?.lyrics || '',
-          syncedLyrics: metadata?.syncedLyrics,
-          wordLyrics: metadata?.wordLyrics,
-          wordLyricsFormat: metadata?.wordLyricsFormat,
-          coverUrl: coverUrl,
-          audioUrl: '',
-          fileName: fileName,
-          filePath: filePath,
-          fileSize: metadata?.fileSize || 0,
-          lastModified: Date.now(),
-          addedAt: new Date().toISOString(),
-          available: true
-        } as Track;
+    const track = {
+      id: trackId,
+      title: metadata?.title || fileName.replace(/\.[^/.]+$/, ''),
+      artist: metadata?.artist || 'Unknown Artist',
+      album: metadata?.album || 'Unknown Album',
+      duration: metadata?.duration || 0,
+      lyrics: metadata?.lyrics || '',
+      syncedLyrics: metadata?.syncedLyrics,
+      wordLyrics: metadata?.wordLyrics,
+      wordLyricsFormat: metadata?.wordLyricsFormat,
+      coverUrl: coverUrl,
+      audioUrl: '',
+      fileName: fileName,
+      filePath: filePath,
+      fileSize: metadata?.fileSize || 0,
+      lastModified: Date.now(),
+      addedAt: new Date().toISOString(),
+      available: true,
+    } as Track;
 
-        logger.debug(`[Import] ✓ Track created: ${track.title} (ID: ${track.id})`);
-        return track;
-      })
-    );
-
-    const filtered = results.filter((track): track is Track => track !== null);
-    logger.debug(`[Import] Batch complete: ${results.length} total, ${filtered.length} successful, ${results.length - filtered.length} failed`);
-    return filtered;
+    logger.debug(`[Import] ✓ Track created: ${track.title} (ID: ${track.id})`);
+    return track;
   }, [createTrackedBlobUrl]);
 
-  // Legacy: Process files from paths via dialog (kept for compatibility, now uses direct paths too)
-  const processDesktopFileBatch = useCallback(async (
-    filePaths: string[],
-    desktopAPI: any,
-    tracksMap: Map<string, Track>
-  ): Promise<Track[]> => {
-    // Convert to the new format and use the path-based processor
-    const pathObjects = filePaths.map(path => ({
-      path,
-      name: path.split(/[/\\]/).pop() || ''
-    }));
-    return processDesktopFilePathBatch(pathObjects, desktopAPI, tracksMap);
-  }, [processDesktopFilePathBatch]);
+  const importDesktopFileEntries = useCallback(async (
+    entries: { path: string; name: string }[],
+    desktopAPI: DesktopAPI,
+    tracksMap: Map<string, Track>,
+  ): Promise<{ importedTracks: Track[]; failedCount: number }> => {
+    const pendingUiTracks: Track[] = [];
+    setImportProgress({ loaded: 0, total: entries.length });
+
+    const results = await mapWithConcurrency(
+      entries,
+      DESKTOP_IMPORT_CONCURRENCY,
+      async ({ path: filePath, name: fileName }) => {
+        try {
+          return await processDesktopFilePathItem(filePath, fileName, desktopAPI, tracksMap);
+        } catch (error) {
+          logger.error('[Import] Failed to import file:', fileName, error);
+          return null;
+        }
+      },
+      (track, completed) => {
+        setImportProgress({ loaded: completed, total: entries.length });
+        if (track) {
+          pendingUiTracks.push(track);
+          if (pendingUiTracks.length >= UI_UPDATE_BATCH) {
+            const chunk = pendingUiTracks.splice(0, pendingUiTracks.length);
+            setTracks(prev => [...prev, ...chunk]);
+            tracksCountRef.current += chunk.length;
+          }
+        }
+      },
+    );
+
+    if (pendingUiTracks.length > 0) {
+      const chunk = pendingUiTracks.splice(0, pendingUiTracks.length);
+      setTracks(prev => [...prev, ...chunk]);
+      tracksCountRef.current += chunk.length;
+    }
+
+    const importedTracks = results.filter((track): track is Track => track !== null);
+    return {
+      importedTracks,
+      failedCount: entries.length - importedTracks.length,
+    };
+  }, [processDesktopFilePathItem, setTracks]);
 
   const processWebFileBatch = useCallback(async (
     files: File[],
@@ -366,82 +421,22 @@ export function useImport({
         logger.debug(`[Import] 📝 Skipped ${filePaths.length - newFilePaths.length} duplicate files`);
       }
 
-      const BATCH_SIZE = 10;
-      const UI_UPDATE_BATCH = 20;
-      const allNewTracks: Track[] = [];
-      const importedTracksAll: Track[] = [];
       const baseTracks = tracks;
-      let totalProcessed = 0;
-      let totalFailed = 0;
+      const entries = newFilePaths.map(filePath => ({
+        path: filePath,
+        name: filePath.split(/[/\\]/).pop() || '',
+      }));
 
       logger.debug(`[Import] ===== Starting Import Process =====`);
-      logger.debug(`[Import] Total files to import: ${newFilePaths.length}`);
+      logger.debug(`[Import] Total files to import: ${entries.length}`);
 
-      setImportProgress({ loaded: 0, total: newFilePaths.length });
-
-      for (let i = 0; i < newFilePaths.length; i += BATCH_SIZE) {
-        const batch = newFilePaths.slice(i, i + BATCH_SIZE);
-        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(newFilePaths.length / BATCH_SIZE);
-
-        logger.debug(`[Import] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
-        logger.debug(`[Import] Files in this batch:`, batch.map(f => f.split(/[/\\]/).pop()));
-
-        const batchTracks = await processDesktopFileBatch(batch, desktopAPI, tracksMap);
-
-        const successfulTracks = batchTracks.filter((track): track is Track => track !== null);
-        const failedCount = batch.length - successfulTracks.length;
-
-        totalProcessed += batch.length;
-        totalFailed += failedCount;
-        setImportProgress({ loaded: totalProcessed, total: newFilePaths.length });
-
-        logger.debug(`[Import] ✅ Batch ${batchNumber} result: ${successfulTracks.length} succeeded, ${failedCount} failed`);
-
-        allNewTracks.push(...successfulTracks);
-        importedTracksAll.push(...successfulTracks);
-
-        if (allNewTracks.length >= UI_UPDATE_BATCH) {
-          logger.debug(`[Import] 🎨 UI update threshold reached (${allNewTracks.length} tracks)`);
-          logger.debug(`[Import] Current tracks count before update (state): ${tracks.length}`);
-          logger.debug(`[Import] Current tracks count before update (ref): ${tracksCountRef.current}`);
-
-          const batchSize = allNewTracks.length;
-
-          setTracks(prev => {
-            const newTracks = [...prev, ...allNewTracks];
-            logger.debug(`[Import] ✏️ Updating tracks: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
-            return newTracks;
-          });
-
-          tracksCountRef.current = tracksCountRef.current + batchSize;
-          logger.debug(`[Import] tracksCountRef updated to: ${tracksCountRef.current}`);
-          logger.debug(`[Import] ✓ UI updated, scheduling batch buffer clear`);
-
-          setTimeout(() => {
-            allNewTracks.length = 0;
-            logger.debug(`[Import] ✓ Batch buffer cleared`);
-          }, 0);
-        }
-      }
-
-      if (allNewTracks.length > 0) {
-        logger.debug(`[Import] Final UI update with ${allNewTracks.length} track(s)...`);
-        const finalBatchSize = allNewTracks.length;
-        setTracks(prev => {
-          const newTracks = [...prev, ...allNewTracks];
-          logger.debug(`[Import] ✏️ Final update: ${prev.length} → ${newTracks.length} (added ${allNewTracks.length})`);
-          return newTracks;
-        });
-        tracksCountRef.current = tracksCountRef.current + finalBatchSize;
-        logger.debug(`[Import] tracksCountRef updated to: ${tracksCountRef.current}`);
-      }
+      const { importedTracks: importedTracksAll, failedCount: totalFailed } =
+        await importDesktopFileEntries(entries, desktopAPI, tracksMap);
+      const totalProcessed = entries.length;
 
       const finalTracks = [...baseTracks, ...importedTracksAll];
       setTracks(finalTracks);
       tracksCountRef.current = finalTracks.length;
-
-      await new Promise(resolve => setTimeout(resolve, 100));
 
       logger.debug('[Import] Saving metadata cache...');
       await metadataCacheService.save();
@@ -451,13 +446,7 @@ export function useImport({
       logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
       logger.debug(`[Import] Failed: ${totalFailed}`);
 
-    logger.debug(`[Import] ===== Import Summary =====`);
-    logger.debug(`[Import] Total processed: ${totalProcessed}`);
-    logger.debug(`[Import] Successfully imported: ${totalProcessed - totalFailed}`);
-    logger.debug(`[Import] Failed: ${totalFailed}`);
-
       logger.debug('[Import] Manually triggering library save after import...');
-      logger.debug(`[Import] Saving ${tracks.length} tracks to disk...`);
       const libraryData = buildLibraryIndexDataForSlots(finalTracks, cloudTracks, buildImportSettings());
       await libraryStorage.saveLibrary(libraryData);
       logger.debug('[Import] ✓ Manual library save completed');
@@ -474,16 +463,12 @@ export function useImport({
       setImportProgress(null);
     }
   }, [
+    buildImportSettings,
     createTracksMap,
-    currentTrack,
-    currentTrackIndex,
-    isPlaying,
-    playbackMode,
-    processDesktopFileBatch,
+    importDesktopFileEntries,
+    setTracks,
     tracks,
     cloudTracks,
-    volume,
-    persistedTimeRef,
     notifyTrackResult,
   ]);
 
@@ -529,49 +514,14 @@ export function useImport({
       logger.debug(`[Import] 📝 Skipped ${filePaths.length - newFilePaths.length} duplicate files`);
     }
 
-    const BATCH_SIZE = 10;
-    const UI_UPDATE_BATCH = 20;
-    const allNewTracks: Track[] = [];
-    const importedTracksAll: Track[] = [];
     const baseTracks = tracks;
-    let totalProcessed = 0;
-    let totalFailed = 0;
 
     logger.debug(`[Import] ===== Starting Path-based Import =====`);
     logger.debug(`[Import] Total files to import: ${newFilePaths.length}`);
 
-    setImportProgress({ loaded: 0, total: newFilePaths.length });
-
-    for (let i = 0; i < newFilePaths.length; i += BATCH_SIZE) {
-      const batch = newFilePaths.slice(i, i + BATCH_SIZE);
-      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(newFilePaths.length / BATCH_SIZE);
-
-      logger.debug(`[Import] 📦 Batch ${batchNumber}/${totalBatches}: ${batch.length} files`);
-
-      const batchTracks = await processDesktopFilePathBatch(batch, desktopAPI, tracksMap);
-      const successfulTracks = batchTracks.filter((track): track is Track => track !== null);
-      const failedCount = batch.length - successfulTracks.length;
-
-      totalProcessed += batch.length;
-      totalFailed += failedCount;
-      setImportProgress({ loaded: totalProcessed, total: newFilePaths.length });
-
-      allNewTracks.push(...successfulTracks);
-      importedTracksAll.push(...successfulTracks);
-
-      if (allNewTracks.length >= UI_UPDATE_BATCH) {
-        const batchSize = allNewTracks.length;
-        setTracks(prev => [...prev, ...allNewTracks]);
-        allNewTracks.length = 0;
-        tracksCountRef.current = tracksCountRef.current + batchSize;
-      }
-    }
-
-    if (allNewTracks.length > 0) {
-      setTracks(prev => [...prev, ...allNewTracks]);
-      tracksCountRef.current = tracksCountRef.current + allNewTracks.length;
-    }
+    const { importedTracks: importedTracksAll, failedCount: totalFailed } =
+      await importDesktopFileEntries(newFilePaths, desktopAPI, tracksMap);
+    const totalProcessed = newFilePaths.length;
 
     // Deduplicate tracks by id (in case some files were already in the library)
     const trackMap = new Map<string, Track>();
@@ -583,6 +533,7 @@ export function useImport({
     }
     const finalTracks = Array.from(trackMap.values());
     setTracks(finalTracks);
+    tracksCountRef.current = finalTracks.length;
 
     // Save metadata cache and library
     await metadataCacheService.save();
@@ -604,17 +555,12 @@ export function useImport({
     }
     setImportProgress(null);
   }, [
+    buildImportSettings,
     createTracksMap,
-    processDesktopFilePathBatch,
+    importDesktopFileEntries,
     setTracks,
     tracks,
     cloudTracks,
-    currentTrackIndex,
-    currentTrack,
-    isPlaying,
-    playbackMode,
-    volume,
-    persistedTimeRef,
     notifyTrackResult,
   ]);
 
