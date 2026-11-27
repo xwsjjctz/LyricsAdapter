@@ -155,6 +155,7 @@ export function useGeneralSettings() {
       case 'checking': return t('updater.checking');
       case 'not-available': return t('updater.upToDate');
       case 'available': return `${t('updater.available')} v${updater.info.version}`;
+      case 'manual-available': return `${t('updater.available')} v${updater.version}`;
       case 'downloading': return `${t('updater.downloading')} v${updater.info.version}${updater.progress ? ` ${Math.round(updater.progress.percent)}%` : ''}`;
       case 'downloaded': return `${t('updater.downloaded')} v${updater.info.version}`;
       case 'error': return t('updater.failed');

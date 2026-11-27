@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   handle: vi.fn(), on: vi.fn(), nativeOn: vi.fn(), unavailable: vi.fn(), version: vi.fn(),
-  windows: vi.fn(), check: vi.fn(), install: vi.fn(),
+  windows: vi.fn(), check: vi.fn(), install: vi.fn(), openExternal: vi.fn(),
   updater: { autoDownload: false, autoInstallOnAppQuit: false, allowPrerelease: false, disableDifferentialDownload: true },
 }));
 vi.mock('electron', () => ({
@@ -11,6 +11,7 @@ vi.mock('electron', () => ({
   ipcMain: { handle: mocks.handle },
   BrowserWindow: { getAllWindows: mocks.windows },
   autoUpdater: { on: mocks.nativeOn },
+  shell: { openExternal: mocks.openExternal },
 }));
 vi.mock('electron-updater', () => ({
   autoUpdater: { ...mocks.updater, on: mocks.on, checkForUpdates: mocks.check, quitAndInstall: mocks.install },
@@ -43,19 +44,48 @@ describe('app updates', () => {
     mocks.check.mockReset().mockResolvedValue(null);
     mocks.install.mockReset();
   });
-  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it('does not poll or install for an unsigned Mac build', async () => {
+  it('opens the newest compatible Mac release only after an unsigned build checks manually', async () => {
     mocks.unavailable.mockReturnValue('unsigned');
+    const release = (version: string, arch = process.arch, draft = false) => ({
+      tag_name: `v${version}`,
+      draft,
+      prerelease: true,
+      assets: [{ name: `LyricsAdapter-${version}-mac-${arch}.dmg`, state: 'uploaded' }],
+    });
+    const fetchReleases = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      release('0.5.0', 'other-arch'),
+      release('0.4.3', process.arch, true),
+      release('0.4.1'),
+      release('0.4.2'),
+      release('0.4.0'),
+    ])));
+    vi.stubGlobal('fetch', fetchReleases);
     const { initUpdater, scheduleStartupCheck } = await import('../../electron/updater');
     initUpdater(vi.fn(), vi.fn());
-    expect(handler('updater:state')()).toEqual({ status: 'unavailable', reason: 'unsigned' });
-    await expect(handler('updater:check')()).resolves.toMatchObject({ ok: false });
-    await expect(handler('updater:quit-and-install')()).resolves.toMatchObject({ ok: false });
+    expect(handler('updater:state')()).toEqual({ status: 'idle' });
     scheduleStartupCheck();
     await vi.runAllTimersAsync();
+    expect(fetchReleases).not.toHaveBeenCalled();
+    await expect(handler('updater:check')()).resolves.toEqual({ ok: true });
+    expect(mocks.openExternal).toHaveBeenCalledWith('https://github.com/xwsjjctz/LyricsAdapter/releases/tag/v0.4.2#assets');
+    expect(handler('updater:state')()).toEqual({ status: 'manual-available', version: '0.4.2' });
+    await expect(handler('updater:quit-and-install')()).resolves.toMatchObject({ ok: false });
     expect(mocks.check).not.toHaveBeenCalled();
     expect(mocks.install).not.toHaveBeenCalled();
+  });
+
+  it.runIf(process.platform === 'darwin')('allows a manual Mac check without app-update.yml when no installer is available', async () => {
+    mocks.unavailable.mockReturnValue('unconfigured');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      { tag_name: 'v0.4.1', draft: false, prerelease: true, assets: [] },
+    ]))));
+    const { initUpdater } = await import('../../electron/updater');
+    initUpdater(vi.fn(), vi.fn());
+    await expect(handler('updater:check')()).resolves.toEqual({ ok: true });
+    expect(handler('updater:state')()).toEqual({ status: 'not-available' });
+    expect(mocks.openExternal).not.toHaveBeenCalled();
   });
 
   it('sends live progress to the player and the separate settings renderer', async () => {
