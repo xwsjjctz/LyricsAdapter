@@ -107,7 +107,7 @@ const FocusControls: React.FC<FocusControlsProps> = ({
   const translateButton = (placement: 'inline' | 'bar') => onToggleTranslation
     && <FocusTranslateButton status={translationStatus} onToggle={onToggleTranslation} placement={placement} />;
   const { t } = useTranslation();
-  const backdropLight = useFocusBackdropLuminance(track ? resolveCoverUrl(track.coverUrl) : undefined);
+  const backdropLight = useFocusBackdropLuminance(resolveCoverUrl(track?.coverUrl));
   // Glass panels pick foreground colors from the analyzed backdrop instead of
   // the theme: a washed-out cover otherwise hides whichever fixed color the
   // theme picked. Null (not analyzed yet / not glass) keeps the theme colors.

@@ -22,7 +22,7 @@
 import fs from 'fs';
 import path from 'path';
 import NodeID3 from 'node-id3';
-import { readVorbisField, readVorbisFields, writeVorbisField } from './flacVorbisWriter';
+import { readVorbisFields, readVorbisFieldsAsync, writeVorbisField } from './flacVorbisWriter';
 import { logger } from '../../logger';
 
 export type WordLyricsFormat = 'qrc' | 'yrc';
@@ -51,14 +51,40 @@ export function readWordLyrics(filePath: string): {
 } {
   const ext = extOf(filePath);
   if (ext === '.flac') {
-    const qrc = readVorbisField(filePath, 'QRC');
-    if (qrc) return { wordLyrics: qrc, wordLyricsFormat: 'qrc' };
-    const yrc = readVorbisField(filePath, 'YRC');
-    if (yrc) return { wordLyrics: yrc, wordLyricsFormat: 'yrc' };
+    const fields = readVorbisFields(filePath, WORD_LYRICS_FORMATS.map(fieldName));
+    if (fields['QRC']) return { wordLyrics: fields['QRC'], wordLyricsFormat: 'qrc' };
+    if (fields['YRC']) return { wordLyrics: fields['YRC'], wordLyricsFormat: 'yrc' };
     return {};
   }
   if (ext === '.mp3') {
     const udt = readMp3UserDefinedText(filePath);
+    const qrc = udt['QRC'];
+    if (qrc) return { wordLyrics: qrc, wordLyricsFormat: 'qrc' };
+    const yrc = udt['YRC'];
+    if (yrc) return { wordLyrics: yrc, wordLyricsFormat: 'yrc' };
+    return {};
+  }
+  return {};
+}
+
+/**
+ * Async variant of {@link readWordLyrics} for bulk imports: reads only the
+ * FLAC VORBIS_COMMENT block or MP3 ID3v2 header without blocking the main
+ * process event loop or loading audio frames into memory.
+ */
+export async function readWordLyricsAsync(filePath: string): Promise<{
+  wordLyrics?: string;
+  wordLyricsFormat?: WordLyricsFormat;
+}> {
+  const ext = extOf(filePath);
+  if (ext === '.flac') {
+    const fields = await readVorbisFieldsAsync(filePath, WORD_LYRICS_FORMATS.map(fieldName));
+    if (fields['QRC']) return { wordLyrics: fields['QRC'], wordLyricsFormat: 'qrc' };
+    if (fields['YRC']) return { wordLyrics: fields['YRC'], wordLyricsFormat: 'yrc' };
+    return {};
+  }
+  if (ext === '.mp3') {
+    const udt = await readMp3UserDefinedTextAsync(filePath);
     const qrc = udt['QRC'];
     if (qrc) return { wordLyrics: qrc, wordLyricsFormat: 'qrc' };
     const yrc = udt['YRC'];
@@ -130,23 +156,80 @@ export function writeWordLyrics(
 
 type UDT = { description: string; value: string };
 
+const MAX_ID3V2_TAG_BYTES = 64 * 1024 * 1024;
+
+function extractUserDefinedTextMap(tags: NodeID3.Tags | null | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  const udt = tags?.userDefinedText;
+  if (Array.isArray(udt)) {
+    for (const entry of udt) {
+      if (entry && entry.description) {
+        result[entry.description.toUpperCase()] = entry.value ?? '';
+      }
+    }
+  }
+  return result;
+}
+
 /** Read all TXXX frames as a { description: value } map (last write wins). */
 function readMp3UserDefinedText(filePath: string): Record<string, string> {
   try {
-    const tags = NodeID3.read(filePath);
-    const result: Record<string, string> = {};
-    const udt = tags?.userDefinedText;
-    if (Array.isArray(udt)) {
-      for (const entry of udt) {
-        if (entry && entry.description) {
-          result[entry.description.toUpperCase()] = entry.value ?? '';
-        }
-      }
-    }
-    return result;
+    return extractUserDefinedTextMap(NodeID3.read(filePath));
   } catch (e) {
     logger.warn('[WordLyrics] node-id3 read failed:', e);
     return {};
+  }
+}
+
+/** Read only the ID3v2 header region asynchronously, then parse TXXX frames via node-id3. */
+async function readMp3UserDefinedTextAsync(filePath: string): Promise<Record<string, string>> {
+  let handle: fs.promises.FileHandle | undefined;
+  try {
+    handle = await fs.promises.open(filePath, 'r');
+    const header = Buffer.allocUnsafe(10);
+    const headerRead = await handle.read(header, 0, 10, 0);
+    if (
+      headerRead.bytesRead < 10
+      || header[0] !== 0x49 // 'I'
+      || header[1] !== 0x44 // 'D'
+      || header[2] !== 0x33 // '3'
+    ) {
+      return {};
+    }
+
+    const tagSize =
+      ((header[6]! & 0x7f) << 21)
+      | ((header[7]! & 0x7f) << 14)
+      | ((header[8]! & 0x7f) << 7)
+      | (header[9]! & 0x7f);
+    const hasFooter = (header[5]! & 0x10) !== 0;
+    const totalSize = 10 + tagSize + (hasFooter ? 10 : 0);
+    if (totalSize <= 10 || totalSize > MAX_ID3V2_TAG_BYTES) {
+      return {};
+    }
+
+    const tagBuffer = Buffer.allocUnsafe(totalSize);
+    header.copy(tagBuffer, 0, 0, 10);
+    const bodySize = totalSize - 10;
+    let bytesReadTotal = 0;
+    while (bytesReadTotal < bodySize) {
+      const { bytesRead } = await handle.read(
+        tagBuffer,
+        10 + bytesReadTotal,
+        bodySize - bytesReadTotal,
+        10 + bytesReadTotal,
+      );
+      if (bytesRead === 0) break;
+      bytesReadTotal += bytesRead;
+    }
+
+    const slice = bytesReadTotal === bodySize ? tagBuffer : tagBuffer.subarray(0, 10 + bytesReadTotal);
+    return extractUserDefinedTextMap(NodeID3.read(slice));
+  } catch (e) {
+    logger.warn('[WordLyrics] async node-id3 read failed:', e);
+    return {};
+  } finally {
+    await handle?.close().catch(() => undefined);
   }
 }
 

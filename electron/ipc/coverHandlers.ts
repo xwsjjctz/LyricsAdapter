@@ -6,8 +6,9 @@ import { logger } from "../logger";
 import { sanitizeTrackId, coverExtFromMime } from "../utils/fileUtils";
 import {
   invalidateCoverThumbnails,
+  invalidateCoverThumbnailsAsync,
   pruneOrphanCoverThumbnails,
-  writeFileAtomically,
+  writeFileAtomicallyAsync,
 } from "../protocols/coverProtocol";
 import { handleIpc } from './ipcMainTyped';
 import { remoteCoverCache } from '../services/artwork';
@@ -29,9 +30,7 @@ export function registerCoverHandlers(): void {
       const safeId = sanitizeTrackId(payload.id);
       const ext = coverExtFromMime(payload.mime);
 
-      if (!fs.existsSync(coverDir)) {
-        fs.mkdirSync(coverDir, { recursive: true });
-      }
+      await fs.promises.mkdir(coverDir, { recursive: true });
 
       const coverPath = path.join(coverDir, `${safeId}.${ext}`);
       const buffer = Buffer.from(payload.data, 'base64');
@@ -41,8 +40,8 @@ export function registerCoverHandlers(): void {
 
       // Invalidate first: a permission failure must leave the old source in
       // place instead of reporting failure after partially changing state.
-      invalidateCoverThumbnails(coverPath);
-      writeFileAtomically(coverPath, buffer);
+      await invalidateCoverThumbnailsAsync(coverPath);
+      await writeFileAtomicallyAsync(coverPath, buffer);
 
       const version = createHash('sha256').update(buffer).digest('hex').slice(0, 16);
       const coverUrl = `cover://${safeId}.${ext}?v=${version}`;
