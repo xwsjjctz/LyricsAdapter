@@ -70,6 +70,9 @@ const Controls: React.FC<ControlsProps> = memo(({
   const duration = track && Number.isFinite(track.duration) ? Math.max(0, track.duration) : 0;
   const displayCurrentTime = Number.isFinite(currentTime) ? Math.min(duration, Math.max(0, currentTime)) : 0;
   const progress = duration > 0 ? (displayCurrentTime / duration) * 100 : 0;
+  const coverUrl = resolveCoverUrl(track?.coverUrl);
+  const displayTitle = track?.title ?? 'LyricsAdapter';
+  const displayArtist = track?.artist ?? t('focusMode.emptySubtitle');
   const disclosure = useVolumeDisclosure(floatingPlayer && !isFocusMode && layout === 'full');
   const glass = useLiquidGlass(panelRef, isWindows, 'regular', 22);
   const volumeGlass = useLiquidGlass(volumeShellRef, isWindows && layout === 'full', 'regular', 22);
@@ -78,7 +81,7 @@ const Controls: React.FC<ControlsProps> = memo(({
   const nativeControlbar = usePlayerControlbar({
     anchorRef: panelRef,
     visible: true,
-    artworkUrl: resolveCoverUrl(track?.coverUrl),
+    artworkUrl: coverUrl,
     state: {
       enabled: !!track,
       layout,
@@ -87,8 +90,8 @@ const Controls: React.FC<ControlsProps> = memo(({
       duration,
       volume,
       playbackMode,
-      title: track?.title ?? t('controls.noTrackSelected'),
-      artist: track?.artist ?? '',
+      title: displayTitle,
+      artist: displayArtist,
       labels: {
         focus: t('controls.focusMode'),
         playPause: t('shortcut.playPause'),
@@ -177,35 +180,31 @@ const Controls: React.FC<ControlsProps> = memo(({
     >
       {/* Current Track Info - Clickable for Focus Mode */}
       <div className={floatingPlayer ? 'player-track-info flex items-center min-w-0' : 'player-track-info flex items-center gap-4 flex-[0_1_300px] min-w-[200px]'}>
-        {track ? (
-          <div
-            onClick={onToggleFocus}
-            role="button"
-            tabIndex={0}
-            aria-label={t('controls.focusMode')}
-            onKeyDown={event => {
-              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onToggleFocus(); }
-            }}
-            className="player-track-trigger flex items-center cursor-pointer group gap-3 min-w-0"
-          >
-            <div className={`player-track-cover relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${floatingPlayer ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: isWindows ? '12px' : 'var(--theme-media-radius)' }}>
-              <img src={toCoverThumb(resolveCoverUrl(track.coverUrl), 128)} alt="" className="size-full object-cover" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-rounded" style={{ color: '#fff', fontSize: '20px' }} />
-              </div>
-            </div>
-            <div className="player-track-text flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
-              <div className="player-track-title text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: isWindows ? 600 : 'var(--theme-text-heading-weight)' }}>
-                <OverflowMarquee text={track.title} />
-              </div>
-              <div className="player-track-artist text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                <OverflowMarquee text={track.artist} />
-              </div>
+        <div
+          onClick={onToggleFocus}
+          role="button"
+          tabIndex={0}
+          aria-label={t('controls.focusMode')}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onToggleFocus(); }
+          }}
+          className="player-track-trigger flex items-center cursor-pointer group gap-3 min-w-0"
+        >
+          <div className={`player-track-cover relative overflow-hidden shadow-lg group-hover:scale-105 transition-transform ${floatingPlayer ? 'size-12 shrink-0' : 'size-14'}`} style={{ borderRadius: isWindows ? '12px' : 'var(--theme-media-radius)' }}>
+            <img src={toCoverThumb(coverUrl, 128)} alt="" className="size-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <PlaybackIcon symbols={symbols} name="open_in_full" className="material-symbols-rounded" style={{ color: '#fff', fontSize: '20px' }} />
             </div>
           </div>
-        ) : (
-          <div className="text-sm italic" style={{ color: 'var(--theme-text-muted)' }}>{t('controls.noTrackSelected')}</div>
-        )}
+          <div className="player-track-text flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
+            <div className="player-track-title text-sm group-hover:text-primary transition-colors" style={{ color: 'var(--theme-text-primary)', fontWeight: isWindows ? 600 : 'var(--theme-text-heading-weight)' }}>
+              <OverflowMarquee text={displayTitle} />
+            </div>
+            <div className="player-track-artist text-xs" style={{ color: 'var(--theme-text-muted)' }}>
+              <OverflowMarquee text={displayArtist} />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main Controls - Horizontal Layout */}

@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { parseLrc, parseQrc, parseYrc, type LyricLine } from '@applemusic-like-lyrics/lyric';
-import { readWordLyrics, restoreWordLyrics, snapshotWordLyrics, writeWordLyrics } from './wordLyricsTagService';
+import { readWordLyricsAsync, restoreWordLyrics, snapshotWordLyrics, writeWordLyrics } from './wordLyricsTagService';
 import { readSidecarLyrics } from './sidecarLyrics';
 import { logger } from '../../logger';
 
@@ -236,13 +236,15 @@ function parseWordLyrics(
 // ── Read ─────────────────────────────────────────────────────────────────
 
 export async function readAudioMetadata(filePath: string): Promise<ReadMetadataResult> {
-  logger.info('[AudioMetadata] Reading:', filePath);
+  logger.debug('[AudioMetadata] Reading:', filePath);
 
-  const stats = fs.statSync(filePath);
+  const resolved = path.resolve(filePath);
+  const [stats, file, wordLyricsResult] = await Promise.all([
+    fs.promises.stat(resolved),
+    loadBinding().then(({ MusicFile }) => MusicFile.load(resolved)),
+    readWordLyricsAsync(resolved),
+  ]);
   const fileSize = stats.size;
-
-  const { MusicFile } = await loadBinding();
-  const file = await MusicFile.load(path.resolve(filePath));
 
   let coverData: string | undefined;
   let coverMime: string | undefined;
@@ -257,12 +259,10 @@ export async function readAudioMetadata(filePath: string): Promise<ReadMetadataR
   const parsedLyrics = rawLyrics ? parseLRCLyrics(rawLyrics) : null;
 
   // QRC/YRC live in custom fields music-tag-native can't read; pull them via
-  // our own FLAC/MP3 readers. When present they carry the richer per-word
+  // our own FLAC/MP3 header readers. When present they carry the richer per-word
   // timing AND — critically — a complete time axis, so they take precedence
-  // over the line-level LRC fallback even for line-only rendering. This is
-  // what restores both 逐字 and 逐行 for the QQ tracks whose LRC came back
-  // timestamp-less (their QRC payload still has full timings).
-  const { wordLyrics, wordLyricsFormat } = readWordLyrics(filePath);
+  // over the line-level LRC fallback even for line-only rendering.
+  const { wordLyrics, wordLyricsFormat } = wordLyricsResult;
   const parsedWordLyrics = wordLyrics && wordLyricsFormat
     ? parseWordLyrics(wordLyrics, wordLyricsFormat)
     : undefined;
@@ -285,8 +285,11 @@ export async function readAudioMetadata(filePath: string): Promise<ReadMetadataR
     coverMime,
   };
 
-  const logSafe = { ...result, coverData: result.coverData ? `base64:${(result.coverData.length / 1024).toFixed(1)}KB` : undefined };
-  logger.info('[AudioMetadata] ✓ Read:', filePath, JSON.stringify(logSafe, null, 2));
+  logger.debug(
+    `[AudioMetadata] ✓ Read: ${path.basename(filePath)} (${result.title ?? 'untitled'}, `
+    + `cover=${result.coverData ? `${(result.coverData.length / 1024).toFixed(1)}KB` : 'none'}, `
+    + `synced=${result.syncedLyrics?.length ?? 0})`,
+  );
   return result;
 }
 

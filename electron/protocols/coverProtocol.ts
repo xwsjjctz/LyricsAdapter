@@ -76,6 +76,70 @@ function assertSafeCacheDirectory(cacheDir: string, create: boolean): void {
   }
 }
 
+/** Async variant of {@link writeFileAtomically} for non-blocking main-process IPC handlers. */
+export async function writeFileAtomicallyAsync(filePath: string, data: Buffer): Promise<void> {
+  if (data.length === 0) {
+    throw new Error(`Refusing to write an empty file: ${path.basename(filePath)}`);
+  }
+
+  const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${temporaryFileSequence++}`;
+  let handle: fs.promises.FileHandle | null = null;
+  try {
+    handle = await fs.promises.open(temporaryPath, 'wx', 0o600);
+    await handle.writeFile(data);
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await fs.promises.rename(temporaryPath, filePath);
+  } finally {
+    if (handle !== null) {
+      try { await handle.close(); } catch { /* retain the original error */ }
+    }
+    try {
+      await fs.promises.unlink(temporaryPath);
+    } catch (error) {
+      if (!isNotFoundError(error)) {
+        logger.warn('[cover://] Failed to remove temporary thumbnail file:', temporaryPath, error);
+      }
+    }
+  }
+}
+
+/** Async variant of {@link invalidateCoverThumbnails} for non-blocking cover saves. */
+export async function invalidateCoverThumbnailsAsync(coverPath: string): Promise<number> {
+  const cacheDir = getThumbnailCacheDir(coverPath);
+  let cacheStat: fs.Stats;
+  try {
+    cacheStat = await fs.promises.lstat(cacheDir);
+  } catch (error) {
+    if (isNotFoundError(error)) return 0;
+    throw error;
+  }
+  if (!cacheStat.isDirectory() || cacheStat.isSymbolicLink()) {
+    throw new Error(`Unsafe thumbnail cache directory: ${cacheDir}`);
+  }
+
+  const canonical = await canonicalPathAsync(coverPath);
+  const prefix = `${cacheKeyForCanonicalPath(canonical)}-`;
+  const files = await fs.promises.readdir(cacheDir);
+  let removed = 0;
+  let firstError: unknown;
+  for (const file of files) {
+    if (!file.startsWith(prefix)) continue;
+    try {
+      await fs.promises.unlink(path.join(cacheDir, file));
+      removed++;
+    } catch (error) {
+      if (isNotFoundError(error)) continue;
+      logger.warn('[cover://] Failed to invalidate cached thumbnail:', file, error);
+      firstError ??= error;
+    }
+  }
+
+  if (firstError) throw firstError;
+  return removed;
+}
+
 /** Write a complete file before exposing it at the final path. */
 export function writeFileAtomically(filePath: string, data: Buffer): void {
   if (data.length === 0) {

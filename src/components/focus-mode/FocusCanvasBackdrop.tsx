@@ -451,18 +451,19 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
   // the canvas, decoded images and lyric DOM while ordinary playback continues.
   // Tracks without artwork use the app-icon default cover as their backdrop too.
   useEffect(() => {
-    if (!isVisible || !trackId || !coverUrl) return;
+    const effectiveTrackId = trackId ?? coverUrl;
+    if (!isVisible || !effectiveTrackId || !coverUrl) return;
     const inFlightIncoming = incomingBackgroundRef.current;
     const inFlightIncomingTrackId = incomingBackgroundTrackIdRef.current;
 
     // Returning to the cover that is still the fade base: reverse the in-flight
     // cross-fade instead of snapping straight back to it.
-    if (currentBackgroundRef.current && currentBackgroundTrackIdRef.current === trackId) {
+    if (currentBackgroundRef.current && currentBackgroundTrackIdRef.current === effectiveTrackId) {
       if (inFlightIncoming) {
         animateTransitionTo(0, () => {
           incomingBackgroundRef.current = null;
           incomingBackgroundTrackIdRef.current = null;
-          currentBackgroundTrackIdRef.current = trackId;
+          currentBackgroundTrackIdRef.current = effectiveTrackId;
           transitionProgressRef.current = 1;
           setHasBackground(true);
           renderCanvas();
@@ -480,10 +481,10 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
     }
     // The requested track is the one already fading in: continue that fade
     // instead of restarting it over the other cover.
-    if (inFlightIncoming && inFlightIncomingTrackId === trackId) {
+    if (inFlightIncoming && inFlightIncomingTrackId === effectiveTrackId) {
       animateTransitionTo(1, () => {
         currentBackgroundRef.current = inFlightIncoming;
-        currentBackgroundTrackIdRef.current = trackId;
+        currentBackgroundTrackIdRef.current = effectiveTrackId;
         incomingBackgroundRef.current = null;
         incomingBackgroundTrackIdRef.current = null;
         transitionProgressRef.current = 1;
@@ -525,7 +526,7 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
       const previousBackground = incomingBackgroundRef.current || currentBackgroundRef.current;
       if (!previousBackground) {
         currentBackgroundRef.current = img;
-        currentBackgroundTrackIdRef.current = trackId;
+        currentBackgroundTrackIdRef.current = effectiveTrackId;
         incomingBackgroundRef.current = null;
         incomingBackgroundTrackIdRef.current = null;
         transitionProgressRef.current = 1;
@@ -550,14 +551,14 @@ const FocusCanvasBackdrop: React.FC<FocusCanvasBackdropProps> = ({
       currentBackgroundRef.current = bakedBlend ?? previousBackground;
       currentBackgroundTrackIdRef.current = previousTrackId;
       incomingBackgroundRef.current = img;
-      incomingBackgroundTrackIdRef.current = trackId;
+      incomingBackgroundTrackIdRef.current = effectiveTrackId;
       transitionProgressRef.current = 0;
       setHasBackground(true);
       renderCanvas();
 
       animateTransitionTo(1, () => {
         currentBackgroundRef.current = img;
-        currentBackgroundTrackIdRef.current = trackId;
+        currentBackgroundTrackIdRef.current = effectiveTrackId;
         incomingBackgroundRef.current = null;
         incomingBackgroundTrackIdRef.current = null;
         renderCanvas();

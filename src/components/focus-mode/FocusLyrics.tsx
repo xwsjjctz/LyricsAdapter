@@ -1,4 +1,5 @@
 import { lazy, Suspense, type MutableRefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Track } from '../../types';
 import FocusLegacyLyrics from './FocusLegacyLyrics';
 import { hasTrackLyrics } from './focusLyricsTrack';
@@ -44,7 +45,37 @@ export default function FocusLyrics({
   textMuted,
   onSeek,
 }: FocusLyricsProps) {
-  if (!track || !hasTrackLyrics(track)) return null;
+  const { t } = useTranslation();
+
+  if (!track) {
+    return (
+      <div
+        className="focus-empty-lyrics flex-1 min-w-0 px-8 select-none flex flex-col justify-center gap-5"
+        data-testid="focus-empty-lyrics"
+      >
+        <p
+          className="text-2xl lg:text-3xl font-extrabold tracking-tight leading-snug drop-shadow-2xl"
+          style={{ color: textPrimary }}
+        >
+          {t('focusMode.emptyLead')}
+        </p>
+        <p
+          className="text-base lg:text-lg font-semibold leading-relaxed"
+          style={{ color: textSecondary }}
+        >
+          {t('focusMode.emptyGuide')}
+        </p>
+        <p
+          className="text-sm lg:text-base font-medium leading-relaxed"
+          style={{ color: textMuted }}
+        >
+          {t('focusMode.emptyHint')}
+        </p>
+      </div>
+    );
+  }
+
+  if (!hasTrackLyrics(track)) return null;
 
   return (
     <div

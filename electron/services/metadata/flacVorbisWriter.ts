@@ -136,6 +136,71 @@ function getFieldValue(comments: string[], field: string): string | undefined {
 }
 
 /**
+ * Read case-insensitive Vorbis fields from a FLAC file asynchronously without
+ * reading audio frames: walks only the leading metadata block headers and reads
+ * the VORBIS_COMMENT body when found.
+ */
+export async function readVorbisFieldsAsync(
+  filePath: string,
+  fields: readonly string[],
+): Promise<Record<string, string>> {
+  let handle: fs.promises.FileHandle | undefined;
+  try {
+    handle = await fs.promises.open(filePath, 'r');
+    const magic = Buffer.allocUnsafe(FLAC_MAGIC.length);
+    const magicRead = await handle.read(magic, 0, FLAC_MAGIC.length, 0);
+    if (magicRead.bytesRead < FLAC_MAGIC.length || !magic.equals(FLAC_MAGIC)) {
+      return {};
+    }
+
+    const header = Buffer.allocUnsafe(4);
+    let offset = FLAC_MAGIC.length;
+    while (true) {
+      const headerRead = await handle.read(header, 0, 4, offset);
+      if (headerRead.bytesRead < 4) return {};
+
+      const flagByte = header[0]!;
+      const type = flagByte & 0x7f;
+      const isLast = (flagByte & 0x80) !== 0;
+      const length = (header[1]! << 16) | (header[2]! << 8) | header[3]!;
+      const bodyOffset = offset + 4;
+
+      if (type === BLOCK_VORBIS_COMMENT) {
+        const body = Buffer.allocUnsafe(length);
+        let bytesReadTotal = 0;
+        while (bytesReadTotal < length) {
+          const { bytesRead } = await handle.read(
+            body,
+            bytesReadTotal,
+            length - bytesReadTotal,
+            bodyOffset + bytesReadTotal,
+          );
+          if (bytesRead === 0) break;
+          bytesReadTotal += bytesRead;
+        }
+        if (bytesReadTotal < length) return {};
+        const decoded = decodeVorbisComment(body);
+        if (!decoded) return {};
+        const values: Record<string, string> = {};
+        for (const field of fields) {
+          const value = getFieldValue(decoded.comments, field);
+          if (value !== undefined) values[field] = value;
+        }
+        return values;
+      }
+
+      if (isLast) return {};
+      offset = bodyOffset + length;
+    }
+  } catch (e) {
+    logger.warn(`[FlacVorbis] readVorbisFieldsAsync(${fields.join(', ')}) failed:`, e);
+    return {};
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
+}
+
+/**
  * Read case-insensitive Vorbis fields from a FLAC file in one pass, keyed by
  * the requested names. Fields that are missing, or all of them when the file
  * has no VORBIS_COMMENT block, are left out.
