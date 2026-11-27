@@ -48,7 +48,7 @@ describe('app updates', () => {
 
   it('opens the newest compatible Mac release only after an unsigned build checks manually', async () => {
     mocks.unavailable.mockReturnValue('unsigned');
-    const release = (version: string, arch = process.arch, draft = false) => ({
+    const release = (version: string, arch: string = process.arch, draft = false) => ({
       tag_name: `v${version}`,
       draft,
       prerelease: true,

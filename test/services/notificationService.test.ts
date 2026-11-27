@@ -45,7 +45,9 @@ describe('notify', () => {
   it('should fall back to Web Notification when the main process rejects delivery', async () => {
     const showNotification = vi.fn().mockResolvedValue({ ok: false, reason: 'unsupported' });
     (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue({ showNotification });
-    const NotificationMock = vi.fn().mockImplementation(() => ({}));
+    const NotificationMock = vi.fn(function () {
+      return {};
+    });
     (NotificationMock as any).permission = 'granted';
     const origNotification = globalThis.Notification;
     (globalThis as any).Notification = NotificationMock;
@@ -62,7 +64,7 @@ describe('notify', () => {
   it('should create Web Notification when no Electron API', async () => {
     (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
-    const NotificationMock = vi.fn().mockImplementation(() => {});
+    const NotificationMock = vi.fn(function () {});
     (NotificationMock as any).permission = 'granted';
     const origNotification = globalThis.Notification;
     (globalThis as any).Notification = NotificationMock;
@@ -76,7 +78,7 @@ describe('notify', () => {
   it('should pass silent option to Web Notification', async () => {
     (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
-    const NotificationMock = vi.fn().mockImplementation(() => {});
+    const NotificationMock = vi.fn(function () {});
     (NotificationMock as any).permission = 'granted';
     const origNotification = globalThis.Notification;
     (globalThis as any).Notification = NotificationMock;
@@ -99,7 +101,7 @@ describe('notify', () => {
   it('should handle errors gracefully without throwing', async () => {
     (getDesktopAPI as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
-    const NotificationMock = vi.fn().mockImplementation(() => {
+    const NotificationMock = vi.fn(function () {
       throw new Error('mock error');
     });
     (NotificationMock as any).permission = 'granted';

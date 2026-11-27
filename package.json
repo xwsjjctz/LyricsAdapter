@@ -91,6 +91,7 @@
     "dependency-cruiser": "^17.4.3",
     "electron": "^42.11.18",
     "electron-builder": "^26.17.0",
+    "esbuild": "0.28.1",
     "i18next": "^26.3.5",
     "jsdom": "^25.0.1",
     "node-gyp": "^12.4.0",
@@ -101,7 +102,31 @@
     "typescript": "~5.8.2",
     "vite": "^8.4.0",
     "vite-plugin-electron": "^1.1.0",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "^11.0.9",
+      "@electron/asar": {
+        "minimatch": "^3.1.5",
+        "glob": {
+          "minimatch": "^3.1.5"
+        }
+      },
+      "ejs": {
+        "jake": {
+          "filelist": {
+            "minimatch": "^5.1.9"
+          }
+        }
+      },
+      "@electron/universal": {
+        "minimatch": "^11.0.9",
+        "dir-compare": {
+          "minimatch": "^3.1.5"
+        }
+      }
+    }
   },
   "build": {
     "appId": "com.lyricsadapter.app",
