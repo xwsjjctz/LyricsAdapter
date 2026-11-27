@@ -27,6 +27,8 @@ import { notify } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { getDesktopImportKey, getTrackImportKeys, getUniqueWebDAVFileName, getWebFileImportKey } from '../services/importIdentity';
 import type { LibrarySettings } from '../services/storage/libraryStorage';
+import { isImportableAudioName } from '../shared/audioFormats';
+import { notifyImportTruncated, notifyNothingImportable } from '../services/importFeedback';
 
 interface UseImportOptions {
   tracks: Track[];
@@ -391,11 +393,9 @@ export function useImport({
       const tracksMap = createTracksMap();
       logger.debug(`[Import] Created tracksMap with ${tracksMap.size} entries`);
 
-      // Filter to supported audio formats only (MP3, FLAC)
-      const audioExtensions = ['.mp3', '.flac'];
+      // Filter to importable formats only
       const pathsFiltered = filePaths.filter(filePath => {
-        const ext = '.' + filePath.split('.').pop()?.toLowerCase();
-        if (!audioExtensions.includes(ext)) {
+        if (!isImportableAudioName(filePath)) {
           logger.debug(`[Import] ⏭️ Skipping unsupported format: ${filePath}`);
           return false;
         }
@@ -485,11 +485,9 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
-    // Filter to supported audio formats only (MP3, FLAC)
-    const audioExtensions = ['.mp3', '.flac'];
+    // Filter to importable formats only
     const pathsFiltered = filePaths.filter(({ name }) => {
-      const ext = '.' + name.split('.').pop()?.toLowerCase();
-      if (!audioExtensions.includes(ext)) {
+      if (!isImportableAudioName(name)) {
         logger.debug(`[Import] ⏭️ Skipping unsupported format: ${name}`);
         return false;
       }
@@ -563,6 +561,30 @@ export function useImport({
     cloudTracks,
     notifyTrackResult,
   ]);
+
+  /** Folder picker (desktop only): imports the importable audio beneath the chosen folders. */
+  const handleLocalFolderImport = useCallback(async () => {
+    const desktopAPI = getDesktopAPI();
+    if (!desktopAPI) return;
+
+    try {
+      const scan = await desktopAPI.selectAudioFolder();
+      if (scan.canceled) return;
+      logger.debug(`[Import] Folder scan found ${scan.filePaths.length} file(s), truncated: ${scan.truncated}`);
+      if (scan.filePaths.length === 0) {
+        notifyNothingImportable(t);
+        return;
+      }
+      if (scan.truncated) notifyImportTruncated(t, scan.filePaths.length);
+      await handleDropFilePaths(scan.filePaths.map(filePath => ({
+        path: filePath,
+        name: filePath.split(/[/\\]/).pop() || '',
+      })));
+    } catch (error) {
+      logger.error('[Import] Failed to import folder:', error);
+      setImportProgress(null);
+    }
+  }, [handleDropFilePaths, t]);
 
   // Handle dropped File objects (Web mode or Electron fallback)
   const handleDropFiles = useCallback(async (files: File[]) => {
@@ -643,11 +665,9 @@ export function useImport({
 
     const tracksMap = createTracksMap();
 
-    // Filter to supported audio formats only (MP3, FLAC)
-    const audioExtensions = ['.mp3', '.flac'];
+    // Filter to importable formats only
     const filesFiltered = files.filter(file => {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      if (!audioExtensions.includes(ext)) {
+      if (!isImportableAudioName(file.name)) {
         logger.debug(`[Import] ⏭️ Skipping unsupported format: ${file.name}`);
         return false;
       }
@@ -867,6 +887,7 @@ export function useImport({
   return {
     fileInputRef,
     handleLocalImport,
+    handleLocalFolderImport,
     handleCloudImport,
     handleCloudDropFilePaths,
     handleDropFiles,

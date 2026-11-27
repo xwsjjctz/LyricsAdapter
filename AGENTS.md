@@ -17,6 +17,54 @@
 - Use skills and OpenSpec when relevant to the request. Read only needed references.
   See [agent workflow](docs/agent-workflow.md) for OpenSpec operations.
 
+## Orca orchestration
+
+- The main agent acts as project coordinator. Own the plan, assignments,
+  dependencies, integration, acceptance, and final report. Delegate implementation
+  and follow-up fixes to the matching Orca bots by default, even when the work fits
+  one specialist. Dispatch independent work in parallel when it helps meet the
+  user's goal. Honor any user request to work in a single agent.
+- Follow the user's plan when provided, including assignments, dependencies, and
+  acceptance criteria. Otherwise split the task by deliverable. Give each worker a
+  self-contained brief with its goal, allowed files and commands, and what to report.
+- Use an Orca worker when the matching bot cannot take the assignment or when
+  implementation needs a supervised dispatch. Start workers with
+  `orca orchestration worker-start`. Default to local Codex workers with at most
+  three active at once. Use the current worktree for read-only work
+  and separate child worktrees when concurrent edits would conflict. Dispatch
+  dependent work once its prerequisites are met.
+- The coordinator reviews and integrates authorized changes, checks the acceptance
+  criteria, and sends findings back to the implementer for fixes. Write code only
+  when the user asks the coordinator to implement directly or when no authorized
+  bot or worker can complete a necessary change. Report any such direct work.
+  Delegates inherit the user's scope and this repository's test, build, and Git
+  rules. Delegates do not delegate recursively for this project.
+
+### Bot assignments
+
+Use the matching bot when its role fits a step in the user's task or plan. This is
+standing authorization to contact the bot within that step's scope. Use
+`orca orchestration send --to 'bot:<name>' --type question` when the coordinator
+needs a report. Use `handoff` when the user asks to transfer ownership to the bot.
+Give the bot the repository, worktree and ref or diff to inspect, the allowed
+actions and files, and the expected deliverable. Bot replies arrive by Orca mail.
+The coordinator reviews them before advancing dependent steps.
+
+| Bot | When to assign it | Expected result |
+| --- | --- | --- |
+| `bot:前端` | Renderer UI and UX work, including React components, layout, styles, interaction, and accessibility. | Implement the authorized UI changes or return a design review for a read-only task. Report changed files and any checks actually performed. |
+| `bot:后端` | Electron main-process, preload and IPC, persistence, file I/O, native integration, or service work. | Implement the authorized changes or return an analysis for a read-only task. Report affected contracts, changed files, and any checks actually performed. |
+| `bot:变更审查` | Independent acceptance review after integrating a complex change, or when the user requests review of a local diff. | Read-only findings against the requirements and architecture, with severity, file and line references, and missing verification. |
+| `bot:PR 评审` | Review of an existing GitHub PR when PR review is in scope. Provide the PR and head SHA. | Findings with severity, file and line references, and missing tests. Return them to the coordinator. Post comments, approve, or request changes on GitHub only with explicit user authorization. |
+| `bot:依赖更新` | The task calls for checking vulnerable or outdated dependencies or evaluating upgrades. Default to LyricsAdapter. Include LyricsAdapter-Android only when the user includes it in scope. | Read-only prioritized audit with affected and recommended versions and supporting evidence. Leave dependency files, commits, and PRs alone. |
+| `bot:工作区清理` | The user asks to inspect or clean up Orca workspaces. | Identify candidates with their paths and any uncommitted or unpushed work. Return the proposed cleanup. Remove a workspace only when the user has authorized removing it. |
+
+For a task that spans frontend and backend, establish the shared interface and its
+owner before parallel implementation. Give each implementer its own writable scope
+and isolate overlapping edits in separate worktrees. For IPC, assign ownership of
+the shared contract to one implementer. Integrate the results before requesting
+acceptance review, and resolve findings before continuing to any requested PR step.
+
 ## Navigation and commands
 
 When `.codegraph/` exists, try CodeGraph first for symbol and call-path questions:

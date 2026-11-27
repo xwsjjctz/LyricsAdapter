@@ -7,6 +7,3 @@ args = [
   "--output-dir",
   ".playwright-mcp",
 ]
-
-[agents]
-enabled = false

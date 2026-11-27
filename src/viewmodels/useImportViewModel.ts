@@ -20,6 +20,8 @@ export interface ImportViewModel {
 
   /** Open the native file dialog for the current view slot. */
   importClick(): void;
+  /** Open the native folder dialog; absent where folders cannot be imported. */
+  importFolderClick: (() => void) | undefined;
   /** Handle dropped File objects (browser-mode fallback). */
   dropFiles(files: File[]): Promise<void>;
   /** Handle dropped file paths (Electron drag-drop). */
@@ -35,6 +37,7 @@ export interface ImportViewModelOptions {
   importProgress: { loaded: number; total: number } | null;
   importDisabled: boolean;
   importClick: () => void;
+  importFolderClick: (() => void) | undefined;
   dropFiles: (files: File[]) => Promise<void>;
   dropFilePaths: (filePaths: { path: string; name: string }[]) => void;
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
@@ -47,6 +50,7 @@ export function useImportViewModel(opts: ImportViewModelOptions): ImportViewMode
     importProgress,
     importDisabled,
     importClick,
+    importFolderClick,
     dropFiles,
     dropFilePaths,
     onFileInputChange,
@@ -58,6 +62,7 @@ export function useImportViewModel(opts: ImportViewModelOptions): ImportViewMode
     importProgress,
     importDisabled,
     importClick,
+    importFolderClick,
     dropFiles,
     dropFilePaths,
     onFileInputChange,

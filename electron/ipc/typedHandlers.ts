@@ -17,6 +17,8 @@ import {
   doWebdavPut,
 } from './core/webdavCore';
 import { handleIpc } from './ipcMainTyped';
+import { collectImportableAudio } from '../services/audioFolderScan';
+import { IMPORTABLE_AUDIO_EXTENSIONS, type AudioPathScan } from '../../src/shared/audioFormats';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.aac']);
 const selectedAudioPaths = new Set<string>();
@@ -50,6 +52,18 @@ export function canReadAudioPath(filePath: string): boolean {
   return isAudioPath(resolved) && (selectedAudioPaths.has(resolved) || isInside(resolveUserDataPath('audio'), resolved));
 }
 
+/** Finds the importable audio under the given files and folders and admits it to the allowlist. */
+async function scanAndAllowAudio(roots: readonly string[]): Promise<IpcResult<AudioPathScan>> {
+  try {
+    const scan = await collectImportableAudio(roots);
+    for (const filePath of scan.filePaths) allowAudioPath(filePath);
+    return ok(scan);
+  } catch (error) {
+    logger.error('[TypedIPC] Audio folder scan failed:', error);
+    return fail((error as Error).message);
+  }
+}
+
 /** Resolves the request's credentials in the main process before calling WebDAV. */
 async function withWebdavAuthorization<T>(
   request: { url: string; credentials: WebdavCredentialMode },
@@ -69,7 +83,7 @@ export function registerTypedIpcHandlers(): void {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'Audio Files', extensions: ['mp3', 'flac', 'm4a', 'wav', 'ogg', 'aac'] },
+        { name: 'Audio Files', extensions: IMPORTABLE_AUDIO_EXTENSIONS.map(extension => extension.slice(1)) },
       ],
     });
 
@@ -80,6 +94,22 @@ export function registerTypedIpcHandlers(): void {
     }
 
     return ok({ canceled: result.canceled, filePaths: result.filePaths.filter(isAudioPath) });
+  });
+
+  handleIpc('ipc:file:selectAudioFolder', async () => {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'multiSelections'] });
+    if (result.canceled || result.filePaths.length === 0) {
+      return ok({ canceled: true, filePaths: [], truncated: false });
+    }
+    const scan = await scanAndAllowAudio(result.filePaths);
+    return scan.ok ? ok({ canceled: false, ...scan.data }) : scan;
+  });
+
+  handleIpc('ipc:file:expandAudioPaths', async (_event, payload: unknown) => {
+    const parsed = parsePayload(typedIpcSchemas.audioPaths, payload);
+    if (!parsed.ok) return parsed;
+    // A drop always yields absolute paths; anything else is not one.
+    return scanAndAllowAudio(parsed.data.paths.filter(candidate => path.isAbsolute(candidate)));
   });
 
   handleIpc('ipc:file:readAudio', async (_event, payload: unknown) => {

@@ -7,6 +7,9 @@ import type { PlaylistSwitcherAction, PlaylistSwitcherState } from './playlistSw
 import type { NativeContextMenuRequest } from './nativeContextMenu';
 import type { ApplicationMenuAction } from './applicationMenu';
 import type { IpcInvoker } from '../shared/ipcContract';
+import type { AudioPathScan } from '../shared/audioFormats';
+import type { LyricsMatchQuery } from '../domain/lyricsMatch';
+import type { OnlineLyricsResult } from '../shared/onlineMusic';
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -100,8 +103,18 @@ export interface TypedElectronIPC {
   };
   file: {
     selectAudio: () => Promise<IpcResult<{ canceled: boolean; filePaths: string[] }>>;
+    /** Folder picker; resolves to the importable audio beneath the chosen folders. */
+    selectAudioFolder: () => Promise<IpcResult<AudioPathScan & { canceled: boolean }>>;
+    /** Importable audio beneath dropped files and folders, admitted to the audio allowlist. */
+    expandAudioPaths: (paths: string[]) => Promise<IpcResult<AudioPathScan>>;
     readAudio: (filePath: string) => Promise<IpcResult<{ data: ArrayBuffer }>>;
     allowAudioPath: (filePath: string) => Promise<IpcResult<void>>;
+  };
+  lyrics: {
+    /** Whether lyrics may be looked up online on the app's own initiative; false in end-to-end runs. */
+    lookupAllowed: () => Promise<IpcResult<boolean>>;
+    /** Lyrics from the community collection (AMLL TTML DB); null when it has none for the track. */
+    matchCommunity: (query: LyricsMatchQuery) => Promise<IpcResult<OnlineLyricsResult | null>>;
   };
   library: {
     loadIndex: () => Promise<IpcResult<unknown>>;

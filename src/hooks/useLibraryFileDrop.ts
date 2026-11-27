@@ -1,12 +1,25 @@
 import { useCallback, useState } from 'react';
 import type React from 'react';
 import { logger } from '../services/logger';
+import { useTranslation } from 'react-i18next';
 import { getDesktopAPI } from '../services/desktopAdapter';
+import { notifyImportTruncated, notifyNothingImportable } from '../services/importFeedback';
+import { isImportableAudioName, type AudioPathScan } from '../shared/audioFormats';
+
+interface DroppedPath {
+  path: string;
+  name: string;
+}
+
+interface DroppedEntry {
+  file: File;
+  isDirectory: boolean;
+}
 
 interface UseLibraryFileDropOptions {
   importDisabled: boolean;
   onDropFiles?: ((files: File[]) => void) | undefined;
-  onDropFilePaths?: ((filePaths: { path: string; name: string }[]) => void) | undefined;
+  onDropFilePaths?: ((filePaths: DroppedPath[]) => void) | undefined;
 }
 
 interface LibraryFileDrop {
@@ -17,8 +30,24 @@ interface LibraryFileDrop {
   handleDrop: (e: React.DragEvent) => Promise<void>;
 }
 
+/** The files and folders a drop carries; a folder also arrives as a `File`, which only its entry tells apart. */
+function droppedEntries(transfer: DataTransfer): DroppedEntry[] {
+  const items = transfer.items ? Array.from(transfer.items).filter(item => item.kind === 'file') : [];
+  if (items.length === 0) {
+    return transfer.files ? Array.from(transfer.files).map(file => ({ file, isDirectory: false })) : [];
+  }
+  return items.flatMap(item => {
+    const file = item.getAsFile();
+    return file ? [{ file, isDirectory: item.webkitGetAsEntry()?.isDirectory === true }] : [];
+  });
+}
+
+function toDroppedPath(filePath: string): DroppedPath {
+  return { path: filePath, name: filePath.split(/[/\\]/).pop() || '' };
+}
+
 /**
- * External audio-file drops onto the library list. Desktop builds resolve
+ * External audio-file and folder drops onto the library list. Desktop builds resolve
  * real paths through the bridge; the browser build falls back to File objects.
  * Internal row reordering is handled separately by the list itself.
  */
@@ -27,6 +56,7 @@ export function useLibraryFileDrop({
   onDropFiles,
   onDropFilePaths,
 }: UseLibraryFileDropOptions): LibraryFileDrop {
+  const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -74,53 +104,66 @@ export function useLibraryFileDrop({
     setIsDragging(false);
     if (importDisabled) return;
 
-    // Get dropped files
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    logger.debug(`[LibraryView] Total files dropped: ${droppedFiles.length}`);
+    // Read the transfer before any await: it is emptied once the event returns.
+    const dropped = droppedEntries(e.dataTransfer);
+    // An internal row or tile drag carries no files and is not an import.
+    if (dropped.length === 0) return;
 
-    // Filter for supported audio files only (MP3, FLAC)
-    const audioExtensions = ['.mp3', '.flac'];
-    const audioFiles = droppedFiles.filter(file => {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      return audioExtensions.includes(ext);
-    });
+    const audioFiles = dropped
+      .filter(entry => !entry.isDirectory && isImportableAudioName(entry.file.name))
+      .map(entry => entry.file);
+    const folders = dropped.filter(entry => entry.isDirectory).map(entry => entry.file);
+    logger.debug(`[LibraryView] Dropped ${dropped.length} item(s): ${audioFiles.length} audio file(s), ${folders.length} folder(s)`);
 
-    logger.debug(`[LibraryView] Audio files after filtering: ${audioFiles.length}`);
-
-    if (audioFiles.length === 0) {
-      logger.warn('[LibraryView] No audio files dropped');
-      return;
-    }
-
-    // Check if we're in Electron mode and can get file paths
+    // Desktop: real paths through the bridge, with folders resolved to the audio beneath them.
     const desktopAPI = getDesktopAPI();
-    logger.debug('[LibraryView] Drop check - desktopAPI:', !!desktopAPI, 'getPathForFile:', !!desktopAPI?.getPathForFile, 'onDropFilePaths:', !!onDropFilePaths);
-
     if (desktopAPI?.getPathForFile && onDropFilePaths) {
-      // Electron mode: get real file paths
-      logger.debug('[LibraryView] Electron mode: getting file paths from dropped files');
+      // Called on the adapter: it is a method and needs its receiver.
+      const pathOf = (file: File): string => desktopAPI.getPathForFile!(file);
+      let filePaths: DroppedPath[] | null = null;
+      let folderPaths: string[] = [];
       try {
-        const filePaths = audioFiles.map(file => ({
-          path: desktopAPI.getPathForFile!(file),
-          name: file.name
-        }));
-        logger.debug(`[LibraryView] Got ${filePaths.length} file paths`);
-        onDropFilePaths(filePaths);
-        return;
+        filePaths = audioFiles.map(file => ({ path: pathOf(file), name: file.name }));
+        folderPaths = folders.map(pathOf);
       } catch (error) {
         logger.error('[LibraryView] Failed to get file paths:', error);
         // Fall through to File mode
       }
+
+      if (filePaths) {
+        const scan: AudioPathScan = folderPaths.length > 0
+          ? await desktopAPI.expandAudioPaths(folderPaths)
+          : { filePaths: [], truncated: false };
+        // A file dropped together with its own folder must not be imported twice.
+        const byPath = new Map<string, DroppedPath>();
+        for (const entry of [...filePaths, ...scan.filePaths.map(toDroppedPath)]) {
+          if (!byPath.has(entry.path)) byPath.set(entry.path, entry);
+        }
+        const importable = [...byPath.values()];
+        logger.debug(`[LibraryView] Got ${importable.length} file path(s)`);
+        if (importable.length === 0) {
+          notifyNothingImportable(t);
+          return;
+        }
+        if (scan.truncated) notifyImportTruncated(t, importable.length);
+        onDropFilePaths(importable);
+        return;
+      }
     }
 
-    // Web mode or fallback: use File objects
+    // Web mode or fallback: File objects, which cannot reach into folders.
+    if (audioFiles.length === 0) {
+      logger.warn('[LibraryView] No audio files dropped');
+      notifyNothingImportable(t);
+      return;
+    }
     if (onDropFiles) {
       logger.debug(`[LibraryView] Web mode: passing ${audioFiles.length} File objects`);
       onDropFiles(audioFiles);
     } else {
       logger.warn('[LibraryView] No drop handler available');
     }
-  }, [onDropFiles, onDropFilePaths, importDisabled]);
+  }, [onDropFiles, onDropFilePaths, importDisabled, t]);
 
   return { isDragging, handleDragOver, handleDragLeave, handleDrop };
 }

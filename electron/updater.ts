@@ -1,7 +1,8 @@
-import { app, autoUpdater as nativeAutoUpdater, BrowserWindow } from 'electron';
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, shell } from 'electron';
 import { autoUpdater, type UpdateInfo, type ProgressInfo } from 'electron-updater';
 import { logger } from './logger';
 import { getUpdaterUnavailableReason } from './services/updaterAvailability';
+import { allowsPrereleaseUpdates, findMacInstaller } from './services/manualAppUpdate';
 import type { UpdaterState, UpdaterUnavailableReason } from '../src/shared/updater';
 import { handleIpc, sendIpc } from './ipc/ipcMainTyped';
 
@@ -9,13 +10,14 @@ import { handleIpc, sendIpc } from './ipc/ipcMainTyped';
  * 主进程自动更新模块（electron-updater + GitHub Releases）。
  *
  * 支持 Windows NSIS 和 Developer ID 签名的 macOS 包。
- * 开发版、未签名/临时签名包及没有更新配置的包均不检查更新。
+ * 无法应用内更新的 macOS 安装包可手动检查 GitHub Releases。
  * 注意：electron-updater 仅在真打包构建里工作（npm run electron:dev 下会被跳过）。
  */
 
 // 主进程发送、渲染进程接收，共享 src/shared/updater.ts 中的同一个类型。
 const UPDATER_CHANNEL = 'updater-event' as const;
 let unavailableReason: UpdaterUnavailableReason | null = 'dev';
+let manualMacCheck = false;
 
 let startupCheckDone = false;
 // 设置页晚于启动检查挂载，需要能读到已经发生的状态。
@@ -67,11 +69,23 @@ function registerUpdaterIpc(prepareToInstall: () => Promise<boolean>, cancelInst
   handleIpc('updater:state', (): UpdaterState => currentState);
 
   handleIpc('updater:check', async (): Promise<{ ok: boolean; reason?: string }> => {
-    if (unavailableReason || installInProgress) {
+    if ((unavailableReason && !manualMacCheck) || installInProgress) {
       return { ok: false, reason: unavailableReason ?? 'installing' };
     }
+    if (manualMacCheck && currentState.status === 'checking') return { ok: true };
     try {
-      await autoUpdater.checkForUpdates();
+      if (manualMacCheck) {
+        send({ status: 'checking' });
+        const installer = await findMacInstaller(app.getVersion(), process.arch);
+        if (installer) {
+          await shell.openExternal(installer.url);
+          send({ status: 'manual-available', version: installer.version });
+        } else {
+          send({ status: 'not-available' });
+        }
+      } else {
+        await autoUpdater.checkForUpdates();
+      }
       return { ok: true };
     } catch (e) {
       reportUpdaterError(e);
@@ -122,16 +136,20 @@ export function initUpdater(prepareToInstall: () => Promise<boolean>, cancelInst
     resourcesPath: process.resourcesPath,
     executablePath: process.execPath,
   });
-  currentState = unavailableReason ? { status: 'unavailable', reason: unavailableReason } : { status: 'idle' };
+  manualMacCheck = unavailableReason === 'unsigned'
+    || (process.platform === 'darwin' && unavailableReason === 'unconfigured');
+  currentState = unavailableReason && !manualMacCheck
+    ? { status: 'unavailable', reason: unavailableReason }
+    : { status: 'idle' };
   registerUpdaterIpc(prepareToInstall, cancelInstall);
   if (unavailableReason) {
-    logger.info(`[Updater] Skipped (${unavailableReason}).`);
+    logger.info(`[Updater] ${manualMacCheck ? 'Manual checks only' : 'Skipped'} (${unavailableReason}).`);
     return;
   }
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.allowPrerelease = app.getVersion().startsWith('0.') || app.getVersion().includes('-');
+  autoUpdater.allowPrerelease = allowsPrereleaseUpdates(app.getVersion());
   // 按 blockmap 增量下载（Windows: .exe.blockmap，macOS: .zip.blockmap），失败时自动退回全量。
   // macOS 与上次更新缓存的 update.zip 比对，所以开启后的第一次更新仍是全量。
   autoUpdater.disableDifferentialDownload = false;

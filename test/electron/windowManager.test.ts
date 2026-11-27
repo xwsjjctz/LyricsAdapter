@@ -60,7 +60,9 @@ describe('windowManager', () => {
     vi.clearAllMocks();
     electronMocks.app.getAppPath.mockReturnValue('/virtual/app');
     electronMocks.app.getPath.mockReturnValue('/virtual/user-data');
-    electronMocks.BrowserWindow.mockImplementation(() => createBrowserWindowStub());
+    electronMocks.BrowserWindow.mockImplementation(function () {
+      return createBrowserWindowStub();
+    });
   });
 
   it('keeps macOS renderer timers active without disabling throttling elsewhere', () => {

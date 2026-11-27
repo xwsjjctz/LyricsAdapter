@@ -16,13 +16,13 @@ Listen to your own collection, connect a WebDAV library, or add QQ Music and Net
 
 ## Get started
 
-Download the installer for your device from [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases). The current release configuration provides a `.dmg` for Apple Silicon Macs and an `.exe` installer for Windows x64.
+Download the installer for your device from [Releases](https://github.com/xwsjjctz/LyricsAdapter/releases). The current release configuration provides a `.dmg` for Apple Silicon Macs and an `.exe` installer for Windows x64. The Android app (preview) is released separately at [LyricsAdapter-Android](https://github.com/xwsjjctz/LyricsAdapter-Android).
 
 > **First install on Windows**: The installer is not code-signed yet, so Microsoft Defender SmartScreen may show **Windows protected your PC** with an unknown publisher. After confirming the installer came from this repository's Releases, select **More info**, then **Run anyway** to continue.
 >
-> **First launch on macOS**: The app is not notarized by Apple yet, so macOS may say it cannot verify the developer. Drag the app into **Applications** and try to open it once, then go to **System Settings → Privacy & Security**, select **Open Anyway** near the bottom, and confirm. If macOS says the app **is damaged and can't be opened**, run `xattr -dr com.apple.quarantine /Applications/LyricsAdapter.app` in Terminal and open it again.
+> **macOS**: The app is signed and notarized by Apple. Drag it into **Applications** and open it directly; it also updates itself in the app.
 
-1. Open the app and press `⌘ / Ctrl` + `I` to select **MP3 or FLAC** files, or drag audio files into the window. While the library is empty, you can also use **Import Files** in the middle of the window.
+1. Open the app and press `⌘ / Ctrl` + `I` to select **MP3 or FLAC** files, or drag audio files or whole folders into the window. While the library is empty, you can also use **Import Files** or **Import Folder** in the middle of the window; a folder is scanned together with its sub-folders.
 2. Click a cover to play it, and use the floating player at the bottom to control playback.
 3. Use the Focus Mode button, or press `⌘ / Ctrl` + `Enter`, to view synchronized lyrics. On macOS the button is the blue dot next to the window controls at the top left; on Windows it sits on the right of the title bar.
 
@@ -60,7 +60,7 @@ The app remembers the current library, track, playback position, volume, and rel
 Press `⌘ / Ctrl` + `K` to open the command palette, and press `Tab` to switch between its **Library** and **Features** modes.
 
 - **Library** searches songs, artists, albums, and playlists across your local tracks and loaded cloud tracks, with support for Chinese pinyin and pinyin initials. With a music source plugin enabled, online songs appear too: click one to play it, click `+` to add it to your online history, or right-click to download it at a chosen quality.
-- **Features** switches libraries, opens or manages playlists, imports files, starts multi-select, refreshes the cloud library, plays all or shuffles, locates the current song, changes the appearance and language, and opens each settings page.
+- **Features** switches libraries, opens or manages playlists, imports files or folders, starts multi-select, refreshes the cloud library, plays all or shuffles, locates the current song, changes the appearance and language, and opens each settings page.
 
 ![Command palette: search](docs/images/palette.webp)
 
@@ -90,7 +90,15 @@ Focus Mode shows album artwork, an artwork-based background, and scrolling lyric
 - **Word-synced lyrics**: Songs with QRC/YRC or similar word timing highlight each word.
 - **Display options**: In **Settings → Focus Mode**, turn on the Apple Music–style **Flowing Background**, or adjust background opacity, background blur, lyric font size, and line spacing. Windows also offers a **New FocusMode Font** switch.
 
-A message appears when no lyrics are available. You can add lyrics with **Edit song information** on a local track; synchronized scrolling requires timestamps.
+Lyrics for a local song come from, in this order:
+
+1. The lyrics embedded in the audio file.
+2. An `.lrc` file with the same name as the audio file, such as `Song.lrc` next to `Song.flac`.
+3. An automatic match when neither exists: first a search in the enabled music source plugins (signed-in ones first; NetEase Cloud Music works without signing in, QQ Music needs a sign-in), then the [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) community collection of word-by-word lyrics.
+
+Matching runs in the background after an import, and songs imported earlier are looked up when you play them. A result is used only when title, artist, and duration agree; the lyrics are saved in the app's library and the audio file is left unchanged. To turn this off, use **Find Lyrics Automatically** in the command palette's **Features** mode.
+
+A message appears when there are still no lyrics. You can add lyrics with **Edit song information** on a local track; synchronized scrolling requires timestamps.
 
 ![Focus Mode settings](docs/images/settings.webp)
 
@@ -192,4 +200,4 @@ npm run electron:dev
 
 ## License and credits
 
-The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](assets/app-icon/LICENSE). See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.
+The project uses [GPLv3](LICENSE), and the app icon uses [CC BY 4.0](assets/app-icon/LICENSE). Some automatically matched word-by-word lyrics come from [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) and its contributors. See the [third-party notices](docs/THIRD_PARTY_NOTICES.md) for component and design credits, and the [privacy policy](PRIVACY.md) for how the app handles data.

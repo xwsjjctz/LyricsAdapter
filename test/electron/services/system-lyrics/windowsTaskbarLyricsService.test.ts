@@ -50,7 +50,7 @@ interface TestSubscriptions {
   unlock?: () => void;
   suspend?: () => void;
   resume?: () => void;
-  disposeSession: ReturnType<typeof vi.fn>;
+  disposeSession: ReturnType<typeof vi.fn<() => void>>;
 }
 
 function createHarness(

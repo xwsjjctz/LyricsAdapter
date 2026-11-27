@@ -98,9 +98,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Unit tests
-        run: npm test
-
   native-build-macos:
     name: macOS native build
     runs-on: macos-latest

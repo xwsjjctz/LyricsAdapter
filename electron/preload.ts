@@ -103,8 +103,14 @@ const typedIpc = {
   },
   file: {
     selectAudio: invoker('ipc:file:selectAudio'),
+    selectAudioFolder: invoker('ipc:file:selectAudioFolder'),
+    expandAudioPaths: async (paths: string[]) => invoke('ipc:file:expandAudioPaths', { paths }),
     readAudio: async (filePath: string) => invoke('ipc:file:readAudio', { filePath }),
     allowAudioPath: async (filePath: string) => invoke('ipc:file:allowAudioPath', { filePath }),
+  },
+  lyrics: {
+    lookupAllowed: invoker('ipc:lyrics:lookupAllowed'),
+    matchCommunity: invoker('ipc:lyrics:matchCommunity'),
   },
   library: {
     loadIndex: invoker('ipc:library:loadIndex'),

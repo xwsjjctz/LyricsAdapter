@@ -25,6 +25,7 @@ export type UpdaterState =
   | { status: 'checking' }
   | { status: 'not-available' }
   | { status: 'available'; info: UpdateInfo }
+  | { status: 'manual-available'; version: string }
   | { status: 'downloading'; info: UpdateInfo; progress: UpdateProgress | null }
   | { status: 'downloaded'; info: UpdateInfo }
   | { status: 'error'; message: string };

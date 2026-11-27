@@ -24,6 +24,8 @@ function deps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     importDisabled: false,
     reloadFiles: vi.fn(),
     hasUnavailableTracks: false,
+    lyricsAutoMatch: true,
+    toggleLyricsAutoMatch: vi.fn(),
     playAll: vi.fn(),
     shuffleAll: vi.fn(),
     toggleFocusMode: vi.fn(),
@@ -89,6 +91,25 @@ describe('buildAppCommands', () => {
     expect(command?.title).toBe('library.locateToCurrent');
     void command?.run?.();
     expect(locateCurrentTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers folder import only where a folder can be imported', () => {
+    expect(byId(buildAppCommands(deps(), t), 'library.importFolder')).toBeUndefined();
+    const importFolder = vi.fn();
+    const command = byId(buildAppCommands(deps({ importFolder }), t), 'library.importFolder');
+    expect(command?.title).toBe('sidebar.importFolder');
+    void command?.run?.();
+    expect(importFolder).toHaveBeenCalledTimes(1);
+    expect(byId(buildAppCommands(deps({ importFolder, importDisabled: true }), t), 'library.importFolder')).toBeUndefined();
+  });
+
+  it('shows whether lyrics are looked up automatically and toggles it in place', () => {
+    const toggleLyricsAutoMatch = vi.fn();
+    const on = byId(buildAppCommands(deps({ toggleLyricsAutoMatch }), t), 'library.lyricsAutoMatch');
+    expect(on).toMatchObject({ detail: 'palette.state.on', keepOpen: true });
+    void on?.run?.();
+    expect(toggleLyricsAutoMatch).toHaveBeenCalledTimes(1);
+    expect(byId(buildAppCommands(deps({ lyricsAutoMatch: false }), t), 'library.lyricsAutoMatch')?.detail).toBe('palette.state.off');
   });
 
   it('omits commands that cannot run right now', () => {

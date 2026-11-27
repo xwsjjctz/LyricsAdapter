@@ -8,6 +8,7 @@ const FLOATING_PANEL_KEY = 'la_floating_panel';
 const BG_BLUR_TRANS_KEY = 'la_bg_blur_trans';
 const ONLINE_SOURCE_KEY = 'la_online_source';
 const GSAP_BUTTON_BOUNCE_KEY = 'la_gsap_button_bounce';
+const LYRICS_AUTO_MATCH_KEY = 'la_lyrics_auto_match';
 // Wall or classic list; a new key so values from the retired la_library_mode
 // (which defaulted to the list) cannot override the poster-wall default.
 const LIBRARY_MODE_KEY = 'la_library_layout';
@@ -34,6 +35,8 @@ class SettingsManager {
   private onlineSource: OnlineSource = 'qq';
   // Keep the interaction enabled for existing installations after this setting ships.
   private gsapButtonBounce: boolean = true;
+  // Looking up lyrics for local songs that have none is on unless switched off.
+  private lyricsAutoMatch: boolean = true;
   private libraryMode: LibraryMode = 'wall';
   private focusBgBlurRadius: number = 80;
   private focusLyricsFontSize: number = 32;
@@ -59,6 +62,7 @@ class SettingsManager {
       this.bgBlurTrans = 1.0;
       this.onlineSource = 'qq';
       this.gsapButtonBounce = true;
+      this.lyricsAutoMatch = true;
       this.libraryMode = 'wall';
       this.focusBgBlurRadius = 80;
       this.focusLyricsFontSize = 32;
@@ -87,6 +91,7 @@ class SettingsManager {
 
 
       this.gsapButtonBounce = appStorage.getItem(GSAP_BUTTON_BOUNCE_KEY) !== 'false';
+      this.lyricsAutoMatch = appStorage.getItem(LYRICS_AUTO_MATCH_KEY) !== 'false';
       this.libraryMode = appStorage.getItem(LIBRARY_MODE_KEY) === 'list' ? 'list' : 'wall';
 
       const blurRadius = appStorage.getItem(FOCUS_BG_BLUR_RADIUS_KEY);
@@ -243,6 +248,21 @@ class SettingsManager {
     const persisted = this.persistSetting(GSAP_BUTTON_BOUNCE_KEY, enabled ? 'true' : 'false', () => { this.gsapButtonBounce = previous; });
     this.notify();
     logger.debug(`[SettingsManager] GSAP button bounce set to: ${enabled}`);
+    return persisted;
+  }
+
+  // --- Automatic lyrics lookup ---
+
+  getLyricsAutoMatch(): boolean {
+    return this.lyricsAutoMatch;
+  }
+
+  setLyricsAutoMatch(enabled: boolean): Promise<boolean> {
+    const previous = this.lyricsAutoMatch;
+    this.lyricsAutoMatch = enabled;
+    const persisted = this.persistSetting(LYRICS_AUTO_MATCH_KEY, enabled ? 'true' : 'false', () => { this.lyricsAutoMatch = previous; });
+    this.notify();
+    logger.debug(`[SettingsManager] Automatic lyrics lookup set to: ${enabled}`);
     return persisted;
   }
 

@@ -65,6 +65,15 @@ source.
 No FluentFlyout name, logo, screenshots, icons, or other branding assets are
 incorporated into LyricsAdapter by this acknowledgement.
 
+## AMLL TTML DB
+
+When a local song has no lyrics, LyricsAdapter can look them up in
+[AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db), a community
+collection of word-by-word lyrics. The collection's own contributions are
+shared under CC0 1.0; data that originates elsewhere keeps its provider's
+terms. No lyrics from it are bundled with the app: the index and the lyric
+files of matched songs are downloaded at run time.
+
 ## Corresponding Source
 
 The complete preferred form for modifying LyricsAdapter is maintained in the

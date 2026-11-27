@@ -16,6 +16,7 @@ import { registerWindowControls } from './ipc/windowHandlers';
 import { registerMusicPluginHandlers } from './ipc/musicPluginHandlers';
 import { registerDownloadHandlers } from './ipc/downloadHandlers';
 import { registerMetadataHandlers } from './ipc/metadataHandlers';
+import { registerLyricsHandlers } from './ipc/lyricsHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerTypedIpcHandlers } from './ipc/typedHandlers';
 import { registerCleanupHandlers } from './ipc/cleanupHandlers';
@@ -138,6 +139,7 @@ app.whenReady().then(async () => {
   registerCoverHandlers();
   registerDownloadHandlers();
   registerMetadataHandlers();
+  registerLyricsHandlers();
   registerCleanupHandlers();
   registerSettingsHandlers((keys, senderId) => {
     if (!keys || keys.some(key => key === 'app-language' || key === 'app-shortcuts')) registerApplicationMenu(getWindow);

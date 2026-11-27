@@ -6,6 +6,8 @@ import { shortcutManager, type ShortcutAction } from '../../services/shortcuts';
 interface WallWelcomeProps {
   /** Opens the file picker; absent while importing is unavailable. */
   onImport?: (() => void) | undefined;
+  /** Opens the folder picker; absent where folders cannot be imported. */
+  onImportFolder?: (() => void) | undefined;
 }
 
 /** The three keys worth knowing on day one; the command palette lists everything else. */
@@ -29,7 +31,7 @@ function keyCaps(binding: string, mac: boolean, space: string): string[] {
  * Teaching the command palette is enough, since it shows every command with its shortcut.
  * Bindings come from the user's shortcut settings, so a remapped key reads correctly.
  */
-export default function WallWelcome({ onImport }: WallWelcomeProps) {
+export default function WallWelcome({ onImport, onImportFolder }: WallWelcomeProps) {
   const { t } = useTranslation();
   const keysId = useId();
   const mac = getDesktopAPI()?.platform === 'darwin';
@@ -44,10 +46,18 @@ export default function WallWelcome({ onImport }: WallWelcomeProps) {
       <h1 className="wall-welcome__title">{t('welcome.title')}</h1>
       <p className="wall-welcome__lead">{t('welcome.lead')}</p>
       {onImport && (
-        <button type="button" className="wall-float wall-float__button wall-empty-action" onClick={onImport}>
-          <span className="material-symbols-rounded" aria-hidden="true">library_add</span>
-          {t('sidebar.importFiles')}
-        </button>
+        <div className="wall-welcome__actions">
+          <button type="button" className="wall-float wall-float__button wall-empty-action" onClick={onImport}>
+            <span className="material-symbols-rounded" aria-hidden="true">library_add</span>
+            {t('sidebar.importFiles')}
+          </button>
+          {onImportFolder && (
+            <button type="button" className="wall-float wall-float__button wall-empty-action" onClick={onImportFolder}>
+              <span className="material-symbols-rounded" aria-hidden="true">create_new_folder</span>
+              {t('sidebar.importFolder')}
+            </button>
+          )}
+        </div>
       )}
       {keys.length > 0 && (
         <section className="wall-welcome__keys" aria-labelledby={keysId}>

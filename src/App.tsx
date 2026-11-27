@@ -31,6 +31,7 @@ import { usePlaylistViewModel } from './viewmodels/usePlaylistViewModel';
 import { useLibraryCloudSync } from './hooks/useLibraryCloudSync';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useSystemLyrics } from './hooks/useSystemLyrics';
+import { useLyricsAutoMatch } from './hooks/useLyricsAutoMatch';
 import { revealStartupScreen } from './services/startupScreen';
 
 declare global {
@@ -220,6 +221,7 @@ const AppContent: React.FC = () => {
     handleFileInputChange,
     importProgress,
     handleImportClick,
+    handleImportFolderClick,
     handleViewDropFilePaths,
     importDisabled,
   } = useImportRouting({
@@ -247,6 +249,7 @@ const AppContent: React.FC = () => {
     importProgress,
     importDisabled,
     importClick: handleImportClick,
+    importFolderClick: handleImportFolderClick,
     dropFiles: handleDropFiles,
     dropFilePaths: handleViewDropFilePaths,
     onFileInputChange: handleFileInputChange,
@@ -314,6 +317,16 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (libraryReady) return revealStartupScreen();
   }, [libraryReady]);
+
+  // Local tracks without lyrics get them looked up in the background.
+  const getLocalTracks = useCallback(() => getSlots().local.tracks, [getSlots]);
+  useLyricsAutoMatch({
+    ready: libraryReady,
+    localTracks: slots.local.tracks,
+    getLocalTracks,
+    currentTrackId: currentTrack?.id,
+    applyMatchedLyrics: libraryController.applyMatchedLyrics,
+  });
 
   // Sync QQ / NetEase cookies to the main-process streaming proxy on mount.
   useEffect(() => {

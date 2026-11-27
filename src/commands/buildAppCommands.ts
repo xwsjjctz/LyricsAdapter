@@ -19,9 +19,14 @@ export interface AppCommandDeps {
   openPlaylist: (playlist: PlaylistInfo) => void;
   togglePlaylistHidden: (playlist: PlaylistInfo) => void;
   importFiles: () => void;
+  /** Present only where a folder can be imported: the desktop app, outside the cloud source. */
+  importFolder?: (() => void) | undefined;
   importDisabled: boolean;
   reloadFiles: () => void;
   hasUnavailableTracks: boolean;
+  /** Whether lyrics are looked up for local songs that have none. */
+  lyricsAutoMatch: boolean;
+  toggleLyricsAutoMatch: () => void;
   /** Present only while the shown list can be multi-selected. */
   selectTracks?: (() => void) | undefined;
   /** Present only while the cloud source is shown. */
@@ -116,6 +121,12 @@ function libraryCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
       keywords: ['import', 'add', 'files'], shortcut: 'importMusic', run: deps.importFiles,
     });
   }
+  if (!deps.importDisabled && deps.importFolder) {
+    commands.push({
+      id: 'library.importFolder', title: t('sidebar.importFolder'), icon: 'create_new_folder', group: 'library',
+      keywords: ['import', 'add', 'folder', 'directory', 'scan', '文件夹', '目录'], run: deps.importFolder,
+    });
+  }
   if (deps.selectTracks) {
     commands.push({
       id: 'library.select', title: t('library.selectMultiple'), icon: 'checklist', group: 'library',
@@ -128,6 +139,12 @@ function libraryCommands(deps: AppCommandDeps, t: TFunction): PaletteCommand[] {
       keywords: ['refresh', 'sync', 'cloud', 'webdav'], run: deps.refreshCloud,
     });
   }
+  commands.push({
+    id: 'library.lyricsAutoMatch', title: t('palette.command.lyricsAutoMatch'), icon: 'lyrics', group: 'library',
+    keywords: ['lyrics', 'lrc', 'match', 'find', 'auto', 'online', '歌词', '匹配'],
+    detail: t(deps.lyricsAutoMatch ? 'palette.state.on' : 'palette.state.off'),
+    keepOpen: true, run: deps.toggleLyricsAutoMatch,
+  });
   if (deps.hasUnavailableTracks) {
     commands.push({
       id: 'library.reload', title: t('sidebar.reloadFiles'), icon: 'refresh', group: 'library',
